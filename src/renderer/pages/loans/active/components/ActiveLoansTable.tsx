@@ -43,6 +43,15 @@ const ActiveLoansTable: React.FC<ActiveLoansTableProps> = ({
     return "text-green-600";
   };
 
+  // Helper to compute accrued interest
+  const computeAccruedInterest = (loan: Debt): number => {
+    // accruedInterest = remainingAmount - (totalAmount - paidAmount)
+    const total = loan.totalAmount;
+    const paid = loan.paidAmount;
+    const remaining = loan.remainingAmount;
+    return Math.max(0, remaining - (total - paid));
+  };
+
   return (
     <div className="overflow-x-auto rounded-md border" style={{ borderColor: "var(--border-color)" }}>
       <table className="min-w-full">
@@ -67,7 +76,11 @@ const ActiveLoansTable: React.FC<ActiveLoansTableProps> = ({
               <div className="flex items-center gap-1">Total Amount {getSortIcon("totalAmount")}</div>
             </th>
             <th className="px-4 py-3 text-left text-xs font-medium uppercase cursor-pointer" onClick={() => onSort("remainingAmount")}>
-              <div className="flex items-center gap-1">Remaining {getSortIcon("remainingAmount")}</div>
+              <div className="flex items-center gap-1">Remaining Balance {getSortIcon("remainingAmount")}</div>
+            </th>
+            {/* 🆕 Accrued Interest Column - not sortable by default (can add later) */}
+            <th className="px-4 py-3 text-left text-xs font-medium uppercase">
+              <div className="flex items-center gap-1">Accrued Interest</div>
             </th>
             <th className="px-4 py-3 text-left text-xs font-medium uppercase cursor-pointer" onClick={() => onSort("dueDate")}>
               <div className="flex items-center gap-1">Due Date {getSortIcon("dueDate")}</div>
@@ -79,6 +92,7 @@ const ActiveLoansTable: React.FC<ActiveLoansTableProps> = ({
         <tbody>
           {loans.map((loan) => {
             const daysLeft = daysUntil(loan.dueDate);
+            const accruedInterest = computeAccruedInterest(loan);
             return (
               <tr key={loan.id} className="hover:bg-[var(--card-hover-bg)] transition-colors border-b" style={{ borderColor: "var(--border-color)" }}>
                 <td className="px-2 py-3">
@@ -94,6 +108,8 @@ const ActiveLoansTable: React.FC<ActiveLoansTableProps> = ({
                 <td className="px-4 py-3">{loan.borrower?.name || "—"}</td>
                 <td className="px-4 py-3">{formatCurrency(loan.totalAmount)}</td>
                 <td className="px-4 py-3 font-semibold" style={{ color: "var(--debt-high)" }}>{formatCurrency(loan.remainingAmount)}</td>
+                {/* 🆕 Show accrued interest */}
+                <td className="px-4 py-3 text-amber-600 font-medium">{formatCurrency(accruedInterest)}</td>
                 <td className="px-4 py-3">{formatDate(loan.dueDate)}</td>
                 <td className={`px-4 py-3 ${getDaysLeftClass(daysLeft)}`}>{daysLeft < 0 ? `Overdue by ${-daysLeft} days` : `${daysLeft} days`}</td>
                 <td className="px-4 py-3 text-right">

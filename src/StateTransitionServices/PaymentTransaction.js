@@ -54,7 +54,7 @@ class PaymentTransactionStateTransitionService {
     if (!debt) throw new Error("Payment has no associated debt");
 
     debt.paidAmount = (debt.paidAmount || 0) + payment.amount;
-    debt.remainingAmount = debt.totalAmount - debt.paidAmount;
+    debt.remainingAmount = debt.remainingAmount - payment.amount;
     if (debt.remainingAmount < 0) debt.remainingAmount = 0;
     debt.updatedAt = new Date();
     // @ts-ignore
@@ -85,10 +85,11 @@ class PaymentTransactionStateTransitionService {
     const debt = await debtRepo.findOne({ where: { id: payment.debt.id } });
     if (!debt) throw new Error("Payment has no associated debt");
 
+    // ✅ Correct: subtract from paidAmount, add back to remainingAmount
     debt.paidAmount = Math.max(0, (debt.paidAmount || 0) - payment.amount);
-    debt.remainingAmount = debt.totalAmount - debt.paidAmount;
-    if (debt.remainingAmount < 0) debt.remainingAmount = 0;
+    debt.remainingAmount = debt.remainingAmount + payment.amount;
     debt.updatedAt = new Date();
+
     // @ts-ignore
     await updateDb(debtRepo, debt, { queryRunner, skipSignal: true });
 
@@ -128,7 +129,7 @@ class PaymentTransactionStateTransitionService {
     if (!debt) throw new Error("Payment has no associated debt");
 
     debt.paidAmount = (debt.paidAmount || 0) + diff;
-    debt.remainingAmount = debt.totalAmount - debt.paidAmount;
+    debt.remainingAmount = debt.remainingAmount - diff;
     if (debt.remainingAmount < 0) debt.remainingAmount = 0;
     debt.updatedAt = new Date();
     // @ts-ignore
