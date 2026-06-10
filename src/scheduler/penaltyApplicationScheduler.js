@@ -107,8 +107,8 @@ class PenaltyApplicationScheduler {
   async hasPenaltySinceDueDate(debtId, dueDate, queryRunner = null) {
     const PenaltyTransaction = require("../entities/PenaltyTransaction");
     const penaltyRepo = queryRunner
-      // @ts-ignore
-      ? queryRunner.manager.getRepository(PenaltyTransaction)
+      ? // @ts-ignore
+        queryRunner.manager.getRepository(PenaltyTransaction)
       : AppDataSource.getRepository(PenaltyTransaction);
 
     const count = await penaltyRepo
@@ -158,10 +158,11 @@ class PenaltyApplicationScheduler {
       cutoffDate.setDate(cutoffDate.getDate() - graceDays);
       const overdueDebts = await debtRepo
         .createQueryBuilder("debt")
-        .leftJoinAndSelect("debt.borrower", "borrower")
-        .where("debt.status = :status", { status: "overdue" })
+        .where("debt.dueDate < :cutoffDate", { cutoffDate })
         .andWhere("debt.remainingAmount > 0")
-        .andWhere("debt.dueDate < :cutoffDate", { cutoffDate })
+        .andWhere("debt.status IN (:...statuses)", {
+          statuses: ["active", "overdue"],
+        })
         .andWhere("debt.deletedAt IS NULL")
         .getMany();
 

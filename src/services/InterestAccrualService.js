@@ -21,14 +21,14 @@ class InterestAccrualService {
 
   /**
    * Mag-accrue ng interes para sa isang utang hanggang sa isang target date.
-   * Ginagamit ito bago mag-apply ng payment, o sa scheduler.
-   *
    * @param {Object} debt - Debt entity
    * @param {Date} asOfDate - petsa kung hanggang kailan mag-aaccrue (default: ngayon)
+   * @param {import("typeorm").QueryRunner|null} queryRunner - para sa transaction
    * @returns {Promise<Object>} updated debt
    */
-  async applyAccrual(debt, asOfDate = new Date()) {
+  async applyAccrual(debt, asOfDate = new Date(), queryRunner = null) {
     const { updateDb } = require("../utils/dbUtils/dbActions");
+
     // Skip kung hindi active/overdue
     // @ts-ignore
     if (debt.status !== "active" && debt.status !== "overdue") {
@@ -84,7 +84,7 @@ class InterestAccrualService {
       return debt;
     }
 
-    // Bilang ng araw mula lastDate hanggang targetDate (exclusive ng lastDate, inclusive ng targetDate? standard: from lastDate+1 to targetDate)
+    // Bilang ng araw mula lastDate hanggang targetDate
     const daysDiff = Math.floor(
       // @ts-ignore
       (targetDate - lastDate) / (1000 * 60 * 60 * 24),
@@ -116,9 +116,12 @@ class InterestAccrualService {
     // @ts-ignore
     debt.updatedAt = new Date();
 
-    // I-save gamit ang updateDb (skipSignal para hindi ma-trigger ang ibang hooks kung gusto)
+    // I-save gamit ang updateDb (ipasa ang queryRunner kung mayroon)
+    const debtRepo = queryRunner
+      ? queryRunner.manager.getRepository(Debt)
+      : this.debtRepo;
     // @ts-ignore
-    await updateDb(this.debtRepo, debt, { skipSignal: true });
+    await updateDb(debtRepo, debt, { queryRunner, skipSignal: true });
 
     logger.info(
       // @ts-ignore
