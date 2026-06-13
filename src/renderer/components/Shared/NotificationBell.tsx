@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { Bell } from "lucide-react";
 import notificationAPI from "../../api/core/notification";
-import { NotificationDrawer } from "./NotificationDrawer";
+import { NotificationDropdown } from "./NotificationDrawer";
 
 const NotificationBell: React.FC = () => {
   const [unreadCount, setUnreadCount] = useState(0);
@@ -36,7 +36,7 @@ const NotificationBell: React.FC = () => {
           </span>
         )}
       </button>
-      <NotificationDrawer isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} />
+      <NotificationDropdown />
     </>
   );
 };

@@ -9,6 +9,7 @@ import ThemeToggle from "../components/Shared/ThemeToggle";
 import UpdateNotifier from "../components/Shared/UpdateNotifier";
 import NotificationBell from "../components/Shared/NotificationBell";
 import StatusIndicators from "../components/Shared/StatusIndicators";
+import { NotificationDropdown } from "../components/Shared/NotificationDrawer";
 
 interface TopBarProps {
   toggleSidebar: () => void;
@@ -49,7 +50,7 @@ const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
         <UpdateNotifier />
         <SyncStatusIndicator />
         <ThemeToggle />
-        <NotificationBell />
+        <NotificationDropdown />
         <button
           onClick={() => navigate("/loans/applications")}
           className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--primary-color)] hover:bg-[var(--primary-hover)] text-white text-sm font-medium transition-all duration-200 shadow-md"

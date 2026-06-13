@@ -123,7 +123,7 @@ const DebtorTable: React.FC<DebtorTableProps> = ({
                 <input
                   type="checkbox"
                   checked={selectedDebtors.includes(debtor.id)}
-                  onChange={() => onToggleSelect(debtor.id)}
+                  onChange={(e) => {e.stopPropagation(); onToggleSelect(debtor.id)}}
                   className="h-4 w-4 rounded"
                   style={{ accentColor: "var(--primary-color)" }}
                 />
