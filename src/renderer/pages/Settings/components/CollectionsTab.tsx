@@ -75,6 +75,30 @@ const CollectionsTab: React.FC<Props> = ({ settings, onUpdate }) => {
           />
         </div>
 
+        <div>
+          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+            Default Interest Calculation Period (for new loans)
+          </label>
+          <select
+            value={settings.interest_calculation_period ?? "per_annum"}
+            onChange={(e) =>
+              onUpdate("interest_calculation_period", e.target.value)
+            }
+            className="windows-input w-full"
+          >
+            <option value="per_annum">
+              Per Annum (yearly) - 365 days/year
+            </option>
+            <option value="per_month">
+              Per Month (monthly) - 30 days/month
+            </option>
+          </select>
+          <p className="text-xs text-[var(--text-tertiary)] mt-1">
+            This setting will be applied as default when creating a new loan.
+            Existing loans retain their own period.
+          </p>
+        </div>
+
         <div className="flex items-center gap-2">
           <input
             type="checkbox"

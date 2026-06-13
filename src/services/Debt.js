@@ -1,7 +1,12 @@
 // services/DebtService.js
+//@ts-check
 const auditLogger = require("../utils/auditLogger");
 const { validateDebtData } = require("../utils/debtUtils");
-const { defaultInterestRate, defaultPenaltyRate } = require("../utils/system");
+const {
+  defaultInterestRate,
+  defaultPenaltyRate,
+  defaultInterestCalculationPeriod,
+} = require("../utils/system");
 const { paginateQueryBuilder } = require("../utils/dbUtils/pagination");
 // @ts-ignore
 const { logger } = require("../utils/logger");
@@ -69,6 +74,10 @@ class DebtService {
   async create(debtData, user = "system", qr = null) {
     const { saveDb } = require("../utils/dbUtils/dbActions");
     const Debt = require("../entities/Debt");
+    const defaultPeriod = await defaultInterestCalculationPeriod();
+    // @ts-ignore
+    const interestCalculationPeriod =
+      debtData.interestCalculationPeriod || defaultPeriod;
     // @ts-ignore
     const debtRepo = this._getRepo(qr, Debt);
     // @ts-ignore
@@ -128,6 +137,7 @@ class DebtService {
         status,
         interestRate: finalInterestRate,
         penaltyRate: finalPenaltyRate,
+        interestCalculationPeriod,
         borrower,
         createdAt: new Date(),
         updatedAt: new Date(),

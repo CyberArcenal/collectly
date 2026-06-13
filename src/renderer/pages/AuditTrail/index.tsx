@@ -50,7 +50,7 @@ const AuditTrailPage: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-[var(--background-color)] p-6">
+    <div className="h-full flex flex-col bg-[var(--card-bg)] p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-[var(--text-primary)]">

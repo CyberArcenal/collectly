@@ -1,4 +1,4 @@
-// components/Shared/NotificationDropdown.tsx
+// components/Shared/NotificationDrawer.tsx
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Bell, CheckCheck, Trash2, Loader2, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { format } from "date-fns";
@@ -18,9 +18,19 @@ export const NotificationDropdown: React.FC = () => {
   const [show, setShow] = useState(false);
   const [anim, setAnim] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const limit = 10; // limit for dropdown, fewer than drawer
+  const limit = 10;
 
-  // Fetch notifications when dropdown opens or page changes
+  // Fetch unread count (memoized)
+  const fetchUnreadCount = useCallback(async () => {
+    try {
+      const count = await notificationAPI.getUnreadCount();
+      setUnreadCount(count);
+    } catch (err) {
+      console.error("Failed to fetch unread count", err);
+    }
+  }, []);
+
+  // Fetch notifications when dropdown opens
   const fetchNotifications = useCallback(async (reset: boolean = false) => {
     if (!show) return;
     try {
@@ -46,26 +56,35 @@ export const NotificationDropdown: React.FC = () => {
     }
   }, [page, show]);
 
-  const fetchUnreadCount = useCallback(async () => {
-    try {
-      const count = await notificationAPI.getUnreadCount();
-      setUnreadCount(count);
-    } catch (err) {
-      console.error("Failed to fetch unread count", err);
-    }
-  }, []);
+  // ✅ Auto-refresh unread count periodically (kahit sarado ang dropdown)
+  useEffect(() => {
+    fetchUnreadCount(); // initial fetch
+    const interval = setInterval(() => {
+      fetchUnreadCount();
+    }, 30000); // every 30 seconds
+    return () => clearInterval(interval);
+  }, [fetchUnreadCount]);
+
+  // ✅ Refresh unread count when window gains focus
+  useEffect(() => {
+    const handleFocus = () => {
+      fetchUnreadCount();
+    };
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [fetchUnreadCount]);
 
   // Reset and load when dropdown opens
   useEffect(() => {
     if (show) {
       setPage(1);
       setNotifications([]);
-      fetchUnreadCount();
+      fetchUnreadCount(); // refresh again when opened
       fetchNotifications(true);
     }
   }, [show, fetchNotifications, fetchUnreadCount]);
 
-  // Load more when page changes (pagination)
+  // Load more when page changes
   useEffect(() => {
     if (show && page > 1) {
       fetchNotifications(false);
@@ -352,7 +371,7 @@ export const NotificationDropdown: React.FC = () => {
             )}
           </div>
 
-          {/* Footer link to full page */}
+          {/* Footer link to full page (hidden for now) */}
           <div className="px-4 py-2 border-t border-[var(--border-color)] text-center bg-[var(--sidebar-bg)] hidden">
             <button
               onClick={() => {

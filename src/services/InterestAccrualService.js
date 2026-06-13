@@ -30,44 +30,38 @@ class InterestAccrualService {
     const { updateDb } = require("../utils/dbUtils/dbActions");
 
     // Skip kung hindi active/overdue
-    // @ts-ignore
+
     if (debt.status !== "active" && debt.status !== "overdue") {
       logger.debug(
-        // @ts-ignore
         `[InterestAccrual] Skip debt #${debt.id}, status: ${debt.status}`,
       );
       return debt;
     }
 
     // Skip kung walang interest rate o zero
-    // @ts-ignore
+
     if (!debt.interestRate || debt.interestRate <= 0) {
       logger.debug(
-        // @ts-ignore
         `[InterestAccrual] Skip debt #${debt.id}, interestRate = ${debt.interestRate}`,
       );
       return debt;
     }
 
     // Skip kung fully paid na
-    // @ts-ignore
+
     if (debt.remainingAmount <= 0.01) {
       logger.debug(
-        // @ts-ignore
         `[InterestAccrual] Skip debt #${debt.id}, remaining = ${debt.remainingAmount}`,
       );
       return debt;
     }
 
     // Kunin ang huling accrual date (kung null, gamitin ang createdAt)
-    // @ts-ignore
+
     let lastDate = debt.lastInterestAccrualDate
-      // @ts-ignore
       ? new Date(debt.lastInterestAccrualDate)
-      // @ts-ignore
       : new Date(debt.createdAt);
     if (isNaN(lastDate.getTime())) {
-      // @ts-ignore
       lastDate = new Date(debt.createdAt);
     }
     lastDate.setHours(0, 0, 0, 0);
@@ -78,7 +72,6 @@ class InterestAccrualService {
     // Kung ang target date ay hindi lalampas sa last accrual date, walang gagawin
     if (targetDate <= lastDate) {
       logger.debug(
-        // @ts-ignore
         `[InterestAccrual] Debt #${debt.id} already accrued up to ${lastDate.toISOString()}`,
       );
       return debt;
@@ -86,52 +79,56 @@ class InterestAccrualService {
 
     // Bilang ng araw mula lastDate hanggang targetDate
     const daysDiff = Math.floor(
-      // @ts-ignore
       (targetDate - lastDate) / (1000 * 60 * 60 * 24),
     );
     if (daysDiff === 0) return debt;
 
     // Compute daily interest rate (simple interest)
-    // @ts-ignore
+
+    const period = debt.interestCalculationPeriod || "per_annum";
+
     const annualRate = debt.interestRate / 100;
-    const dailyRate = annualRate / 365;
-    // @ts-ignore
+    let dailyRate;
+    if (period === "per_month") {
+      const monthlyRate = annualRate / 12;
+      dailyRate = monthlyRate / 30; // 30 days per month simplified
+    } else {
+      dailyRate = annualRate / 365;
+    }
+
     const principal = debt.remainingAmount;
     const interestAmount = principal * dailyRate * daysDiff;
 
     if (interestAmount <= 0.01) {
       logger.debug(
-        // @ts-ignore
         `[InterestAccrual] Negligible interest for debt #${debt.id}: ${interestAmount}`,
       );
       return debt;
     }
 
-    // @ts-ignore
     const oldRemaining = debt.remainingAmount;
-    // @ts-ignore
+
     debt.remainingAmount = parseFloat((principal + interestAmount).toFixed(2));
-    // @ts-ignore
+
     debt.lastInterestAccrualDate = targetDate;
-    // @ts-ignore
+
     debt.updatedAt = new Date();
 
     // I-save gamit ang updateDb (ipasa ang queryRunner kung mayroon)
     const debtRepo = queryRunner
       ? queryRunner.manager.getRepository(Debt)
       : this.debtRepo;
-    // @ts-ignore
+
     await updateDb(debtRepo, debt, { queryRunner, skipSignal: true });
 
     logger.info(
-      // @ts-ignore
       `[InterestAccrual] Debt #${debt.id}: +₱${interestAmount.toFixed(2)} interest for ${daysDiff} day(s). New remaining: ₱${debt.remainingAmount}`,
     );
 
     // Audit log
     await auditLogger.logUpdate(
       "Debt",
-      // @ts-ignore
+
       debt.id,
       {
         oldRemaining,
@@ -141,7 +138,6 @@ class InterestAccrualService {
         accrualUpTo: targetDate,
       },
       {
-        // @ts-ignore
         newRemaining: debt.remainingAmount,
         newLastAccrualDate: targetDate,
       },
@@ -156,7 +152,6 @@ class InterestAccrualService {
    * @returns {Promise<Debt[]>}
    */
   async findDebtsForAccrual() {
-    // @ts-ignore
     return await this.debtRepo
       .createQueryBuilder("debt")
       .where("debt.status IN (:...statuses)", {
@@ -192,7 +187,6 @@ class InterestAccrualService {
         await this.applyAccrual(debt, today);
         processed++;
       } catch (err) {
-        // @ts-ignore
         logger.error(`[InterestAccrual] Failed for debt #${debt.id}:`, err);
         errors++;
       }

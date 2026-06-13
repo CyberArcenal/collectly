@@ -17,6 +17,13 @@ const Debt = new EntitySchema({
     createdAt: { type: Date, createDate: true },
     updatedAt: { type: Date, updateDate: true },
     lastInterestAccrualDate: { type: Date, nullable: true },
+    interestCalculationPeriod: {
+      type: String,
+      length: 20,
+      default: "per_annum",
+      nullable: false,
+      enum: ["per_annum", "per_month"]
+    },
   },
   relations: {
     borrower: {

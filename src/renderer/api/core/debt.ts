@@ -25,6 +25,7 @@ export interface Debt {
   remainingAmount: number;
   dueDate: string; // ISO date string
   status: "active" | "paid" | "overdue" | "defaulted";
+  interestCalculationPeriod: "per_annum" | "per_month";
   interestRate: number | null;
   penaltyRate: number | null;
   createdAt: string;
@@ -76,6 +77,7 @@ export interface DebtCreateData {
   paidAmount?: number;
   dueDate: string; // YYYY-MM-DD or ISO string
   status?: "active" | "paid" | "overdue" | "defaulted";
+  interestCalculationPeriod: "per_annum" | "per_month";
   interestRate?: number | null;
   penaltyRate?: number | null;
   borrowerId: number;
@@ -87,6 +89,7 @@ export interface DebtUpdateData {
   paidAmount?: number;
   dueDate?: string;
   status?: "active" | "paid" | "overdue" | "defaulted";
+  interestCalculationPeriod: "per_annum" | "per_month";
   interestRate?: number | null;
   penaltyRate?: number | null;
   borrowerId?: number;

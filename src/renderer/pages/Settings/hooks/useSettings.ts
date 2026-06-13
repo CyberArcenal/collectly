@@ -31,6 +31,7 @@ const DEFAULT_COLLECTIONS: CollectionsSettings = {
   default_interest_rate: 10,
   default_penalty_rate: 2,
   penalty_calculation_method: "percentage",
+  interest_calculation_period: "per_annum",
   enable_auto_penalty: true,
   penalty_grace_days: 0,
   overdue_reminder_days: [7, 3, 1],
@@ -127,6 +128,7 @@ const ALLOWED_KEYS: Record<keyof typeof DEFAULTS, string[]> = {
   collections: [
     "default_interest_rate",
     "default_penalty_rate",
+    "interest_calculation_period", 
     "penalty_calculation_method",
     "enable_auto_penalty",
     "penalty_grace_days",
@@ -134,6 +136,7 @@ const ALLOWED_KEYS: Record<keyof typeof DEFAULTS, string[]> = {
     "max_loan_amount",
     "min_loan_amount",
     "enforce_credit_check",
+
   ],
   loans: [
     "allowed_loan_statuses",
