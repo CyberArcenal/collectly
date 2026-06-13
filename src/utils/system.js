@@ -592,6 +592,15 @@ async function minCreditScoreForApproval() {
   return getInt("min_credit_score_for_approval", SettingType.COLLECTIONS, 0); // 0 = disabled
 }
 
+/**
+ * Get interest calculation period
+ * @returns {Promise<string>} "per_annum" or "per_month"
+ */
+
+async function defaultInterestCalculationPeriod() {
+  return getValue("interest_calculation_period", SettingType.COLLECTIONS, "per_annum");
+}
+
 
 
 // ============================================================
@@ -633,6 +642,7 @@ module.exports = {
   maxLoanAmount,
   minLoanAmount,
   enforceCreditCheck,
+ defaultInterestCalculationPeriod, 
 
   // Loans
   allowedLoanStatuses,

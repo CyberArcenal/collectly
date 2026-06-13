@@ -172,7 +172,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen }) => {
       children: [
         { path: "/system/audit", name: "Audit Trail", icon: ListChecks },
         { path: "/sync", name: "Data Sync", icon: Upload },
-        { path: "/devices", name: "Device Manager", icon: ComputerIcon },
+        // { path: "/devices", name: "Device Manager", icon: ComputerIcon },
         { path: "/system/settings", name: "System Settings", icon: Sliders },
       ],
     },

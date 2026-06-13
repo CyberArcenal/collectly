@@ -68,7 +68,7 @@ export interface GroupedSettingsData {
 export interface GeneralSettings {
   company_name?: string;
   sync_mode?: "offline_first" | "online_only";
-  server_url?: "",
+  server_url?: "";
   branch_location?: string;
   default_timezone?: string;
   currency?: string;
@@ -83,6 +83,7 @@ export interface CollectionsSettings {
   default_interest_rate?: number; // default interest rate for new loans
   default_penalty_rate?: number; // default penalty rate (% per overdue day or fixed)
   penalty_calculation_method?: "percentage" | "fixed"; // how penalty is applied
+  interest_calculation_period?: "per_annum" | "per_month";
   enable_auto_penalty?: boolean; // auto apply penalty when overdue
   penalty_grace_days?: number; // days after due before penalty starts
   overdue_reminder_days?: number[]; // array of days to send reminders (e.g., [7,3,1])
@@ -109,8 +110,8 @@ export interface NotificationsSettings {
   email_smtp_host?: string;
   email_smtp_port?: number;
   email_from_address?: string;
-  email_smtp_username?: string;  
-  email_smtp_password?: string;  
+  email_smtp_username?: string;
+  email_smtp_password?: string;
   sms_enabled?: boolean;
   sms_provider?: string; // e.g., "twilio"
   reminder_days_before_due?: number[]; // days before due to send reminders
@@ -712,7 +713,7 @@ class SystemConfigAPI {
         description: "Company name",
         isPublic: false,
       },
-         {
+      {
         key: "sync_mode",
         value: "offline_first",
         setting_type: SettingType.GENERAL,
@@ -745,6 +746,14 @@ class SystemConfigAPI {
         value: 2,
         setting_type: SettingType.COLLECTIONS,
         description: "Default penalty rate (%) per day",
+        isPublic: false,
+      },
+      {
+        key: "interest_calculation_period",
+        value: "per_annum",
+        setting_type: SettingType.COLLECTIONS,
+        description:
+          "Interest calculation basis: per_annum (yearly) or per_month",
         isPublic: false,
       },
       {
