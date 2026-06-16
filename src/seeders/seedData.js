@@ -65,78 +65,201 @@ const random = {
   float: (min, max, decimals = 2) =>
     +(Math.random() * (max - min) + min).toFixed(decimals),
   date: (start, end) =>
-    new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime())),
+    new Date(
+      start.getTime() + Math.random() * (end.getTime() - start.getTime()),
+    ),
   pastDate: () => random.date(new Date(2023, 0, 1), new Date()),
   futureDate: () => random.date(new Date(), new Date(2026, 11, 31)),
   element: (arr) => arr[Math.floor(Math.random() * arr.length)],
   boolean: (probability = 0.5) => Math.random() < probability,
-  
+
   name: () => {
     const first = [
-      "John", "Jane", "Michael", "Sarah", "David", "Maria", "James", "Patricia",
-      "Robert", "Jennifer", "William", "Elizabeth", "Joseph", "Linda", "Thomas",
-      "Susan", "Charles", "Jessica", "Christopher", "Karen", "Daniel", "Nancy",
-      "Matthew", "Lisa", "Anthony", "Betty", "Mark", "Sandra", "Donald", "Ashley"
+      "John",
+      "Jane",
+      "Michael",
+      "Sarah",
+      "David",
+      "Maria",
+      "James",
+      "Patricia",
+      "Robert",
+      "Jennifer",
+      "William",
+      "Elizabeth",
+      "Joseph",
+      "Linda",
+      "Thomas",
+      "Susan",
+      "Charles",
+      "Jessica",
+      "Christopher",
+      "Karen",
+      "Daniel",
+      "Nancy",
+      "Matthew",
+      "Lisa",
+      "Anthony",
+      "Betty",
+      "Mark",
+      "Sandra",
+      "Donald",
+      "Ashley",
     ];
     const last = [
-      "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis",
-      "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson",
-      "Thomas", "Taylor", "Moore", "Jackson", "Martin", "Lee", "Perez", "Thompson",
-      "White", "Harris", "Sanchez", "Clark", "Ramirez", "Lewis", "Robinson"
+      "Smith",
+      "Johnson",
+      "Williams",
+      "Brown",
+      "Jones",
+      "Garcia",
+      "Miller",
+      "Davis",
+      "Rodriguez",
+      "Martinez",
+      "Hernandez",
+      "Lopez",
+      "Gonzalez",
+      "Wilson",
+      "Anderson",
+      "Thomas",
+      "Taylor",
+      "Moore",
+      "Jackson",
+      "Martin",
+      "Lee",
+      "Perez",
+      "Thompson",
+      "White",
+      "Harris",
+      "Sanchez",
+      "Clark",
+      "Ramirez",
+      "Lewis",
+      "Robinson",
     ];
     return `${random.element(first)} ${random.element(last)}`;
   },
-  
+
   email: (name) => {
     const cleanName = name.toLowerCase().replace(/\s/g, ".");
     return `${cleanName}${random.int(1, 99)}@example.com`;
   },
-  
+
   phone: () => `+63${random.int(900000000, 999999999)}`,
-  
+
   address: () => {
-    const streets = ["Main St", "Oak Ave", "Maple Dr", "Cedar Ln", "Pine Rd", "Elm Blvd"];
+    const streets = [
+      "Main St",
+      "Oak Ave",
+      "Maple Dr",
+      "Cedar Ln",
+      "Pine Rd",
+      "Elm Blvd",
+    ];
     return `${random.int(100, 9999)} ${random.element(streets)}, ${random.element(["Manila", "Cebu", "Davao", "Makati", "Quezon City"])}`;
   },
-  
+
   status: () => random.element(["active", "paid", "overdue", "defaulted"]),
-  
-  paymentMethodName: () => random.element(["Cash", "Bank Transfer", "Check", "GCash", "PayMaya", "Credit Card"]),
-  paymentMethodIcon: () => random.element(["DollarSign", "Landmark", "Receipt", "Smartphone", "CreditCard", "Wallet"]),
-  
+
+  paymentMethodName: () =>
+    random.element([
+      "Cash",
+      "Bank Transfer",
+      "Check",
+      "GCash",
+      "PayMaya",
+      "Credit Card",
+    ]),
+  paymentMethodIcon: () =>
+    random.element([
+      "DollarSign",
+      "Landmark",
+      "Receipt",
+      "Smartphone",
+      "CreditCard",
+      "Wallet",
+    ]),
+
   printerInterface: () => random.element(["usb", "network", "bluetooth"]),
   printerConnection: (iface) => {
     if (iface === "usb") return `USB00${random.int(1, 9)}`;
-    if (iface === "network") return `192.168.${random.int(1, 254)}.${random.int(1, 254)}:9100`;
+    if (iface === "network")
+      return `192.168.${random.int(1, 254)}.${random.int(1, 254)}:9100`;
     return `AA:BB:CC:${random.int(10, 99)}:${random.int(10, 99)}:${random.int(10, 99)}`;
   },
-  
+
   riskLevel: () => random.element(["Low", "Medium", "High"]),
-  
+
   creditScore: () => random.int(300, 850),
-  
+
   interestRate: () => random.float(0, 15, 2),
-  
+
+  // ✅ New: interest period
+  interestPeriod: () => random.element(["per_annum", "per_month"]),
+
   groupColor: () => {
-    const colors = ["#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
+    const colors = [
+      "#3b82f6",
+      "#ef4444",
+      "#10b981",
+      "#f59e0b",
+      "#8b5cf6",
+      "#ec4899",
+      "#06b6d4",
+      "#84cc16",
+    ];
     return random.element(colors);
   },
-  
-  loanPurpose: () => random.element([
-    "Business Expansion", "Emergency Medical", "Education", "Home Renovation",
-    "Debt Consolidation", "Vehicle Purchase", "Wedding Expenses", "Travel"
-  ]),
-  
-  notificationType: () => random.element(["error", "info", "reminder", "overdue", "payment_confirmation"]),
-  
+
+  loanPurpose: () =>
+    random.element([
+      "Business Expansion",
+      "Emergency Medical",
+      "Education",
+      "Home Renovation",
+      "Debt Consolidation",
+      "Vehicle Purchase",
+      "Wedding Expenses",
+      "Travel",
+    ]),
+
+  notificationType: () =>
+    random.element([
+      "error",
+      "info",
+      "reminder",
+      "overdue",
+      "payment_confirmation",
+    ]),
+
   logStatus: () => random.element(["queued", "sent", "failed", "resend"]),
-  
-  auditAction: () => random.element(["CREATE", "UPDATE", "DELETE", "VIEW", "LOGIN", "LOGOUT", "EXPORT"]),
-  
-  auditEntity: () => random.element([
-    "Borrower", "Debt", "PaymentTransaction", "PenaltyTransaction", "LoanAgreement",
-    "Notification", "CreditCheckLog", "DebtorGroup", "LoanApplication", "PaymentMethod", "Printer"
-  ]),
+
+  auditAction: () =>
+    random.element([
+      "CREATE",
+      "UPDATE",
+      "DELETE",
+      "VIEW",
+      "LOGIN",
+      "LOGOUT",
+      "EXPORT",
+    ]),
+
+  auditEntity: () =>
+    random.element([
+      "Borrower",
+      "Debt",
+      "PaymentTransaction",
+      "PenaltyTransaction",
+      "LoanAgreement",
+      "Notification",
+      "CreditCheckLog",
+      "DebtorGroup",
+      "LoanApplication",
+      "PaymentMethod",
+      "Printer",
+    ]),
 };
 
 // ========== SEEDER CLASS ==========
@@ -166,46 +289,48 @@ class DebtManagerXSeeder {
   }
 
   async clearData() {
-  console.log("🧹 Clearing all debt management data...");
-  await this.queryRunner.query("PRAGMA foreign_keys = OFF;");
-  try {
-    // ✅ Correct order: child tables first, then parents
-    const tables = [
-      "debtor_group_members",        // child of debtor_groups, borrowers
-      "debtor_groups",               // parent
-      "credit_check_logs",           // child of borrowers
-      "loan_applications",           // child of borrowers
-      "interest_rate_change_logs",   // child of debts
-      "notification_logs",           // independent (no FK)
-      "notifications",               // child of debts
-      "penalty_transactions",        // child of debts
-      "payment_transactions",        // child of debts AND payment_methods (important)
-      "payment_method_stats",        // child of payment_methods
-      "payment_methods",             // parent
-      "printers",                    // independent
-      "audit_logs",                  // independent (may reference but no enforced FK)
-      "loan_agreements",             // child of debts
-      "debts",                       // child of borrowers
-      "borrowers",                   // parent
-    ];
-    for (const table of tables) {
-      // Check if table exists
-      const exists = await this.queryRunner.query(
-        `SELECT name FROM sqlite_master WHERE type='table' AND name='${table}';`
-      );
-      if (exists.length > 0) {
-        await this.queryRunner.query(`DELETE FROM ${table};`);
-        await this.queryRunner.query(`DELETE FROM sqlite_sequence WHERE name='${table}';`);
+    console.log("🧹 Clearing all debt management data...");
+    await this.queryRunner.query("PRAGMA foreign_keys = OFF;");
+    try {
+      // ✅ Correct order: child tables first, then parents
+      const tables = [
+        "debtor_group_members", // child of debtor_groups, borrowers
+        "debtor_groups", // parent
+        "credit_check_logs", // child of borrowers
+        "loan_applications", // child of borrowers
+        "interest_rate_change_logs", // child of debts
+        "notification_logs", // independent (no FK)
+        "notifications", // child of debts
+        "penalty_transactions", // child of debts
+        "payment_transactions", // child of debts AND payment_methods (important)
+        "payment_method_stats", // child of payment_methods
+        "payment_methods", // parent
+        "printers", // independent
+        "audit_logs", // independent (may reference but no enforced FK)
+        "loan_agreements", // child of debts
+        "debts", // child of borrowers
+        "borrowers", // parent
+      ];
+      for (const table of tables) {
+        // Check if table exists
+        const exists = await this.queryRunner.query(
+          `SELECT name FROM sqlite_master WHERE type='table' AND name='${table}';`,
+        );
+        if (exists.length > 0) {
+          await this.queryRunner.query(`DELETE FROM ${table};`);
+          await this.queryRunner.query(
+            `DELETE FROM sqlite_sequence WHERE name='${table}';`,
+          );
+        }
       }
+    } catch (error) {
+      console.error("Error during clearing:", error.message);
+      throw error;
+    } finally {
+      await this.queryRunner.query("PRAGMA foreign_keys = ON;");
     }
-  } catch (error) {
-    console.error("Error during clearing:", error.message);
-    throw error;
-  } finally {
-    await this.queryRunner.query("PRAGMA foreign_keys = ON;");
+    console.log("✅ All tables cleared");
   }
-  console.log("✅ All tables cleared");
-}
 
   // ------------------------------------------------------------
   // SEED METHODS
@@ -220,7 +345,9 @@ class DebtManagerXSeeder {
         contact: random.boolean(0.9) ? random.phone() : null,
         email: random.email(name),
         address: random.boolean(0.7) ? random.address() : null,
-        notes: random.boolean(0.3) ? `Initial contact via ${random.element(["phone", "email", "referral"])}` : null,
+        notes: random.boolean(0.3)
+          ? `Initial contact via ${random.element(["phone", "email", "referral"])}`
+          : null,
         deletedAt: random.boolean(0.05) ? random.pastDate() : null,
       });
     }
@@ -234,23 +361,33 @@ class DebtManagerXSeeder {
     console.log(`💰 Seeding ${this.config.debtCount} debts...`);
     const debts = [];
     const statuses = ["active", "paid", "overdue", "defaulted"];
-    
+
     for (let i = 0; i < this.config.debtCount; i++) {
       const borrower = random.element(borrowers);
       const totalAmount = random.float(1000, 500000);
       let paidAmount = random.float(0, totalAmount);
       const remainingAmount = totalAmount - paidAmount;
-      
       const dueDate = random.futureDate();
       let status = random.element(statuses);
-      
+
       if (remainingAmount <= 0.01) {
         status = "paid";
         paidAmount = totalAmount;
       } else if (status === "paid" && remainingAmount > 0.01) {
         status = "active";
       }
-      
+
+      const interestPeriod = random.interestPeriod();
+      let interestRate;
+      if (interestPeriod === "per_month") {
+        interestRate = random.float(5, 30, 2);
+      } else {
+        interestRate = random.float(0, 15, 2);
+      }
+
+      // ✅ GUMAGAWA NG RANDOM PAST DATE (mula 2023 hanggang ngayon)
+      const createdAt = random.pastDate();
+
       debts.push({
         name: `${borrower.name} - ${random.element(["Personal Loan", "Business Loan", "Emergency Fund", "Education Loan", "Medical Bill"])}`,
         totalAmount: totalAmount,
@@ -258,34 +395,40 @@ class DebtManagerXSeeder {
         remainingAmount: remainingAmount,
         dueDate: dueDate,
         status: status,
-        interestRate: random.boolean(0.8) ? random.float(0, 15) : null,
+        interestRate: random.boolean(0.8) ? interestRate : null,
         penaltyRate: random.boolean(0.6) ? random.float(1, 5) : null,
+        interestCalculationPeriod: interestPeriod,
         borrower: { id: borrower.id },
+        createdAt: createdAt, // ✅ ITO ANG BAGO
       });
     }
-    
+
     const repo = this.dataSource.getRepository(Debt);
     const saved = await repo.save(debts);
-    console.log(`✅ ${saved.length} debts saved`);
+    console.log(
+      `✅ ${saved.length} debts saved (with random interest periods and past createdAt)`,
+    );
     return saved;
   }
 
   async seedPayments(debts) {
-    console.log(`💵 Seeding ${this.config.paymentCount} payment transactions...`);
+    console.log(
+      `💵 Seeding ${this.config.paymentCount} payment transactions...`,
+    );
     const payments = [];
     const repo = this.dataSource.getRepository(PaymentTransaction);
-    
+
     const debtPaidSoFar = new Map();
-    debts.forEach(debt => {
+    debts.forEach((debt) => {
       debtPaidSoFar.set(debt.id, parseFloat(debt.paidAmount) || 0);
     });
-    
+
     for (const debt of debts) {
       let remainingToPay = parseFloat(debt.paidAmount) || 0;
       let paymentCount = random.int(1, Math.min(5, remainingToPay > 0 ? 3 : 1));
-      
+
       if (remainingToPay === 0) paymentCount = 0;
-      
+
       for (let i = 0; i < paymentCount && remainingToPay > 0.01; i++) {
         let amount;
         if (i === paymentCount - 1) {
@@ -295,25 +438,35 @@ class DebtManagerXSeeder {
           if (amount > remainingToPay) amount = remainingToPay;
         }
         remainingToPay -= amount;
-        
+
         payments.push({
           amount: amount,
-          paymentDate: random.date(new Date(debt.createdAt || new Date(2023, 0, 1)), new Date()),
+          paymentDate: random.date(
+            new Date(debt.createdAt || new Date(2023, 0, 1)),
+            new Date(),
+          ),
           reference: `PAY-${random.int(10000, 99999)}`,
-          notes: random.boolean(0.3) ? random.element(["Partial payment", "Full settlement", "Advance payment", "Online transfer"]) : null,
+          notes: random.boolean(0.3)
+            ? random.element([
+                "Partial payment",
+                "Full settlement",
+                "Advance payment",
+                "Online transfer",
+              ])
+            : null,
           deletedAt: null,
           debt: { id: debt.id },
         });
       }
     }
-    
+
     const extraPaymentsNeeded = this.config.paymentCount - payments.length;
     for (let i = 0; i < extraPaymentsNeeded; i++) {
       const debt = random.element(debts);
       const currentPaid = debtPaidSoFar.get(debt.id) || 0;
       const totalAmount = parseFloat(debt.totalAmount);
       const maxAdditional = totalAmount - currentPaid;
-      
+
       if (maxAdditional > 10) {
         const amount = random.float(50, Math.min(maxAdditional, 50000));
         payments.push({
@@ -325,72 +478,100 @@ class DebtManagerXSeeder {
           debt: { id: debt.id },
         });
         debtPaidSoFar.set(debt.id, currentPaid + amount);
-        
+
         await repo.manager
           .createQueryBuilder()
           .update(Debt)
-          .set({ 
+          .set({
             paidAmount: currentPaid + amount,
-            remainingAmount: totalAmount - (currentPaid + amount)
+            remainingAmount: totalAmount - (currentPaid + amount),
           })
           .where("id = :id", { id: debt.id })
           .execute();
       }
     }
-    
+
     const saved = await repo.save(payments);
     console.log(`✅ ${saved.length} payment transactions saved`);
     return saved;
   }
 
   async seedPenalties(debts) {
-    console.log(`⚠️ Seeding ${this.config.penaltyCount} penalty transactions...`);
+    console.log(
+      `⚠️ Seeding ${this.config.penaltyCount} penalty transactions...`,
+    );
     const penalties = [];
     const repo = this.dataSource.getRepository(PenaltyTransaction);
-    
+
     const reasons = [
-      "Late payment", "Missed payment deadline", "Overdue interest", 
-      "Administrative fee", "Collection fee", "Legal notice fee"
+      "Late payment",
+      "Missed payment deadline",
+      "Overdue interest",
+      "Administrative fee",
+      "Collection fee",
+      "Legal notice fee",
     ];
-    
+
     for (let i = 0; i < this.config.penaltyCount; i++) {
       const debt = random.element(debts);
-      const amount = random.float(100, Math.max(500, parseFloat(debt.totalAmount) * 0.05));
-      
+      const amount = random.float(
+        100,
+        Math.max(500, parseFloat(debt.totalAmount) * 0.05),
+      );
+
       penalties.push({
         amount: amount,
-        penaltyDate: random.date(new Date(debt.createdAt || new Date(2023, 0, 1)), new Date()),
+        penaltyDate: random.date(
+          new Date(debt.createdAt || new Date(2023, 0, 1)),
+          new Date(),
+        ),
         reason: random.element(reasons),
         debt: { id: debt.id },
       });
     }
-    
+
     const saved = await repo.save(penalties);
     console.log(`✅ ${saved.length} penalty transactions saved`);
     return saved;
   }
 
   async seedLoanAgreements(debts) {
-    console.log(`📄 Seeding ${this.config.loanAgreementCount} loan agreements...`);
+    console.log(
+      `📄 Seeding ${this.config.loanAgreementCount} loan agreements...`,
+    );
     const agreements = [];
     const repo = this.dataSource.getRepository(LoanAgreement);
-    
-    for (let i = 0; i < this.config.loanAgreementCount && i < debts.length; i++) {
+
+    for (
+      let i = 0;
+      i < this.config.loanAgreementCount && i < debts.length;
+      i++
+    ) {
       const debt = debts[i % debts.length];
       agreements.push({
-        agreementDate: random.date(new Date(debt.createdAt || new Date(2023, 0, 1)), debt.dueDate),
+        agreementDate: random.date(
+          new Date(debt.createdAt || new Date(2023, 0, 1)),
+          debt.dueDate,
+        ),
         lenderName: random.element([
-          "ABC Lending Corp", "FastCash Loans", "MoneyTree Finance", 
-          "SecureLoan Inc", "Capital One Bank", "MetroBank", 
-          "UnionBank", "BPI Family Savings"
+          "ABC Lending Corp",
+          "FastCash Loans",
+          "MoneyTree Finance",
+          "SecureLoan Inc",
+          "Capital One Bank",
+          "MetroBank",
+          "UnionBank",
+          "BPI Family Savings",
         ]),
-        termsText: `This loan agreement is for ${debt.name}. Interest rate: ${debt.interestRate || 0}% per annum. Due date: ${debt.dueDate.toLocaleDateString()}.`,
-        filePath: random.boolean(0.7) ? `/documents/agreement_${debt.id}.pdf` : null,
+        termsText: `This loan agreement is for ${debt.name}. Interest rate: ${debt.interestRate || 0}% ${debt.interestCalculationPeriod === "per_month" ? "per month" : "per annum"}. Due date: ${debt.dueDate.toLocaleDateString()}.`,
+        filePath: random.boolean(0.7)
+          ? `/documents/agreement_${debt.id}.pdf`
+          : null,
         deletedAt: random.boolean(0.05) ? random.pastDate() : null,
         debt: { id: debt.id },
       });
     }
-    
+
     const saved = await repo.save(agreements);
     console.log(`✅ ${saved.length} loan agreements saved`);
     return saved;
@@ -400,21 +581,29 @@ class DebtManagerXSeeder {
     console.log(`🔔 Seeding ${this.config.notificationCount} notifications...`);
     const notifications = [];
     const repo = this.dataSource.getRepository(Notification);
-    
+
     const titles = {
       reminder: ["Payment Reminder", "Upcoming Due Date", "Friendly Reminder"],
-      overdue: ["Overdue Payment Alert", "Payment Past Due", "Urgent: Payment Overdue"],
-      payment_confirmation: ["Payment Received", "Payment Confirmation", "Thank You for Your Payment"],
+      overdue: [
+        "Overdue Payment Alert",
+        "Payment Past Due",
+        "Urgent: Payment Overdue",
+      ],
+      payment_confirmation: [
+        "Payment Received",
+        "Payment Confirmation",
+        "Thank You for Your Payment",
+      ],
       info: ["Account Update", "Interest Rate Change", "Statement Available"],
-      error: ["Payment Failed", "Processing Error", "Action Required"]
+      error: ["Payment Failed", "Processing Error", "Action Required"],
     };
-    
+
     for (let i = 0; i < this.config.notificationCount; i++) {
       const debt = random.element(debts);
       const type = random.notificationType();
       const title = random.element(titles[type] || titles.info);
       let message = "";
-      
+
       switch (type) {
         case "reminder":
           message = `Your payment of ${random.float(500, 5000)} is due on ${debt.dueDate.toLocaleDateString()}. Remaining balance: ${debt.remainingAmount}`;
@@ -428,7 +617,7 @@ class DebtManagerXSeeder {
         default:
           message = `This is a ${type} notification regarding your loan ${debt.name}.`;
       }
-      
+
       notifications.push({
         title: title,
         message: message,
@@ -439,40 +628,54 @@ class DebtManagerXSeeder {
         debt: { id: debt.id },
       });
     }
-    
+
     const saved = await repo.save(notifications);
     console.log(`✅ ${saved.length} notifications saved`);
     return saved;
   }
 
   async seedNotificationLogs(borrowers) {
-    console.log(`📧 Seeding ${this.config.notificationLogCount} notification logs...`);
+    console.log(
+      `📧 Seeding ${this.config.notificationLogCount} notification logs...`,
+    );
     const logs = [];
     const repo = this.dataSource.getRepository(NotificationLog);
-    
+
     for (let i = 0; i < this.config.notificationLogCount; i++) {
       const borrower = random.element(borrowers);
       const status = random.logStatus();
       const sentAt = status === "sent" ? random.pastDate() : null;
       const lastErrorAt = status === "failed" ? random.pastDate() : null;
-      
+
       logs.push({
         recipient_email: borrower.email,
-        subject: random.element(["Payment Reminder", "Loan Statement", "Overdue Notice", "Payment Confirmation"]),
+        subject: random.element([
+          "Payment Reminder",
+          "Loan Statement",
+          "Overdue Notice",
+          "Payment Confirmation",
+        ]),
         payload: JSON.stringify({
           borrowerId: borrower.id,
           templateId: random.int(1, 5),
-          metadata: { source: "automated" }
+          metadata: { source: "automated" },
         }),
         status: status,
-        error_message: status === "failed" ? random.element(["SMTP timeout", "Invalid email", "Rate limit exceeded"]) : null,
+        error_message:
+          status === "failed"
+            ? random.element([
+                "SMTP timeout",
+                "Invalid email",
+                "Rate limit exceeded",
+              ])
+            : null,
         retry_count: status === "failed" ? random.int(1, 3) : 0,
         resend_count: status === "resend" ? random.int(1, 2) : 0,
         sent_at: sentAt,
         last_error_at: lastErrorAt,
       });
     }
-    
+
     const saved = await repo.save(logs);
     console.log(`✅ ${saved.length} notification logs saved`);
     return saved;
@@ -483,31 +686,40 @@ class DebtManagerXSeeder {
     const logs = [];
     const repo = this.dataSource.getRepository(AuditLog);
     const users = ["admin", "loan_officer", "collector", "manager", "system"];
-    
+
     for (let i = 0; i < this.config.auditLogCount; i++) {
       const action = random.auditAction();
       const entity = random.auditEntity();
       let entityId = null;
-      
+
       if (entity === "Borrower" && borrowers.length) {
         entityId = random.element(borrowers).id;
-      } else if ((entity === "Debt" || entity === "PaymentTransaction" || entity === "PenaltyTransaction") && debts.length) {
+      } else if (
+        (entity === "Debt" ||
+          entity === "PaymentTransaction" ||
+          entity === "PenaltyTransaction") &&
+        debts.length
+      ) {
         entityId = random.element(debts).id;
       } else {
         entityId = random.int(1, 500);
       }
-      
+
       logs.push({
         action: action,
         entity: entity,
         entityId: entityId,
-        oldData: random.boolean(0.2) ? { previousValue: `old_${random.int(100, 999)}` } : null,
-        newData: random.boolean(0.3) ? { newValue: `new_${random.int(100, 999)}` } : null,
+        oldData: random.boolean(0.2)
+          ? { previousValue: `old_${random.int(100, 999)}` }
+          : null,
+        newData: random.boolean(0.3)
+          ? { newValue: `new_${random.int(100, 999)}` }
+          : null,
         timestamp: random.pastDate(),
         user: random.element(users),
       });
     }
-    
+
     const saved = await repo.save(logs);
     console.log(`✅ ${saved.length} audit logs saved`);
     return saved;
@@ -515,7 +727,9 @@ class DebtManagerXSeeder {
 
   // NEW SEED METHODS
   async seedCreditCheckLogs(borrowers) {
-    console.log(`📊 Seeding ${this.config.creditCheckCount} credit check logs...`);
+    console.log(
+      `📊 Seeding ${this.config.creditCheckCount} credit check logs...`,
+    );
     const logs = [];
     const repo = this.dataSource.getRepository(CreditCheckLog);
     for (let i = 0; i < this.config.creditCheckCount; i++) {
@@ -539,7 +753,16 @@ class DebtManagerXSeeder {
     console.log(`👥 Seeding ${this.config.groupCount} debtor groups...`);
     const groups = [];
     const repo = this.dataSource.getRepository(DebtorGroup);
-    const groupNames = ["VIP", "High-Risk", "Regular", "New", "Delinquent", "Good Standing", "Review", "Archived"];
+    const groupNames = [
+      "VIP",
+      "High-Risk",
+      "Regular",
+      "New",
+      "Delinquent",
+      "Good Standing",
+      "Review",
+      "Archived",
+    ];
     for (let i = 0; i < this.config.groupCount && i < groupNames.length; i++) {
       groups.push({
         name: groupNames[i],
@@ -553,7 +776,9 @@ class DebtManagerXSeeder {
   }
 
   async seedGroupMembers(groups, borrowers) {
-    console.log(`👥 Seeding ${this.config.groupMemberCount} debtor group members...`);
+    console.log(
+      `👥 Seeding ${this.config.groupMemberCount} debtor group members...`,
+    );
     const members = [];
     const repo = this.dataSource.getRepository(DebtorGroupMember);
     const usedPairs = new Set();
@@ -575,13 +800,17 @@ class DebtManagerXSeeder {
   }
 
   async seedInterestRateChangeLogs(debts) {
-    console.log(`📈 Seeding ${this.config.interestRateChangeCount} interest rate change logs...`);
+    console.log(
+      `📈 Seeding ${this.config.interestRateChangeCount} interest rate change logs...`,
+    );
     const logs = [];
     const repo = this.dataSource.getRepository(InterestRateChangeLog);
     const users = ["admin", "system", "loan_officer"];
     for (let i = 0; i < this.config.interestRateChangeCount; i++) {
       const isGlobal = random.boolean(0.4);
-      const settingKey = isGlobal ? "default_interest_rate" : `loan_${random.element(debts).id}`;
+      const settingKey = isGlobal
+        ? "default_interest_rate"
+        : `loan_${random.element(debts).id}`;
       const oldVal = random.float(0, 20);
       const newVal = random.float(0, 20);
       logs.push({
@@ -589,7 +818,9 @@ class DebtManagerXSeeder {
         old_value: oldVal,
         new_value: newVal,
         changed_by: random.element(users),
-        reason: random.boolean(0.5) ? "Market adjustment" : "Client negotiation",
+        reason: random.boolean(0.5)
+          ? "Market adjustment"
+          : "Client negotiation",
         loan_id: isGlobal ? null : random.element(debts).id,
         changed_at: random.pastDate(),
       });
@@ -600,7 +831,9 @@ class DebtManagerXSeeder {
   }
 
   async seedLoanApplications(borrowers) {
-    console.log(`📋 Seeding ${this.config.loanApplicationCount} loan applications...`);
+    console.log(
+      `📋 Seeding ${this.config.loanApplicationCount} loan applications...`,
+    );
     const apps = [];
     const repo = this.dataSource.getRepository(LoanApplication);
     const statuses = ["pending", "approved", "rejected"];
@@ -621,10 +854,22 @@ class DebtManagerXSeeder {
         proposedDueDate: proposedDueDate,
         interestRate: random.float(0, 15),
         status: status,
-        approvedAt: status === "approved" ? random.date(createdAt, new Date()) : null,
-        rejectedAt: status === "rejected" ? random.date(createdAt, new Date()) : null,
-        approvedBy: status === "approved" ? random.element(["admin", "loan_officer"]) : null,
-        rejectionReason: status === "rejected" ? random.element(["Low credit score", "Insufficient income", "Incomplete documents"]) : null,
+        approvedAt:
+          status === "approved" ? random.date(createdAt, new Date()) : null,
+        rejectedAt:
+          status === "rejected" ? random.date(createdAt, new Date()) : null,
+        approvedBy:
+          status === "approved"
+            ? random.element(["admin", "loan_officer"])
+            : null,
+        rejectionReason:
+          status === "rejected"
+            ? random.element([
+                "Low credit score",
+                "Insufficient income",
+                "Incomplete documents",
+              ])
+            : null,
         createdAt: createdAt,
         updatedAt: random.date(createdAt, new Date()),
       });
@@ -635,12 +880,32 @@ class DebtManagerXSeeder {
   }
 
   async seedPaymentMethods() {
-    console.log(`💳 Seeding ${this.config.paymentMethodCount} payment methods...`);
+    console.log(
+      `💳 Seeding ${this.config.paymentMethodCount} payment methods...`,
+    );
     const methods = [];
     const repo = this.dataSource.getRepository(PaymentMethod);
-    const methodNames = ["Cash", "Bank Transfer", "Check", "GCash", "PayMaya", "Credit Card"];
-    const icons = ["DollarSign", "Landmark", "Receipt", "Smartphone", "CreditCard", "Wallet"];
-    for (let i = 0; i < this.config.paymentMethodCount && i < methodNames.length; i++) {
+    const methodNames = [
+      "Cash",
+      "Bank Transfer",
+      "Check",
+      "GCash",
+      "PayMaya",
+      "Credit Card",
+    ];
+    const icons = [
+      "DollarSign",
+      "Landmark",
+      "Receipt",
+      "Smartphone",
+      "CreditCard",
+      "Wallet",
+    ];
+    for (
+      let i = 0;
+      i < this.config.paymentMethodCount && i < methodNames.length;
+      i++
+    ) {
       methods.push({
         name: methodNames[i],
         description: `Payment via ${methodNames[i]}`,
@@ -671,8 +936,8 @@ class DebtManagerXSeeder {
     for (let i = 0; i < this.config.printerCount; i++) {
       const iface = random.printerInterface();
       printers.push({
-        name: `Printer ${i+1}`,
-        description: `Test printer ${i+1}`,
+        name: `Printer ${i + 1}`,
+        description: `Test printer ${i + 1}`,
         interface: iface,
         connectionString: random.printerConnection(iface),
         isDefault: i === 0,
@@ -714,38 +979,51 @@ class DebtManagerXSeeder {
       }
 
       // Payments, penalties, agreements, notifications (depend on debts)
-      if (!this.config.skipPayments && this.debts.length) await this.seedPayments(this.debts);
-      if (!this.config.skipPenalties && this.debts.length) await this.seedPenalties(this.debts);
-      if (!this.config.skipLoanAgreements && this.debts.length) await this.seedLoanAgreements(this.debts);
-      if (!this.config.skipNotifications && this.debts.length) await this.seedNotifications(this.debts);
+      if (!this.config.skipPayments && this.debts.length)
+        await this.seedPayments(this.debts);
+      if (!this.config.skipPenalties && this.debts.length)
+        await this.seedPenalties(this.debts);
+      if (!this.config.skipLoanAgreements && this.debts.length)
+        await this.seedLoanAgreements(this.debts);
+      if (!this.config.skipNotifications && this.debts.length)
+        await this.seedNotifications(this.debts);
 
       // NotificationLogs (depends on borrowers)
-      if (!this.config.skipNotificationLogs && this.borrowers.length) await this.seedNotificationLogs(this.borrowers);
+      if (!this.config.skipNotificationLogs && this.borrowers.length)
+        await this.seedNotificationLogs(this.borrowers);
 
       // AuditLogs (depends on borrowers + debts)
-      if (!this.config.skipAuditLogs) await this.seedAuditLogs(this.borrowers, this.debts);
+      if (!this.config.skipAuditLogs)
+        await this.seedAuditLogs(this.borrowers, this.debts);
 
       // NEW ENTITIES
-      if (!this.config.skipCreditChecks && this.borrowers.length) await this.seedCreditCheckLogs(this.borrowers);
-      
+      if (!this.config.skipCreditChecks && this.borrowers.length)
+        await this.seedCreditCheckLogs(this.borrowers);
+
       if (!this.config.skipGroups) {
         this.groups = await this.seedGroups();
       } else {
         this.groups = await this.dataSource.getRepository(DebtorGroup).find();
       }
-      
-      if (!this.config.skipGroupMembers && this.groups.length && this.borrowers.length) {
+
+      if (
+        !this.config.skipGroupMembers &&
+        this.groups.length &&
+        this.borrowers.length
+      ) {
         await this.seedGroupMembers(this.groups, this.borrowers);
       }
-      
-      if (!this.config.skipInterestRateChanges && this.debts.length) await this.seedInterestRateChangeLogs(this.debts);
-      
-      if (!this.config.skipLoanApplications && this.borrowers.length) await this.seedLoanApplications(this.borrowers);
-      
+
+      if (!this.config.skipInterestRateChanges && this.debts.length)
+        await this.seedInterestRateChangeLogs(this.debts);
+
+      if (!this.config.skipLoanApplications && this.borrowers.length)
+        await this.seedLoanApplications(this.borrowers);
+
       if (!this.config.skipPaymentMethods) {
         this.paymentMethods = await this.seedPaymentMethods();
       }
-      
+
       if (!this.config.skipPrinters) await this.seedPrinters();
 
       await this.queryRunner.commitTransaction();
@@ -762,7 +1040,9 @@ class DebtManagerXSeeder {
       console.log(`   Credit Check Logs: ${this.config.creditCheckCount}`);
       console.log(`   Debtor Groups: ${this.config.groupCount}`);
       console.log(`   Group Members: ${this.config.groupMemberCount}`);
-      console.log(`   Interest Rate Change Logs: ${this.config.interestRateChangeCount}`);
+      console.log(
+        `   Interest Rate Change Logs: ${this.config.interestRateChangeCount}`,
+      );
       console.log(`   Loan Applications: ${this.config.loanApplicationCount}`);
       console.log(`   Payment Methods: ${this.config.paymentMethodCount}`);
       console.log(`   Printers: ${this.config.printerCount}`);
@@ -787,7 +1067,8 @@ function parseArgs() {
         config.clearOnly = true;
         break;
       case "--borrowers":
-        config.borrowerCount = parseInt(args[++i]) || DEFAULT_CONFIG.borrowerCount;
+        config.borrowerCount =
+          parseInt(args[++i]) || DEFAULT_CONFIG.borrowerCount;
         config.skipBorrowers = false;
         break;
       case "--debts":
@@ -795,31 +1076,38 @@ function parseArgs() {
         config.skipDebts = false;
         break;
       case "--payments":
-        config.paymentCount = parseInt(args[++i]) || DEFAULT_CONFIG.paymentCount;
+        config.paymentCount =
+          parseInt(args[++i]) || DEFAULT_CONFIG.paymentCount;
         config.skipPayments = false;
         break;
       case "--penalties":
-        config.penaltyCount = parseInt(args[++i]) || DEFAULT_CONFIG.penaltyCount;
+        config.penaltyCount =
+          parseInt(args[++i]) || DEFAULT_CONFIG.penaltyCount;
         config.skipPenalties = false;
         break;
       case "--agreements":
-        config.loanAgreementCount = parseInt(args[++i]) || DEFAULT_CONFIG.loanAgreementCount;
+        config.loanAgreementCount =
+          parseInt(args[++i]) || DEFAULT_CONFIG.loanAgreementCount;
         config.skipLoanAgreements = false;
         break;
       case "--notifications":
-        config.notificationCount = parseInt(args[++i]) || DEFAULT_CONFIG.notificationCount;
+        config.notificationCount =
+          parseInt(args[++i]) || DEFAULT_CONFIG.notificationCount;
         config.skipNotifications = false;
         break;
       case "--logs":
-        config.notificationLogCount = parseInt(args[++i]) || DEFAULT_CONFIG.notificationLogCount;
+        config.notificationLogCount =
+          parseInt(args[++i]) || DEFAULT_CONFIG.notificationLogCount;
         config.skipNotificationLogs = false;
         break;
       case "--audit":
-        config.auditLogCount = parseInt(args[++i]) || DEFAULT_CONFIG.auditLogCount;
+        config.auditLogCount =
+          parseInt(args[++i]) || DEFAULT_CONFIG.auditLogCount;
         config.skipAuditLogs = false;
         break;
       case "--credit-checks":
-        config.creditCheckCount = parseInt(args[++i]) || DEFAULT_CONFIG.creditCheckCount;
+        config.creditCheckCount =
+          parseInt(args[++i]) || DEFAULT_CONFIG.creditCheckCount;
         config.skipCreditChecks = false;
         break;
       case "--groups":
@@ -827,23 +1115,28 @@ function parseArgs() {
         config.skipGroups = false;
         break;
       case "--group-members":
-        config.groupMemberCount = parseInt(args[++i]) || DEFAULT_CONFIG.groupMemberCount;
+        config.groupMemberCount =
+          parseInt(args[++i]) || DEFAULT_CONFIG.groupMemberCount;
         config.skipGroupMembers = false;
         break;
       case "--interest-changes":
-        config.interestRateChangeCount = parseInt(args[++i]) || DEFAULT_CONFIG.interestRateChangeCount;
+        config.interestRateChangeCount =
+          parseInt(args[++i]) || DEFAULT_CONFIG.interestRateChangeCount;
         config.skipInterestRateChanges = false;
         break;
       case "--loan-apps":
-        config.loanApplicationCount = parseInt(args[++i]) || DEFAULT_CONFIG.loanApplicationCount;
+        config.loanApplicationCount =
+          parseInt(args[++i]) || DEFAULT_CONFIG.loanApplicationCount;
         config.skipLoanApplications = false;
         break;
       case "--payment-methods":
-        config.paymentMethodCount = parseInt(args[++i]) || DEFAULT_CONFIG.paymentMethodCount;
+        config.paymentMethodCount =
+          parseInt(args[++i]) || DEFAULT_CONFIG.paymentMethodCount;
         config.skipPaymentMethods = false;
         break;
       case "--printers":
-        config.printerCount = parseInt(args[++i]) || DEFAULT_CONFIG.printerCount;
+        config.printerCount =
+          parseInt(args[++i]) || DEFAULT_CONFIG.printerCount;
         config.skipPrinters = false;
         break;
       case "--skip-borrowers":

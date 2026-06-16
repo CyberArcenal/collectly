@@ -1,4 +1,4 @@
-// src/layouts/TopBar.tsx (bagong bersyon)
+// src/layouts/TopBar.tsx
 import React from "react";
 import { HandCoins, Menu, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -7,9 +7,9 @@ import SearchBar from "../components/Shared/SearchBar";
 import SyncStatusIndicator from "../components/Shared/SyncStatusIndicator";
 import ThemeToggle from "../components/Shared/ThemeToggle";
 import UpdateNotifier from "../components/Shared/UpdateNotifier";
-import NotificationBell from "../components/Shared/NotificationBell";
 import StatusIndicators from "../components/Shared/StatusIndicators";
 import { NotificationDropdown } from "../components/Shared/NotificationDrawer";
+import InterestPeriodIndicator from "../components/Shared/InterestPeriodIndicator"; // ✅ import
 
 interface TopBarProps {
   toggleSidebar: () => void;
@@ -32,7 +32,9 @@ const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--primary-color)] to-[var(--primary-hover)] flex items-center justify-center shadow-md">
             <HandCoins className="w-5 h-5 text-white" />
           </div>
-          <span className="text-sm font-semibold text-[var(--sidebar-text)]">Debt Mgr</span>
+          <span className="text-sm font-semibold text-[var(--sidebar-text)]">
+            Debt Mgr
+          </span>
         </div>
         <div className="hidden md:block">
           <DateDisplay />
@@ -50,6 +52,7 @@ const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
         <UpdateNotifier />
         <SyncStatusIndicator />
         <ThemeToggle />
+        <InterestPeriodIndicator />
         <NotificationDropdown />
         <button
           onClick={() => navigate("/loans/applications")}

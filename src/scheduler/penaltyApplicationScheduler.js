@@ -32,10 +32,8 @@ class PenaltyApplicationScheduler {
       }
 
       logger.info("🚀 Starting Penalty Application Scheduler (daily)");
-      // Run once on startup
       await this.applyPenalties();
 
-      // Schedule daily
       this.intervalId = setInterval(async () => {
         await this.applyPenalties();
       }, this.checkInterval);
@@ -45,7 +43,6 @@ class PenaltyApplicationScheduler {
       );
       return this;
     } catch (error) {
-      // @ts-ignore
       logger.error("❌ Failed to start Penalty Application Scheduler:", error);
       throw error;
     }
@@ -59,9 +56,6 @@ class PenaltyApplicationScheduler {
     }
   }
 
-  /**
-   * Check if we already applied penalties today (to avoid duplicate runs)
-   */
   async alreadyRanToday() {
     const { SystemSetting } = require("../entities/systemSettings");
     const settingRepo = AppDataSource.getRepository(SystemSetting);
@@ -69,7 +63,6 @@ class PenaltyApplicationScheduler {
       where: { key: this.lastRunKey },
     });
     if (!lastRun) return false;
-    // @ts-ignore
     const lastRunDate = new Date(lastRun.value);
     const today = new Date();
     return (
@@ -99,20 +92,14 @@ class PenaltyApplicationScheduler {
     await settingRepo.save(setting);
   }
 
-  /**
-   * Check if a penalty has already been applied for this debt since its due date.
-   * This prevents double‑penalising the same overdue period.
-   */
-  // @ts-ignore
   async hasPenaltySinceDueDate(debtId, dueDate, queryRunner = null) {
     const PenaltyTransaction = require("../entities/PenaltyTransaction");
     const penaltyRepo = queryRunner
-      ? // @ts-ignore
-        queryRunner.manager.getRepository(PenaltyTransaction)
+      ? queryRunner.manager.getRepository(PenaltyTransaction)
       : AppDataSource.getRepository(PenaltyTransaction);
 
     const count = await penaltyRepo
-      .createQueryBuilder("penalty", queryRunner ? { queryRunner } : undefined)
+      .createQueryBuilder("penalty")
       .where("penalty.debtId = :debtId", { debtId })
       .andWhere("penalty.penaltyDate >= :dueDate", { dueDate })
       .andWhere("penalty.deletedAt IS NULL")
@@ -123,7 +110,6 @@ class PenaltyApplicationScheduler {
 
   async applyPenalties() {
     try {
-      // Double‑check that auto penalty is still enabled
       const autoPenaltyEnabled = await enableAutoPenalty();
       if (!autoPenaltyEnabled) {
         logger.debug("[PENALTY SCHEDULER] Auto penalty disabled, skipping");
@@ -147,15 +133,11 @@ class PenaltyApplicationScheduler {
       const Debt = require("../entities/Debt");
       const debtRepo = AppDataSource.getRepository(Debt);
       const graceDays = await penaltyGraceDays();
-      const penaltyRate = await defaultPenaltyRate();
       const calcMethod = await penaltyCalculationMethod();
 
-      // Find debts that:
-      // - status = 'overdue'
-      // - remainingAmount > 0
-      // - dueDate < (today - graceDays)
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - graceDays);
+
       const overdueDebts = await debtRepo
         .createQueryBuilder("debt")
         .where("debt.dueDate < :cutoffDate", { cutoffDate })
@@ -195,13 +177,14 @@ class PenaltyApplicationScheduler {
           continue;
         }
 
+        // ✅ FIX: Use debt.penaltyRate if available, fallback to default
+        const penaltyRate = debt.penaltyRate ?? (await defaultPenaltyRate());
+
         // Calculate penalty amount
         let penaltyAmount = 0;
         if (calcMethod === "percentage") {
-          // @ts-ignore
           penaltyAmount = debt.remainingAmount * (penaltyRate / 100);
         } else {
-          // fixed amount
           penaltyAmount = penaltyRate;
         }
 
@@ -213,13 +196,11 @@ class PenaltyApplicationScheduler {
           continue;
         }
 
-        // Use a transaction to create penalty and update debt
         const queryRunner = AppDataSource.createQueryRunner();
         await queryRunner.connect();
         await queryRunner.startTransaction();
 
         try {
-          // Create penalty transaction
           const penaltyData = {
             amount: penaltyAmount,
             penaltyDate: new Date(),
@@ -232,11 +213,8 @@ class PenaltyApplicationScheduler {
             queryRunner,
           );
 
-          // Apply penalty to debt balance using state transition service
           const transitionService =
             new PenaltyTransactionStateTransitionService(AppDataSource);
-          // Note: onCollect will increase debt.remainingAmount by penalty amount and mark penalty as 'collected'
-          // @ts-ignore
           await transitionService.onCollect(penalty, "system", queryRunner);
 
           await queryRunner.commitTransaction();
@@ -248,7 +226,6 @@ class PenaltyApplicationScheduler {
           await queryRunner.rollbackTransaction();
           logger.error(
             `[PENALTY SCHEDULER] Failed to apply penalty for debt #${debt.id}:`,
-            // @ts-ignore
             err,
           );
         } finally {
@@ -256,17 +233,14 @@ class PenaltyApplicationScheduler {
         }
       }
 
-      // Audit log summary
       await auditLogger.logExport(
         "PenaltyApplicationScheduler",
         "auto_penalty",
-        // @ts-ignore
         {
           applied: appliedCount,
           skipped: skippedCount,
           date: new Date().toISOString(),
           graceDays,
-          penaltyRate,
           calculationMethod: calcMethod,
         },
         "system",
@@ -279,7 +253,6 @@ class PenaltyApplicationScheduler {
     } catch (error) {
       logger.error(
         "[PENALTY SCHEDULER] Error during penalty application:",
-        // @ts-ignore
         error,
       );
     }
