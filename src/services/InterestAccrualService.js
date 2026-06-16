@@ -87,12 +87,14 @@ class InterestAccrualService {
 
     const period = debt.interestCalculationPeriod || "per_annum";
 
-    const annualRate = debt.interestRate / 100;
     let dailyRate;
     if (period === "per_month") {
-      const monthlyRate = annualRate / 12;
-      dailyRate = monthlyRate / 30; // 30 days per month simplified
+      // Ang interestRate ay monthly rate na, hindi na dapat hatiin sa 12
+      const monthlyRate = debt.interestRate / 100;
+      dailyRate = monthlyRate / 30; // assumption: 30 days per month
     } else {
+      // per_annum
+      const annualRate = debt.interestRate / 100;
       dailyRate = annualRate / 365;
     }
 

@@ -91,7 +91,6 @@ class DebtStateTransitionService {
     return true;
   }
 
-
   /**
    * @param {{ id: number; status: any; }} debt
    */
@@ -100,7 +99,9 @@ class DebtStateTransitionService {
     logger.info(`[Transition] Marking debt #${debt.id} as paid by ${user}`);
     const isAllowed = await this.isStatusAllowed(debt.status);
     if (!isAllowed)
-      throw new Error(`Status ${debt.status} is not allowed by system settings.`);
+      throw new Error(
+        `Status ${debt.status} is not allowed by system settings.`,
+      );
 
     // ✅ Reload debt with borrower
     const debtWithBorrower = await this._getDebtWithBorrower(
@@ -220,7 +221,9 @@ class DebtStateTransitionService {
     logger.info(`[Transition] Marking debt #${debt.id} as overdue by ${user}`);
     const isAllowed = await this.isStatusAllowed(debt.status);
     if (!isAllowed)
-      throw new Error(`Status ${debt.status} is not allowed by system settings.`);
+      throw new Error(
+        `Status ${debt.status} is not allowed by system settings.`,
+      );
 
     // ✅ Reload debt with borrower
     const debtWithBorrower = await this._getDebtWithBorrower(
@@ -233,41 +236,58 @@ class DebtStateTransitionService {
     debtWithBorrower.status = "overdue";
     debtWithBorrower.updatedAt = new Date();
     const savedDebt = await updateDb(debtRepo, debtWithBorrower, {
-      // @ts-ignore
       queryRunner: queryRunner,
       skipSignal: true,
     });
 
-    // Auto-penalty
+    // Auto-penalty (with duplicate check)
     const autoPenalty = await enableAutoPenalty();
     if (autoPenalty) {
       const graceDays = await penaltyGraceDays();
       const dueDate = new Date(debtWithBorrower.dueDate);
       const today = new Date();
-      // @ts-ignore
       const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
+
       if (daysOverdue > graceDays) {
-        const penaltyRate = await defaultPenaltyRate();
-        let penaltyAmount = 0;
-        const calcMethod = await penaltyCalculationMethod();
-        if (calcMethod === "percentage") {
-          penaltyAmount =
-            debtWithBorrower.remainingAmount * (penaltyRate / 100);
-        } else {
-          penaltyAmount = penaltyRate;
-        }
-        if (penaltyAmount > 0) {
-          const penalty = penaltyRepo.create({
-            amount: penaltyAmount,
-            penaltyDate: new Date(),
-            reason: `Auto‑penalty for overdue (${daysOverdue} days)`,
-            debt: debtWithBorrower,
-          });
-          // @ts-ignore
-          await saveDb(penaltyRepo, penalty, { queryRunner, skipSignal: true });
+        // ✅ Check if penalty already exists for this debt since due date
+        const existingPenalty = await penaltyRepo
+          .createQueryBuilder("penalty")
+          .where("penalty.debtId = :debtId", { debtId: debt.id })
+          .andWhere("penalty.penaltyDate >= :dueDate", {
+            dueDate: debt.dueDate,
+          })
+          .getCount();
+
+        if (existingPenalty > 0) {
           logger.info(
-            `Applied penalty of ${penaltyAmount} to debt #${debt.id}`,
+            `[Transition] Penalty already exists for debt #${debt.id} since due date, skipping auto-penalty`,
           );
+        } else {
+          const penaltyRate =
+            debtWithBorrower.penaltyRate ?? (await defaultPenaltyRate());
+          let penaltyAmount = 0;
+          const calcMethod = await penaltyCalculationMethod();
+          if (calcMethod === "percentage") {
+            penaltyAmount =
+              debtWithBorrower.remainingAmount * (penaltyRate / 100);
+          } else {
+            penaltyAmount = penaltyRate;
+          }
+          if (penaltyAmount > 0) {
+            const penalty = penaltyRepo.create({
+              amount: penaltyAmount,
+              penaltyDate: new Date(),
+              reason: `Auto‑penalty for overdue (${daysOverdue} days)`,
+              debt: debtWithBorrower,
+            });
+            await saveDb(penaltyRepo, penalty, {
+              queryRunner,
+              skipSignal: true,
+            });
+            logger.info(
+              `Applied penalty of ${penaltyAmount} to debt #${debt.id}`,
+            );
+          }
         }
       }
     }
@@ -317,7 +337,6 @@ class DebtStateTransitionService {
     return savedDebt;
   }
 
-
   /**
    * @param {{ id: any; status: any; }} debt
    */
@@ -328,7 +347,9 @@ class DebtStateTransitionService {
     );
     const isAllowed = await this.isStatusAllowed(debt.status);
     if (!isAllowed)
-      throw new Error(`Status ${debt.status} is not allowed by system settings.`);
+      throw new Error(
+        `Status ${debt.status} is not allowed by system settings.`,
+      );
 
     // ✅ Reload debt with borrower
     const debtWithBorrower = await this._getDebtWithBorrower(
@@ -402,7 +423,6 @@ class DebtStateTransitionService {
     return savedDebt;
   }
 
-
   /**
    * @param {{ id: any; status: any; }} debt
    */
@@ -411,7 +431,9 @@ class DebtStateTransitionService {
     logger.info(`[Transition] Restoring debt #${debt.id} to active by ${user}`);
     const isAllowed = await this.isStatusAllowed(debt.status);
     if (!isAllowed)
-      throw new Error(`Status ${debt.status} is not allowed by system settings.`);
+      throw new Error(
+        `Status ${debt.status} is not allowed by system settings.`,
+      );
 
     // ✅ Reload debt with borrower
     const debtWithBorrower = await this._getDebtWithBorrower(
@@ -500,7 +522,9 @@ class DebtStateTransitionService {
     );
     const isAllowed = await this.isStatusAllowed(debt.status);
     if (!isAllowed)
-      throw new Error(`Status ${debt.status} is not allowed by system settings.`);
+      throw new Error(
+        `Status ${debt.status} is not allowed by system settings.`,
+      );
 
     // ✅ Reload debt with borrower (para sa email at notification)
     const debtWithBorrower = await this._getDebtWithBorrower(
