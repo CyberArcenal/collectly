@@ -2,6 +2,17 @@
 import React from "react";
 import type { CollectionsSettings } from "../../../api/utils/system_config";
 import Switch from "../../../components/UI/Switch";
+import Select from "../../../components/UI/Select";
+
+const PENALTY_METHODS = [
+  { value: "percentage", label: "Percentage of remaining balance" },
+  { value: "fixed", label: "Fixed amount" },
+];
+
+const INTEREST_PERIODS = [
+  { value: "per_annum", label: "Per Annum (yearly) – 365 days/year" },
+  { value: "per_month", label: "Per Month (monthly) – 30 days/month" },
+];
 
 interface Props {
   settings: CollectionsSettings;
@@ -49,14 +60,12 @@ const CollectionsTab: React.FC<Props> = ({ settings, onUpdate }) => {
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
             Penalty Calculation Method
           </label>
-          <select
+          <Select
             value={settings.penalty_calculation_method ?? "percentage"}
-            onChange={(e) => onUpdate("penalty_calculation_method", e.target.value)}
-            className="windows-input w-full"
-          >
-            <option value="percentage">Percentage of remaining balance</option>
-            <option value="fixed">Fixed amount</option>
-          </select>
+            onChange={(val) => onUpdate("penalty_calculation_method", val)}
+            options={PENALTY_METHODS}
+            placeholder="Select method"
+          />
         </div>
         <div>
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
@@ -72,18 +81,16 @@ const CollectionsTab: React.FC<Props> = ({ settings, onUpdate }) => {
             min="0"
           />
         </div>
-        <div>
+        <div className="col-span-1">
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
             Default Interest Calculation Period (for new loans)
           </label>
-          <select
+          <Select
             value={settings.interest_calculation_period ?? "per_annum"}
-            onChange={(e) => onUpdate("interest_calculation_period", e.target.value)}
-            className="windows-input w-full"
-          >
-            <option value="per_annum">Per Annum (yearly) – 365 days/year</option>
-            <option value="per_month">Per Month (monthly) – 30 days/month</option>
-          </select>
+            onChange={(val) => onUpdate("interest_calculation_period", val)}
+            options={INTEREST_PERIODS}
+            placeholder="Select period"
+          />
           <p className="text-xs text-[var(--text-tertiary)] mt-1">
             Applied as default for new loans. Existing loans retain their own period.
           </p>

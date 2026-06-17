@@ -6,11 +6,7 @@ import type {
 } from "../../../api/utils/system_config";
 import Switch from "../../../components/UI/Switch";
 import Button from "../../../components/UI/Button";
-
-interface Props {
-  settings: IntegrationsSettings;
-  onUpdate: (field: keyof IntegrationsSettings, value: any) => void;
-}
+import Select from "../../../components/UI/Select";
 
 const PAYMENT_PROVIDERS = [
   { value: "stripe", label: "Stripe" },
@@ -21,6 +17,11 @@ const PAYMENT_PROVIDERS = [
   { value: "adyen", label: "Adyen" },
   { value: "other", label: "Other (specify below)" },
 ];
+
+interface Props {
+  settings: IntegrationsSettings;
+  onUpdate: (field: keyof IntegrationsSettings, value: any) => void;
+}
 
 const IntegrationsTab: React.FC<Props> = ({ settings, onUpdate }) => {
   const [webhooks, setWebhooks] = useState<WebhookSetting[]>(() => {
@@ -96,24 +97,20 @@ const IntegrationsTab: React.FC<Props> = ({ settings, onUpdate }) => {
             <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
               Provider
             </label>
-            <select
+            <Select
               value={selectValue}
-              onChange={(e) => {
-                const val = e.target.value;
+              onChange={(val) => {
                 if (val === "other") {
+                  // Keep the current custom value
                   onUpdate("payment_gateway_provider", settings.payment_gateway_provider || "");
                 } else {
                   onUpdate("payment_gateway_provider", val);
                 }
               }}
-              className="windows-input w-full"
+              options={PAYMENT_PROVIDERS}
+              placeholder="Select a provider"
               disabled={!settings.payment_gateway_enabled}
-            >
-              <option value="" disabled>Select a provider</option>
-              {PAYMENT_PROVIDERS.map((p) => (
-                <option key={p.value} value={p.value}>{p.label}</option>
-              ))}
-            </select>
+            />
           </div>
           {(selectValue === "other" || isOtherProvider) && (
             <div>
@@ -146,7 +143,7 @@ const IntegrationsTab: React.FC<Props> = ({ settings, onUpdate }) => {
         </div>
       </div>
 
-      {/* Webhooks */}
+      {/* Webhooks section remains unchanged (no selects) */}
       <div className="border border-[var(--border-color)] rounded-lg p-5 bg-[var(--card-secondary-bg)]">
         <div className="flex justify-between items-center mb-3">
           <h4 className="text-md font-medium text-[var(--text-primary)]">Webhooks</h4>

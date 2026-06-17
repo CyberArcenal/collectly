@@ -3,6 +3,12 @@ import React, { useState } from "react";
 import type { NotificationsSettings } from "../../../api/utils/system_config";
 import Switch from "../../../components/UI/Switch";
 import Button from "../../../components/UI/Button";
+import Select from "../../../components/UI/Select";
+
+const FREQUENCY_OPTIONS = [
+  { value: "daily", label: "Daily" },
+  { value: "weekly", label: "Weekly" },
+];
 
 interface Props {
   settings: NotificationsSettings;
@@ -196,20 +202,16 @@ const NotificationsTab: React.FC<Props> = ({ settings, onUpdate }) => {
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
             Overdue Notification Frequency
           </label>
-          <select
+          <Select
             value={settings.overdue_notification_frequency || "daily"}
-            onChange={(e) =>
-              onUpdate("overdue_notification_frequency", e.target.value)
-            }
-            className="windows-input w-full"
-          >
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-          </select>
+            onChange={(val) => onUpdate("overdue_notification_frequency", val)}
+            options={FREQUENCY_OPTIONS}
+            placeholder="Select frequency"
+          />
         </div>
       </div>
 
-      {/* Email SMTP Settings */}
+      {/* Email SMTP Settings (unchanged except using Select for port? But port is number input, keep as is) */}
       <div className="border-t border-[var(--border-color)] pt-5">
         <h4 className="text-md font-medium text-[var(--text-primary)] mb-3">Email (SMTP) Settings</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -283,7 +285,7 @@ const NotificationsTab: React.FC<Props> = ({ settings, onUpdate }) => {
         </div>
       </div>
 
-      {/* SMS (Twilio) Settings */}
+      {/* SMS (Twilio) Settings (unchanged) */}
       <div className="border-t border-[var(--border-color)] pt-5">
         <h4 className="text-md font-medium text-[var(--text-primary)] mb-3">SMS (Twilio) Settings</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -354,7 +356,7 @@ const NotificationsTab: React.FC<Props> = ({ settings, onUpdate }) => {
         </div>
       </div>
 
-      {/* Modal for test results */}
+      {/* Modal for test results (unchanged) */}
       {modal.visible && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"

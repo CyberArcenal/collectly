@@ -6,6 +6,18 @@ import { useVersion } from "../../../hooks/useVersion";
 import handshakeAPI from "../../../api/utils/handshake";
 import Switch from "../../../components/UI/Switch";
 import Button from "../../../components/UI/Button";
+import Select from "../../../components/UI/Select";
+
+const TIMEZONES = [
+  { value: "Asia/Manila", label: "Asia/Manila (UTC+8)" },
+  { value: "UTC", label: "UTC" },
+];
+
+const LANGUAGES = [
+  { value: "en", label: "English" },
+  { value: "es", label: "Spanish" },
+  { value: "tl", label: "Tagalog" },
+];
 
 interface Props {
   settings: GeneralSettings;
@@ -91,14 +103,12 @@ const GeneralTab: React.FC<Props> = ({ settings, onUpdate }) => {
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
             Timezone
           </label>
-          <select
+          <Select
             value={settings.default_timezone || "Asia/Manila"}
-            onChange={(e) => onUpdate("default_timezone", e.target.value)}
-            className="windows-input w-full"
-          >
-            <option value="Asia/Manila">Asia/Manila (UTC+8)</option>
-            <option value="UTC">UTC</option>
-          </select>
+            onChange={(val) => onUpdate("default_timezone", val)}
+            options={TIMEZONES}
+            placeholder="Select timezone"
+          />
         </div>
         <div>
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
@@ -115,15 +125,12 @@ const GeneralTab: React.FC<Props> = ({ settings, onUpdate }) => {
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
             Language
           </label>
-          <select
+          <Select
             value={settings.language || "en"}
-            onChange={(e) => onUpdate("language", e.target.value)}
-            className="windows-input w-full"
-          >
-            <option value="en">English</option>
-            <option value="es">Spanish</option>
-            <option value="tl">Tagalog</option>
-          </select>
+            onChange={(val) => onUpdate("language", val)}
+            options={LANGUAGES}
+            placeholder="Select language"
+          />
         </div>
         <div>
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
@@ -164,7 +171,7 @@ const GeneralTab: React.FC<Props> = ({ settings, onUpdate }) => {
         </div>
       </div>
 
-      {/* Sync Mode */}
+      {/* Sync Mode (unchanged) */}
       <div className="border-t border-[var(--border-color)] pt-5">
         <h4 className="text-md font-medium text-[var(--text-primary)] mb-3">Sync Mode</h4>
         <div className="flex flex-col sm:flex-row gap-4">
@@ -200,7 +207,7 @@ const GeneralTab: React.FC<Props> = ({ settings, onUpdate }) => {
         )}
       </div>
 
-      {/* Modal for server URL */}
+      {/* Modal for server URL (unchanged) */}
       {showServerModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
           <div className="bg-[var(--card-bg)] rounded-xl p-6 w-full max-w-md shadow-2xl border border-[var(--border-color)]">

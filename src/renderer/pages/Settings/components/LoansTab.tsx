@@ -2,6 +2,12 @@
 import React from "react";
 import type { LoanSettings } from "../../../api/utils/system_config";
 import Switch from "../../../components/UI/Switch";
+import Select from "../../../components/UI/Select";
+
+const AMORTIZATION_TYPES = [
+  { value: "flat", label: "Flat (fixed interest)" },
+  { value: "declining", label: "Declining (diminishing balance)" },
+];
 
 interface Props {
   settings: LoanSettings;
@@ -21,14 +27,12 @@ const LoansTab: React.FC<Props> = ({ settings, onUpdate }) => {
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
             Amortization Type
           </label>
-          <select
+          <Select
             value={settings.amortization_type ?? "flat"}
-            onChange={(e) => onUpdate("amortization_type", e.target.value)}
-            className="windows-input w-full"
-          >
-            <option value="flat">Flat (fixed interest)</option>
-            <option value="declining">Declining (diminishing balance)</option>
-          </select>
+            onChange={(val) => onUpdate("amortization_type", val)}
+            options={AMORTIZATION_TYPES}
+            placeholder="Select amortization type"
+          />
         </div>
         <div>
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">

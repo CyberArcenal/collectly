@@ -2,6 +2,13 @@
 import React from "react";
 import type { ReportsSettings } from "../../../api/utils/system_config";
 import Switch from "../../../components/UI/Switch";
+import Select from "../../../components/UI/Select";
+
+const EXPORT_FORMATS = [
+  { value: "CSV", label: "CSV" },
+  { value: "Excel", label: "Excel" },
+  { value: "PDF", label: "PDF" },
+];
 
 interface Props {
   settings: ReportsSettings;
@@ -54,15 +61,12 @@ const ReportsTab: React.FC<Props> = ({ settings, onUpdate }) => {
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
             Default Export Format
           </label>
-          <select
+          <Select
             value={settings.default_export_format || "CSV"}
-            onChange={(e) => onUpdate("default_export_format", e.target.value)}
-            className="windows-input w-full"
-          >
-            <option value="CSV">CSV</option>
-            <option value="Excel">Excel</option>
-            <option value="PDF">PDF</option>
-          </select>
+            onChange={(val) => onUpdate("default_export_format", val)}
+            options={EXPORT_FORMATS}
+            placeholder="Select default format"
+          />
         </div>
         <div>
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
