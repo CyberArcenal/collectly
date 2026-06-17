@@ -7,7 +7,10 @@ const { logger } = require("../utils/logger");
 const auditLogger = require("../utils/auditLogger");
 const { SystemSetting } = require("../entities/systemSettings");
 const Debt = require("../entities/Debt");
-const { overdueReminderDays } = require("../utils/system");
+const { overdueReminderDays, getSystemSetting } = require("../utils/system");
+const {
+  generateOverdueReminderEmail,
+} = require("../email-templates/overdueReminderTemplates");
 
 class OverdueReminderScheduler {
   constructor() {
@@ -135,7 +138,6 @@ class OverdueReminderScheduler {
    */
   async sendOverdueReminders() {
     try {
-      // Skip if already ran today
       if (await this.alreadyRanToday()) {
         logger.debug("[OVERDUE REMINDER] Already ran today, skipping");
         return;
@@ -143,7 +145,6 @@ class OverdueReminderScheduler {
 
       logger.info("[OVERDUE REMINDER] Checking for overdue debts...");
 
-      // Ensure DB is initialized
       if (!AppDataSource.isInitialized) {
         logger.warn("[OVERDUE REMINDER] Database not ready, skipping");
         return;
@@ -152,11 +153,6 @@ class OverdueReminderScheduler {
       const debtRepo = AppDataSource.getRepository(Debt);
       const now = new Date();
 
-      // Find debts that:
-      // - dueDate < current date
-      // - status NOT in ['paid', 'defaulted']
-      // - deletedAt IS NULL
-      // - have borrower email
       const overdueDebts = await debtRepo
         .createQueryBuilder("debt")
         .leftJoinAndSelect("debt.borrower", "borrower")
@@ -173,15 +169,23 @@ class OverdueReminderScheduler {
         return;
       }
 
-      // Get the configured reminder days (e.g., [7, 3, 1])
       const reminderDays = await overdueReminderDays();
       if (!reminderDays || reminderDays.length === 0) {
         logger.warn(
-          "[OVERDUE REMINDER] overdue_reminder_days setting is empty, no reminders will be sent",
+          "[OVERDUE REMINDER] overdue_reminder_days setting is empty",
         );
         await this.markRanToday();
         return;
       }
+
+      // Get system settings for email template
+      const [companyName, branchAddress, contactEmail, contactPhone] =
+        await Promise.all([
+          getSystemSetting("company_name", "Collectly"),
+          getSystemSetting("branch_location", "Manila, Philippines"),
+          getSystemSetting("smtp_from_email", "support@collectly.ph"),
+          getSystemSetting("twilio_phone_number", "+63 (2) 8123-4567"),
+        ]);
 
       logger.info(
         `[OVERDUE REMINDER] Found ${overdueDebts.length} overdue debt(s). Reminder days: ${reminderDays.join(", ")}`,
@@ -192,70 +196,46 @@ class OverdueReminderScheduler {
       let skippedCount = 0;
 
       for (const debt of overdueDebts) {
-        // @ts-ignore
         const borrower = debt.borrower;
         if (!borrower || !borrower.email) continue;
 
-        // Calculate days overdue (positive integer, 1 = first day overdue)
-        // @ts-ignore
         const dueDate = new Date(debt.dueDate);
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const daysOverdue = Math.floor(
-          // @ts-ignore
           (today - dueDate) / (1000 * 60 * 60 * 24),
         );
 
-        // Only send if daysOverdue is exactly one of the configured reminder days
         if (!reminderDays.includes(daysOverdue)) {
-          logger.debug(
-            `[OVERDUE REMINDER] Debt #${debt.id} is ${daysOverdue} days overdue – not a configured reminder day, skipping`,
-          );
           skippedCount++;
           continue;
         }
 
-        const subject = `Overdue Payment Reminder - ${debt.name}`;
-        // @ts-ignore
-        const remaining = (debt.totalAmount - debt.paidAmount).toFixed(2);
-        const html = `
-          <div style="font-family: Arial, sans-serif;">
-            <h2>Overdue Payment Reminder</h2>
-            <p>Dear ${borrower.name},</p>
-            <p>This is a reminder that your following debt is <strong style="color: red;">OVERDUE</strong> (${daysOverdue} day(s)):</p>
-            <ul>
-              <li><strong>Debt Name:</strong> ${debt.name}</li>
-              <li><strong>Total Amount:</strong> ₱${
-// @ts-ignore
-              debt.totalAmount.toFixed(2)}</li>
-              <li><strong>Amount Paid:</strong> ₱${
-// @ts-ignore
-              debt.paidAmount.toFixed(2)}</li>
-              <li><strong>Remaining Balance:</strong> ₱${remaining}</li>
-              <li><strong>Due Date:</strong> ${new Date(
-// @ts-ignore
-              debt.dueDate).toLocaleDateString()}</li>
-              <li><strong>Status:</strong> ${
-// @ts-ignore
-              debt.status.toUpperCase()}</li>
-            </ul>
-            <p>Please settle the overdue amount as soon as possible to avoid further penalties.</p>
-            <hr />
-            <p><em>This is an automated reminder. Please contact your loan officer for any inquiries.</em></p>
-          </div>
-        `;
-        const text = `
-          Overdue Payment Reminder
-          Dear ${borrower.name},
-          Your debt "${debt.name}" is OVERDUE (${daysOverdue} day(s)).
-          Total: ₱${
-// @ts-ignore
-          debt.totalAmount.toFixed(2)} | Paid: ₱${debt.paidAmount.toFixed(2)} | Remaining: ₱${remaining}
-          Due Date: ${new Date(
-// @ts-ignore
-          debt.dueDate).toLocaleDateString()}
-          Please settle immediately.
-        `;
+        // Prepare template data
+        const remaining = debt.totalAmount - debt.paidAmount;
+        const penaltyNote =
+          daysOverdue > 7
+            ? "Additional penalties may have been applied. Contact us for the exact amount."
+            : null;
+
+        const html = generateOverdueReminderEmail({
+          debtorName: borrower.name,
+          debtId: debt.id,
+          debtName: debt.name,
+          originalAmount: debt.totalAmount,
+          paidAmount: debt.paidAmount,
+          remainingBalance: remaining,
+          dueDate: debt.dueDate,
+          daysOverdue: daysOverdue,
+          penaltyNote: penaltyNote,
+          companyName,
+          branchAddress,
+          contactEmail,
+          contactPhone,
+        });
+
+        const subject = `⏰ Overdue Reminder – ${debt.name}`;
+        const text = `Dear ${borrower.name},\n\nYour debt "${debt.name}" is ${daysOverdue} day(s) overdue.\n\nOriginal Amount: ₱${debt.totalAmount.toFixed(2)}\nAmount Paid: ₱${debt.paidAmount.toFixed(2)}\nRemaining Balance: ₱${remaining.toFixed(2)}\nDue Date: ${new Date(debt.dueDate).toLocaleDateString()}\n\nPlease settle immediately to avoid penalties.\n\nContact us: ${contactEmail} or ${contactPhone}`;
 
         try {
           const result = await emailSender.send(
@@ -264,14 +244,13 @@ class OverdueReminderScheduler {
             html,
             text,
             {},
-            true, // async mode
+            true, // async
           );
           if (result.success) {
             sentCount++;
             logger.info(
               `✅ Reminder sent to ${borrower.email} for debt #${debt.id} (${daysOverdue} days overdue)`,
             );
-            // Optionally update debt status to 'overdue' if not already set
             if (debt.status !== "overdue") {
               debt.status = "overdue";
               await debtRepo.save(debt);
@@ -279,13 +258,11 @@ class OverdueReminderScheduler {
           } else {
             failedCount++;
             logger.warn(
-              // @ts-ignore
               `❌ Failed to send to ${borrower.email}: ${result.error}`,
             );
           }
         } catch (error) {
           failedCount++;
-          // @ts-ignore
           logger.error(`Error sending email to ${borrower.email}:`, error);
         }
       }
@@ -293,7 +270,6 @@ class OverdueReminderScheduler {
       await auditLogger.logExport(
         "OverdueReminder",
         "email",
-        // @ts-ignore
         {
           sent: sentCount,
           failed: failedCount,
@@ -305,13 +281,10 @@ class OverdueReminderScheduler {
       );
 
       logger.info(
-        `[OVERDUE REMINDER] Completed: ${sentCount} sent, ${failedCount} failed, ${skippedCount} skipped (not a reminder day)`,
+        `[OVERDUE REMINDER] Completed: ${sentCount} sent, ${failedCount} failed, ${skippedCount} skipped`,
       );
-
-      // Mark as run today even if some failed, to avoid re-running same day
       await this.markRanToday();
     } catch (error) {
-      // @ts-ignore
       logger.error("[OVERDUE REMINDER] Error during cleanup:", error);
     }
   }

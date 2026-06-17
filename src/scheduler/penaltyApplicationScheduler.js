@@ -92,6 +92,10 @@ class PenaltyApplicationScheduler {
     await settingRepo.save(setting);
   }
 
+  /**
+   * Check if a penalty already exists for this debt after its due date.
+   * This prevents applying multiple penalties on the same overdue cycle.
+   */
   async hasPenaltySinceDueDate(debtId, dueDate, queryRunner = null) {
     const PenaltyTransaction = require("../entities/PenaltyTransaction");
     const penaltyRepo = queryRunner
@@ -108,6 +112,15 @@ class PenaltyApplicationScheduler {
     return count > 0;
   }
 
+  /**
+   * Main logic: apply penalties to overdue debts.
+   * Respects settings:
+   * - enableAutoPenalty (master switch)
+   * - penaltyGraceDays (days before penalty)
+   * - penaltyCalculationMethod (percentage / fixed)
+   * - defaultPenaltyRate (rate value)
+   * - Debt-specific penaltyRate (overrides default)
+   */
   async applyPenalties() {
     try {
       const autoPenaltyEnabled = await enableAutoPenalty();
@@ -135,6 +148,7 @@ class PenaltyApplicationScheduler {
       const graceDays = await penaltyGraceDays();
       const calcMethod = await penaltyCalculationMethod();
 
+      // Only consider debts whose due date is beyond the grace period
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - graceDays);
 
@@ -164,7 +178,7 @@ class PenaltyApplicationScheduler {
       let skippedCount = 0;
 
       for (const debt of overdueDebts) {
-        // Skip if a penalty was already applied after the due date
+        // ✅ Skip if a penalty already exists for this debt after its due date
         const alreadyPenalized = await this.hasPenaltySinceDueDate(
           debt.id,
           debt.dueDate,
@@ -177,14 +191,15 @@ class PenaltyApplicationScheduler {
           continue;
         }
 
-        // ✅ FIX: Use debt.penaltyRate if available, fallback to default
+        // ✅ Use debt's own penaltyRate if set, else fallback to default
         const penaltyRate = debt.penaltyRate ?? (await defaultPenaltyRate());
 
-        // Calculate penalty amount
         let penaltyAmount = 0;
         if (calcMethod === "percentage") {
+          // Percentage of remaining balance
           penaltyAmount = debt.remainingAmount * (penaltyRate / 100);
         } else {
+          // Fixed amount
           penaltyAmount = penaltyRate;
         }
 
@@ -213,6 +228,7 @@ class PenaltyApplicationScheduler {
             queryRunner,
           );
 
+          // Trigger state transition (e.g., updates debt status, notifications)
           const transitionService =
             new PenaltyTransactionStateTransitionService(AppDataSource);
           await transitionService.onCollect(penalty, "system", queryRunner);
@@ -233,6 +249,7 @@ class PenaltyApplicationScheduler {
         }
       }
 
+      // Log summary
       await auditLogger.logExport(
         "PenaltyApplicationScheduler",
         "auto_penalty",
@@ -258,6 +275,9 @@ class PenaltyApplicationScheduler {
     }
   }
 
+  /**
+   * Force a manual run (e.g., from admin panel)
+   */
   async forceRun() {
     logger.info("🔄 Force penalty application triggered");
     await this.applyPenalties();
