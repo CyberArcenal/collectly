@@ -1,10 +1,20 @@
 // src/services/BorrowerStateTransitionService.js
+//@ts-check
 const Borrower = require("../entities/Borrower");
 const { logger } = require("../utils/logger");
 const auditLogger = require("../utils/auditLogger");
-const { emailEnabled, smsEnabled } = require("../utils/system");
+const {
+  emailEnabled,
+  smsEnabled,
+  getSystemSetting,
+} = require("../utils/system");
 const notificationService = require("../services/Notification");
 const { reminderLogService } = require("../services/ReminderLog");
+const {
+  generateActivatedEmail,
+  generateDeactivatedEmail,
+  generateMergedEmail,
+} = require("../email-templates/borrowerStatusTemplates");
 
 class BorrowerStateTransitionService {
   constructor(dataSource) {
@@ -25,7 +35,43 @@ class BorrowerStateTransitionService {
     return this.dataSource.getRepository(entityClass);
   }
 
-    /**
+  /**
+   * Helper to get common email data from system settings
+   */
+  async _getEmailData() {
+    const [companyName, branchAddress, contactEmail, contactPhone] =
+      await Promise.all([
+        getSystemSetting("company_name", "Collectly"),
+        getSystemSetting("branch_location", "Manila, Philippines"),
+        getSystemSetting("smtp_from_email", "support@collectly.ph"),
+        getSystemSetting("twilio_phone_number", "+63 (2) 8123-4567"),
+      ]);
+    return { companyName, branchAddress, contactEmail, contactPhone };
+  }
+
+  /**
+   * Send email using template
+   */
+  async _sendTemplateEmail(recipient, subject, html, user, queryRunner) {
+    try {
+      await reminderLogService.createReminder(
+        {
+          to: recipient,
+          subject,
+          html,
+          text: html.replace(/<[^>]*>/g, ""), // plain text fallback
+        },
+        user,
+        queryRunner,
+      );
+      return true;
+    } catch (err) {
+      logger.error(`Failed to queue email to ${recipient}:`, err);
+      throw err;
+    }
+  }
+
+  /**
    * Send email via ReminderLogService (queues and logs automatically)
    */
   async _sendEmail(recipient, subject, message, user, queryRunner) {
@@ -98,10 +144,23 @@ class BorrowerStateTransitionService {
     const canSendEmail = await emailEnabled();
     const canSendSms = await smsEnabled();
 
+    // In onActivate, after the audit log
     if (canSendEmail && borrower.email) {
-      const subject = "Account Reactivated";
-      const msg = `Dear ${borrower.name}, your account has been reactivated. You may now apply for new loans.`;
-      await this._sendEmail(borrower.email, subject, msg, user, queryRunner);
+      const emailData = await this._getEmailData();
+      const html = generateActivatedEmail({
+        borrowerId: borrower.id,
+        borrowerName: borrower.name,
+        borrowerEmail: borrower.email,
+        borrowerContact: borrower.contact,
+        ...emailData,
+      });
+      await this._sendTemplateEmail(
+        borrower.email,
+        "✅ Account Reactivated",
+        html,
+        user,
+        queryRunner,
+      );
     }
 
     if (canSendSms && borrower.contact) {
@@ -164,6 +223,27 @@ class BorrowerStateTransitionService {
       user,
       queryRunner,
     );
+
+    // In onDeactivate, after marking debts as defaulted
+    const canSendEmail = await emailEnabled();
+    if (canSendEmail && borrower.email) {
+      const emailData = await this._getEmailData();
+      const html = generateDeactivatedEmail({
+        borrowerId: borrower.id,
+        borrowerName: borrower.name,
+        borrowerEmail: borrower.email,
+        borrowerContact: borrower.contact,
+        activeDebtCount: activeDebts.length,
+        ...emailData,
+      });
+      await this._sendTemplateEmail(
+        borrower.email,
+        "⚠️ Account Deactivated",
+        html,
+        user,
+        queryRunner,
+      );
+    }
 
     return saved;
   }
@@ -289,21 +369,45 @@ class BorrowerStateTransitionService {
 
     // Email notifications
     const canSendEmail = await emailEnabled();
+    const emailData = await this._getEmailData();
+
+    // Count debts transferred
+    const debtsTransferred = debtsToUpdate.length;
+
     if (canSendEmail) {
+      // Send to source borrower
       if (sourceBorrower.email) {
-        await this._sendEmail(
+        const mergedHtml = generateMergedEmail({
+          sourceBorrowerId: sourceBorrower.id,
+          sourceBorrowerName: sourceBorrower.name,
+          targetBorrowerId: targetBorrower.id,
+          targetBorrowerName: targetBorrower.name,
+          debtsTransferred,
+          ...emailData,
+        });
+        await this._sendTemplateEmail(
           sourceBorrower.email,
-          "Account Merged",
-          `Your account has been merged into borrower #${targetBorrower.id} (${targetBorrower.name}). Please use that account for future transactions.`,
+          "📋 Account Merge – Your Account Merged",
+          mergedHtml.source,
           user,
           queryRunner,
         );
       }
+
+      // Send to target borrower
       if (targetBorrower.email) {
-        await this._sendEmail(
+        const mergedHtml = generateMergedEmail({
+          sourceBorrowerId: sourceBorrower.id,
+          sourceBorrowerName: sourceBorrower.name,
+          targetBorrowerId: targetBorrower.id,
+          targetBorrowerName: targetBorrower.name,
+          debtsTransferred,
+          ...emailData,
+        });
+        await this._sendTemplateEmail(
           targetBorrower.email,
-          "Account Merged",
-          `Borrower #${sourceBorrower.id} (${sourceBorrower.name}) has been merged into your account. All debts and transactions have been transferred.`,
+          "📋 Account Merge – New Debts Added",
+          mergedHtml.target,
           user,
           queryRunner,
         );

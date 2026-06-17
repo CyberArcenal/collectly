@@ -10,6 +10,7 @@ const {
   loanAgreementTemplate,
   defaultPenaltyRate,
   defaultLoanTermMonths,
+  defaultInterestCalculationPeriod,
 } = require("../utils/system");
 const notificationService = require("../services/Notification");
 const debtService = require("../services/Debt");
@@ -18,6 +19,11 @@ const loanAgreementService = require("../services/LoanAgreement");
 const pdfGenerator = require("../services/PDFGenerator");
 const fs = require("fs").promises;
 const path = require("path");
+const {
+  generateSubmittedEmail,
+  generateApprovedEmail,
+  generateRejectedEmail,
+} = require("../email-templates/loanStatusTemplates");
 
 class LoanApplicationStateTransitionService {
   /**
@@ -28,6 +34,33 @@ class LoanApplicationStateTransitionService {
     this.appRepo = dataSource.getRepository(
       require("../entities/LoanApplication"),
     );
+  }
+
+  /**
+   * Helper to send formatted HTML email
+   * @param {any} recipient
+   * @param {string} subject
+   * @param {string} html
+   * @param {string | undefined} user
+   * @param {import("typeorm").QueryRunner | null | undefined} queryRunner
+   */
+  async _sendFormattedEmail(recipient, subject, html, user, queryRunner) {
+    try {
+      await reminderLogService.createReminder(
+        {
+          to: recipient,
+          subject,
+          html,
+          text: html.replace(/<[^>]*>/g, ""), // plain text fallback
+        },
+        user,
+        queryRunner,
+      );
+      return true;
+    } catch (err) {
+      logger.error(`Failed to queue email to ${recipient}:`, err);
+      throw err;
+    }
   }
 
   /**
@@ -93,17 +126,27 @@ class LoanApplicationStateTransitionService {
     );
 
     // In‑app notification to loan officer
-    await notificationService.create(
-      {
-        userId: 1,
-        title: "New Loan Application",
-        message: `New loan application (#${application.id}) from ${application.debtorName}. Amount: ${application.requestedAmount}.`,
-        type: "info",
-        metadata: { applicationId: application.id },
-      },
-      user,
-      queryRunner,
-    );
+
+    // Send confirmation email to applicant
+    const canSendEmail = await emailEnabled();
+    if (application.debtorEmail && canSendEmail) {
+      const companyName = await require("../utils/system").companyName();
+      const html = generateSubmittedEmail({
+        applicantName: application.debtorName,
+        companyName: companyName,
+        amount: application.requestedAmount,
+        purpose: application.purpose,
+        applicationId: application.id,
+        contactEmail: await require("../utils/system").smtpFromEmail(),
+      });
+      await this._sendFormattedEmail(
+        application.debtorEmail,
+        "Loan Application Received - Thank You",
+        html,
+        user,
+        queryRunner,
+      );
+    }
 
     const needCreditCheck = await enforceCreditCheck();
     if (needCreditCheck && application.debtorId) {
@@ -160,34 +203,50 @@ class LoanApplicationStateTransitionService {
     );
 
     // 2. In‑app notification to debtor
-    await notificationService.create(
-      {
-        userId: 1,
-        title: "Loan Approved",
-        message: `Your loan application (${application.purpose}) has been approved. An active debt has been created.`,
-        type: "info",
-        metadata: { applicationId: application.id, debtId: createdDebt.id },
-      },
-      user,
-      queryRunner,
-    );
 
     // 3. Email/SMS if enabled
+    // Send APPROVED email with full details
     const canSendEmail = await emailEnabled();
-    const canSendSms = await smsEnabled();
     if (application.debtorEmail && canSendEmail) {
-      await this._sendEmail(
+      const companyName = await require("../utils/system").companyName();
+      const termMonths = await defaultLoanTermMonths();
+      const interestPeriod = await defaultInterestCalculationPeriod();
+      const html = generateApprovedEmail({
+        applicantName: application.debtorName,
+        companyName: companyName,
+        amount: application.requestedAmount,
+        purpose: application.purpose,
+        dueDate: application.proposedDueDate,
+        interestRate: application.interestRate,
+        interestPeriod: interestPeriod,
+        termMonths: termMonths,
+        applicationId: application.id,
+        debtId: createdDebt.id,
+        agreementLink: `#/loans/${createdDebt.id}/agreement`,
+        contactEmail: await require("../utils/system").smtpFromEmail(),
+        contactPhone: await require("../utils/system").getSystemSetting(
+          "twilio_phone_number",
+          "+63 (2) 8123-4567",
+        ),
+        branchAddress: await require("../utils/system").getSystemSetting(
+          "branch_location",
+          "Manila, Philippines",
+        ),
+      });
+      await this._sendFormattedEmail(
         application.debtorEmail,
-        "Loan Approved",
-        `Dear ${application.debtorName}, your loan application (${application.purpose}) has been approved.`,
+        "🎉 Loan Approved - Congratulations!",
+        html,
         user,
         queryRunner,
       );
     }
+
+    const canSendSms = await smsEnabled();
     if (application.debtorContact && canSendSms) {
       await this._sendSms(
         application.debtorContact,
-        `Dear ${application.debtorName}, your loan application has been approved.`,
+        `Congratulations ${application.debtorName}! Your loan of ₱${application.requestedAmount} has been approved. Due date: ${new Date(application.proposedDueDate).toLocaleDateString()}.`,
         user,
         queryRunner,
       );
@@ -279,36 +338,43 @@ class LoanApplicationStateTransitionService {
     // Here we only send notifications and audit.
 
     // In‑app notification to debtor
-    let message = `Your loan application has been rejected.`;
-    if (reason) message += ` Reason: ${reason}`;
-    await notificationService.create(
-      {
-        userId: 1,
-        title: "Loan Rejected",
-        message,
-        type: "error",
-        metadata: { applicationId: application.id, reason },
-      },
-      user,
-      queryRunner,
-    );
 
     // Email/SMS
     const canSendEmail = await emailEnabled();
-    const canSendSms = await smsEnabled();
     if (application.debtorEmail && canSendEmail) {
-      await this._sendEmail(
+      const companyName = await require("../utils/system").companyName();
+      const html = generateRejectedEmail({
+        applicantName: application.debtorName,
+        companyName: companyName,
+        amount: application.requestedAmount,
+        purpose: application.purpose,
+        applicationId: application.id,
+        rejectionReason:
+          reason || "Application did not meet our lending criteria.",
+        contactEmail: await require("../utils/system").smtpFromEmail(),
+        contactPhone: await require("../utils/system").getSystemSetting(
+          "twilio_phone_number",
+          "+63 (2) 8123-4567",
+        ),
+        branchAddress: await require("../utils/system").getSystemSetting(
+          "branch_location",
+          "Manila, Philippines",
+        ),
+      });
+      await this._sendFormattedEmail(
         application.debtorEmail,
-        "Loan Rejected",
-        `Dear ${application.debtorName}, your loan application has been rejected.${reason ? ` Reason: ${reason}` : ""}`,
+        "Loan Application Update",
+        html,
         user,
         queryRunner,
       );
     }
+
+    const canSendSms = await smsEnabled();
     if (application.debtorContact && canSendSms) {
       await this._sendSms(
         application.debtorContact,
-        `Your loan application has been rejected.${reason ? ` Reason: ${reason}` : ""}`,
+        `Dear ${application.debtorName}, your loan application has been reviewed. Please check your email for the decision details.`,
         user,
         queryRunner,
       );
@@ -329,18 +395,6 @@ class LoanApplicationStateTransitionService {
 
     // The service already reset status, rejectionReason, deletedAt.
     // Here we notify loan officer.
-
-    await notificationService.create(
-      {
-        userId: 1,
-        title: "Loan Application Reopened",
-        message: `Application #${application.id} for ${application.debtorName} has been reopened and is pending review.`,
-        type: "info",
-        metadata: { applicationId: application.id },
-      },
-      user,
-      queryRunner,
-    );
 
     // No email to debtor needed at this stage.
   }

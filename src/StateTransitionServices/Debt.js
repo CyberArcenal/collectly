@@ -13,9 +13,17 @@ const {
   emailEnabled,
   smsEnabled,
   allowedLoanStatuses,
+  getSystemSetting,
 } = require("../utils/system");
 const notificationService = require("../services/Notification");
 const { reminderLogService } = require("../services/ReminderLog");
+const {
+  generatePaidEmail,
+  generateOverdueEmail,
+  generateDefaultedEmail,
+  generateRestoredEmail,
+  generateForgivenessEmail,
+} = require("../email-templates/debtStatusTemplates");
 
 class DebtStateTransitionService {
   /**
@@ -169,27 +177,39 @@ class DebtStateTransitionService {
       );
     }
 
-    // In-app notification
-    await notificationService.create(
-      {
-        userId: 1,
-        title: "Payment Complete",
-        message: `Debt "${debtWithBorrower.name}" has been fully paid. Thank you!`,
-        type: "info",
-        metadata: { debtId: debt.id },
-      },
-      user,
-      queryRunner,
-    );
-
     // Email/SMS via ReminderLogService
-    const canSendEmail = await emailEnabled();
     const canSendSms = await smsEnabled();
+    // In onPaid, after the debt is saved, use the template
+    const canSendEmail = await emailEnabled();
     if (debtWithBorrower.borrower?.email && canSendEmail) {
+      const companyName = await getSystemSetting("company_name", "Collectly");
+      const branchAddress = await getSystemSetting(
+        "branch_location",
+        "Manila, Philippines",
+      );
+      const contactEmail = await getSystemSetting(
+        "smtp_from_email",
+        "support@collectly.ph",
+      );
+      const contactPhone = await getSystemSetting(
+        "twilio_phone_number",
+        "+63 (2) 8123-4567",
+      );
+
+      const html = generatePaidEmail({
+        debtorName: debtWithBorrower.borrower.name,
+        debtId: debt.id,
+        originalAmount: debtWithBorrower.totalAmount,
+        totalPaid: debtWithBorrower.totalAmount, // fully paid
+        companyName,
+        branchAddress,
+        contactEmail,
+        contactPhone,
+      });
       await this._sendEmail(
         debtWithBorrower.borrower.email,
-        "Payment Complete",
-        `Dear ${debtWithBorrower.borrower.name},\n\nYour debt "${debtWithBorrower.name}" has been fully paid. Thank you!`,
+        "✅ Debt Fully Paid",
+        html,
         user,
         queryRunner,
       );
@@ -224,7 +244,7 @@ class DebtStateTransitionService {
       throw new Error(
         `Status ${debt.status} is not allowed by system settings.`,
       );
-
+    let penaltyAmount = 0;
     // ✅ Reload debt with borrower
     const debtWithBorrower = await this._getDebtWithBorrower(
       debt.id,
@@ -265,7 +285,7 @@ class DebtStateTransitionService {
         } else {
           const penaltyRate =
             debtWithBorrower.penaltyRate ?? (await defaultPenaltyRate());
-          let penaltyAmount = 0;
+
           const calcMethod = await penaltyCalculationMethod();
           if (calcMethod === "percentage") {
             penaltyAmount =
@@ -293,26 +313,46 @@ class DebtStateTransitionService {
     }
 
     // In-app notification
-    await notificationService.create(
-      {
-        userId: 1,
-        title: "Payment Overdue",
-        message: `Debt "${debtWithBorrower.name}" is now overdue. Please settle immediately.`,
-        type: "info",
-        metadata: { debtId: debt.id },
-      },
-      user,
-      queryRunner,
-    );
 
     // Email/SMS
-    const canSendEmail = await emailEnabled();
     const canSendSms = await smsEnabled();
+    // In onOverdue, after applying penalty, use the template
+    const canSendEmail = await emailEnabled();
     if (debtWithBorrower.borrower?.email && canSendEmail) {
+      const companyName = await getSystemSetting("company_name", "Collectly");
+      const branchAddress = await getSystemSetting(
+        "branch_location",
+        "Manila, Philippines",
+      );
+      const contactEmail = await getSystemSetting(
+        "smtp_from_email",
+        "support@collectly.ph",
+      );
+      const contactPhone = await getSystemSetting(
+        "twilio_phone_number",
+        "+63 (2) 8123-4567",
+      );
+
+      const html = generateOverdueEmail({
+        debtorName: debtWithBorrower.borrower.name,
+        debtId: debt.id,
+        originalAmount: debtWithBorrower.totalAmount,
+        remainingBalance: debtWithBorrower.remainingAmount,
+        dueDate: debtWithBorrower.dueDate,
+        daysOverdue: Math.floor(
+          (new Date() - new Date(debtWithBorrower.dueDate)) /
+            (1000 * 60 * 60 * 24),
+        ),
+        penaltyAmount: penaltyAmount || 0,
+        companyName,
+        branchAddress,
+        contactEmail,
+        contactPhone,
+      });
       await this._sendEmail(
         debtWithBorrower.borrower.email,
-        "Payment Overdue",
-        `Dear ${debtWithBorrower.borrower.name},\n\nYour payment for debt "${debtWithBorrower.name}" is now overdue. Please settle immediately.`,
+        "⏰ Debt Overdue – Immediate Action Required",
+        html,
         user,
         queryRunner,
       );
@@ -367,17 +407,6 @@ class DebtStateTransitionService {
     });
 
     // In-app notification for debtor
-    await notificationService.create(
-      {
-        userId: 1,
-        title: "Final Default Notice",
-        message: `Debt "${debtWithBorrower.name}" has been declared in default. Legal action may follow.`,
-        type: "error",
-        metadata: { debtId: debt.id },
-      },
-      user,
-      queryRunner,
-    );
 
     // Internal admin notification
     await notificationService.create(
@@ -395,11 +424,37 @@ class DebtStateTransitionService {
     // Email/SMS
     const canSendEmail = await emailEnabled();
     const canSendSms = await smsEnabled();
+    // In onDefaulted
     if (debtWithBorrower.borrower?.email && canSendEmail) {
+      const companyName = await getSystemSetting("company_name", "Collectly");
+      const branchAddress = await getSystemSetting(
+        "branch_location",
+        "Manila, Philippines",
+      );
+      const contactEmail = await getSystemSetting(
+        "smtp_from_email",
+        "support@collectly.ph",
+      );
+      const contactPhone = await getSystemSetting(
+        "twilio_phone_number",
+        "+63 (2) 8123-4567",
+      );
+
+      const html = generateDefaultedEmail({
+        debtorName: debtWithBorrower.borrower.name,
+        debtId: debt.id,
+        originalAmount: debtWithBorrower.totalAmount,
+        remainingBalance: debtWithBorrower.remainingAmount,
+        dueDate: debtWithBorrower.dueDate,
+        companyName,
+        branchAddress,
+        contactEmail,
+        contactPhone,
+      });
       await this._sendEmail(
         debtWithBorrower.borrower.email,
-        "Final Default Notice",
-        `Dear ${debtWithBorrower.borrower.name},\n\nYour debt "${debtWithBorrower.name}" has been declared in default. Legal action may follow.`,
+        "⚠️ Debt Defaulted – Legal Action Pending",
+        html,
         user,
         queryRunner,
       );
@@ -477,11 +532,37 @@ class DebtStateTransitionService {
 
     const canSendEmail = await emailEnabled();
     const canSendSms = await smsEnabled();
+    // In onRestoreToActive
     if (debtWithBorrower.borrower?.email && canSendEmail) {
+      const companyName = await getSystemSetting("company_name", "Collectly");
+      const branchAddress = await getSystemSetting(
+        "branch_location",
+        "Manila, Philippines",
+      );
+      const contactEmail = await getSystemSetting(
+        "smtp_from_email",
+        "support@collectly.ph",
+      );
+      const contactPhone = await getSystemSetting(
+        "twilio_phone_number",
+        "+63 (2) 8123-4567",
+      );
+
+      const html = generateRestoredEmail({
+        debtorName: debtWithBorrower.borrower.name,
+        debtId: debt.id,
+        originalAmount: debtWithBorrower.totalAmount,
+        remainingBalance: debtWithBorrower.remainingAmount,
+        dueDate: debtWithBorrower.dueDate,
+        companyName,
+        branchAddress,
+        contactEmail,
+        contactPhone,
+      });
       await this._sendEmail(
         debtWithBorrower.borrower.email,
-        "Debt Restored",
-        `Dear ${debtWithBorrower.borrower.name},\n\nYour debt "${debtWithBorrower.name}" has been restored to active status.`,
+        "↺ Debt Restored – Payments Resumed",
+        html,
         user,
         queryRunner,
       );
@@ -560,14 +641,38 @@ class DebtStateTransitionService {
       `[Forgiveness] Email enabled: ${canSendEmail}, Debtor email: ${debtWithBorrower.borrower?.email || "NONE"}, Debtor name: ${debtWithBorrower.borrower?.name || "Unknown"}`,
     );
 
+    // In onForgiveness
     if (debtWithBorrower.borrower?.email && canSendEmail) {
-      logger.info(
-        `[Forgiveness] Attempting to send email to ${debtWithBorrower.borrower.email}`,
+      const companyName = await getSystemSetting("company_name", "Collectly");
+      const branchAddress = await getSystemSetting(
+        "branch_location",
+        "Manila, Philippines",
       );
+      const contactEmail = await getSystemSetting(
+        "smtp_from_email",
+        "support@collectly.ph",
+      );
+      const contactPhone = await getSystemSetting(
+        "twilio_phone_number",
+        "+63 (2) 8123-4567",
+      );
+
+      const html = generateForgivenessEmail({
+        debtorName: debtWithBorrower.borrower.name,
+        debtId: debt.id,
+        originalAmount: debtWithBorrower.totalAmount,
+        forgivenAmount: amountForgiven,
+        newBalance: debtWithBorrower.remainingAmount || 0,
+        reason: reason || "Debt forgiveness applied",
+        companyName,
+        branchAddress,
+        contactEmail,
+        contactPhone,
+      });
       await this._sendEmail(
         debtWithBorrower.borrower.email,
-        "Debt Forgiveness Applied",
-        `Dear ${debtWithBorrower.borrower.name},\n\nAn amount of ${amountForgiven} has been forgiven from your debt "${debtWithBorrower.name}". Remaining balance: ${(debtWithBorrower.remainingAmount || 0).toFixed(2)}.`,
+        "✓ Debt Forgiveness Applied",
+        html,
         user,
         queryRunner,
       );

@@ -606,8 +606,20 @@ async function defaultInterestCalculationPeriod() {
 // ============================================================
 // 📤 EXPORT ALL FUNCTIONS
 // ============================================================
+// src/utils/system.js
+
+/**
+ * Get a system setting by key (any category)
+ * @param {string} key - The setting key
+ * @param {any} fallback - Default value if not found
+ * @returns {Promise<any>}
+ */
+async function getSystemSetting(key, fallback = null) {
+  return getValue(key, null, fallback);
+}
 
 module.exports = {
+  getSystemSetting,
   creditCheckValidityDays,
   minCreditScoreForApproval,
 
