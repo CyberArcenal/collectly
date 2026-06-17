@@ -233,7 +233,7 @@ class ActivationAPI {
       });
 
       if (response.status) {
-        console.log(response);
+        // console.log(response);
         return response;
       }
       throw new Error(

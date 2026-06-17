@@ -1,3 +1,4 @@
+// src/renderer/pages/loans/agreements/hooks/useLoanAgreements.ts
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { LoanAgreement } from "../../../../api/core/loan_agreement";
 import loanAgreementsAPI from "../../../../api/core/loan_agreement";
@@ -15,12 +16,7 @@ export const useLoanAgreements = () => {
   const [agreements, setAgreements] = useState<LoanAgreement[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [pagination, setPagination] = useState({
-    page: 1,
-    totalPages: 1,
-    totalItems: 0,
-    pageSize: 10,
-  });
+  const [totalItems, setTotalItems] = useState(0);
   const [filters, setFilters] = useState<Filters>({
     search: "",
     status: "all",
@@ -55,17 +51,11 @@ export const useLoanAgreements = () => {
         agreementDateTo: filters.dateTo || undefined,
         debtId: filters.debtId || undefined,
       };
-      // status filter: API expects status query param
       if (filters.status !== "all") params.status = filters.status;
       const response = await loanAgreementsAPI.getAll(params);
       if (response.status && response.data) {
         setAgreements(response.data.data);
-        setPagination({
-          page: response.data.pagination.page,
-          totalPages: response.data.pagination.pages,
-          totalItems: response.data.pagination.total,
-          pageSize: response.data.pagination.limit,
-        });
+        setTotalItems(response.data.pagination.total);
       } else {
         throw new Error(response.message || "Failed to fetch agreements");
       }
@@ -100,17 +90,22 @@ export const useLoanAgreements = () => {
     setCurrentPage(1);
   };
 
+  const setPageSizeHandler = (size: number) => {
+    setPageSize(size);
+    setCurrentPage(1);
+  };
+
   return {
     agreements,
     loading,
     error,
-    pagination,
-    filters,
+    totalItems,
     currentPage,
     pageSize,
+    filters,
     sortConfig,
     setCurrentPage,
-    setPageSize,
+    setPageSize: setPageSizeHandler,
     handleFilterChange,
     resetFilters,
     handleSort,

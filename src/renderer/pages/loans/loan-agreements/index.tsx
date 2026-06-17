@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+// src/renderer/pages/loans/agreements/index.tsx
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { FileText, RefreshCw, Filter, X, Plus } from "lucide-react";
 import { useLoanAgreements } from "./hooks/useLoanAgreements";
 import LoanAgreementsTable from "./components/LoanAgreementsTable";
@@ -10,17 +11,17 @@ import type { LoanAgreement } from "../../../api/core/loan_agreement";
 import { dialogs } from "../../../utils/dialogs";
 import loanAgreementsAPI from "../../../api/core/loan_agreement";
 import Button from "../../../components/UI/Button";
-import Pagination from "../../../components/Shared/Pagination";
+import { usePagination } from "../../../contexts/PaginationContext";
 
 const LoanAgreementsPage: React.FC = () => {
   const {
     agreements,
     loading,
     error,
-    pagination,
-    filters,
+    totalItems,
     currentPage,
     pageSize,
+    filters,
     sortConfig,
     setCurrentPage,
     setPageSize,
@@ -35,9 +36,68 @@ const LoanAgreementsPage: React.FC = () => {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [signModalOpen, setSignModalOpen] = useState(false);
   const [viewModalOpen, setViewModalOpen] = useState(false);
-  const [selectedAgreement, setSelectedAgreement] = useState<LoanAgreement | null>(null);
+  const [selectedAgreement, setSelectedAgreement] =
+    useState<LoanAgreement | null>(null);
   const [signLoading, setSignLoading] = useState(false);
 
+  const { setPagination, clearPagination } = usePagination();
+
+  // Stable pagination handlers
+  const handlePageChange = useCallback(
+    (newPage: number) => setCurrentPage(newPage),
+    [setCurrentPage],
+  );
+  const handlePageSizeChange = useCallback(
+    (newSize: number) => {
+      setPageSize(newSize);
+      setCurrentPage(1);
+    },
+    [setPageSize, setCurrentPage],
+  );
+
+  const handlersRef = useRef({
+    onPageChange: handlePageChange,
+    onPageSizeChange: handlePageSizeChange,
+  });
+  useEffect(() => {
+    handlersRef.current = {
+      onPageChange: handlePageChange,
+      onPageSizeChange: handlePageSizeChange,
+    };
+  }, [handlePageChange, handlePageSizeChange]);
+
+  const prevPageRef = useRef(currentPage);
+  const prevTotalRef = useRef(totalItems);
+  const prevLimitRef = useRef(pageSize);
+
+  // Sync with global pagination context
+  useEffect(() => {
+    const pageChanged = prevPageRef.current !== currentPage;
+    const totalChanged = prevTotalRef.current !== totalItems;
+    const limitChanged = prevLimitRef.current !== pageSize;
+
+    if (pageChanged || totalChanged || limitChanged) {
+      prevPageRef.current = currentPage;
+      prevTotalRef.current = totalItems;
+      prevLimitRef.current = pageSize;
+
+      setPagination({
+        currentPage,
+        totalItems,
+        pageSize,
+        onPageChange: handlersRef.current.onPageChange,
+        onPageSizeChange: handlersRef.current.onPageSizeChange,
+        pageSizeOptions: [10, 25, 50, 100],
+        showPageSize: true,
+      });
+    }
+  }, [currentPage, totalItems, pageSize, setPagination]);
+
+  useEffect(() => {
+    return () => clearPagination();
+  }, [clearPagination]);
+
+  // Handlers
   const handleView = (agreement: LoanAgreement) => {
     setSelectedAgreement(agreement);
     setViewModalOpen(true);
@@ -80,13 +140,18 @@ const LoanAgreementsPage: React.FC = () => {
   const handleDelete = async (agreement: LoanAgreement) => {
     const confirmed = await dialogs.confirm({
       title: "Delete Agreement",
-      message: agreement.status === "signed"
-        ? "This agreement is signed. Are you sure you want to delete it? (This may affect legal records.)"
-        : "Are you sure you want to delete this draft agreement?",
+      message:
+        agreement.status === "signed"
+          ? "This agreement is signed. Are you sure you want to delete it? (This may affect legal records.)"
+          : "Are you sure you want to delete this draft agreement?",
     });
     if (!confirmed) return;
     try {
-      await loanAgreementsAPI.delete(agreement.id, "system", agreement.status === "signed");
+      await loanAgreementsAPI.delete(
+        agreement.id,
+        "system",
+        agreement.status === "signed",
+      );
       dialogs.success("Agreement deleted");
       reload();
     } catch (err: any) {
@@ -94,36 +159,37 @@ const LoanAgreementsPage: React.FC = () => {
     }
   };
 
-const handleDownload = async (agreement: LoanAgreement) => {
-  if (!agreement.filePath) {
-    dialogs.error("No file attached to this agreement");
-    return;
-  }
-  try {
-    const result = await window.backendAPI.openAgreementFile(agreement.filePath);
-    if (!result.status) throw new Error(result.message);
-  } catch (err: any) {
-    dialogs.error("Could not open file: " + err.message);
-  }
-};
-
-  const getDisplayRange = () => {
-    const start = (currentPage - 1) * pageSize + 1;
-    const end = Math.min(currentPage * pageSize, pagination.totalItems);
-    return { start, end };
+  const handleDownload = async (agreement: LoanAgreement) => {
+    if (!agreement.filePath) {
+      dialogs.error("No file attached to this agreement");
+      return;
+    }
+    try {
+      const result = await window.backendAPI.openAgreementFile(
+        agreement.filePath,
+      );
+      if (!result.status) throw new Error(result.message);
+    } catch (err: any) {
+      dialogs.error("Could not open file: " + err.message);
+    }
   };
-  const { start, end } = getDisplayRange();
 
   return (
     <div className="m-1" style={{ backgroundColor: "var(--background-color)" }}>
       <div
         className="rounded-md shadow-md border p-4"
-        style={{ backgroundColor: "var(--card-bg)", borderColor: "var(--border-color)" }}
+        style={{
+          backgroundColor: "var(--card-bg)",
+          borderColor: "var(--border-color)",
+        }}
       >
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
           <div className="flex items-center gap-2">
             <FileText className="w-6 h-6 text-[var(--primary-color)]" />
-            <h1 className="text-xl font-bold" style={{ color: "var(--sidebar-text)" }}>
+            <h1
+              className="text-xl font-bold"
+              style={{ color: "var(--sidebar-text)" }}
+            >
               Loan Agreements
             </h1>
           </div>
@@ -141,7 +207,10 @@ const handleDownload = async (agreement: LoanAgreement) => {
               className="px-3 py-2 rounded-md flex items-center gap-1 border"
               style={{ borderColor: "var(--border-color)" }}
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} /> Refresh
+              <RefreshCw
+                className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
+              />{" "}
+              Refresh
             </button>
             <Button variant="primary" onClick={() => setCreateModalOpen(true)}>
               <Plus className="w-4 h-4 mr-1" /> New Agreement
@@ -150,7 +219,13 @@ const handleDownload = async (agreement: LoanAgreement) => {
         </div>
 
         {showFilters && (
-          <div className="mb-4 p-3 rounded-md border" style={{ backgroundColor: "var(--card-secondary-bg)", borderColor: "var(--border-color)" }}>
+          <div
+            className="mb-4 p-3 rounded-md border"
+            style={{
+              backgroundColor: "var(--card-secondary-bg)",
+              borderColor: "var(--border-color)",
+            }}
+          >
             <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
               <input
                 type="text"
@@ -158,13 +233,19 @@ const handleDownload = async (agreement: LoanAgreement) => {
                 value={filters.search}
                 onChange={(e) => handleFilterChange("search", e.target.value)}
                 className="px-3 py-2 border rounded-md"
-                style={{ backgroundColor: "var(--input-bg)", borderColor: "var(--border-color)" }}
+                style={{
+                  backgroundColor: "var(--input-bg)",
+                  borderColor: "var(--border-color)",
+                }}
               />
               <select
                 value={filters.status}
                 onChange={(e) => handleFilterChange("status", e.target.value)}
                 className="px-3 py-2 border rounded-md"
-                style={{ backgroundColor: "var(--input-bg)", borderColor: "var(--border-color)" }}
+                style={{
+                  backgroundColor: "var(--input-bg)",
+                  borderColor: "var(--border-color)",
+                }}
               >
                 <option value="all">All Status</option>
                 <option value="draft">Draft</option>
@@ -174,7 +255,9 @@ const handleDownload = async (agreement: LoanAgreement) => {
                 type="text"
                 placeholder="Lender name"
                 value={filters.lenderName}
-                onChange={(e) => handleFilterChange("lenderName", e.target.value)}
+                onChange={(e) =>
+                  handleFilterChange("lenderName", e.target.value)
+                }
                 className="px-3 py-2 border rounded-md"
               />
               <input
@@ -193,38 +276,24 @@ const handleDownload = async (agreement: LoanAgreement) => {
               />
             </div>
             <div className="mt-2 flex justify-end">
-              <button onClick={resetFilters} className="text-sm text-[var(--primary-color)] flex items-center gap-1">
+              <button
+                onClick={resetFilters}
+                className="text-sm text-[var(--primary-color)] flex items-center gap-1"
+              >
                 <X className="w-3 h-3" /> Reset
               </button>
             </div>
           </div>
         )}
 
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3">
-          <div className="flex items-center gap-2">
-            <label className="text-sm">Show:</label>
-            <select
-              value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value))}
-              className="px-2 py-1 border rounded text-sm"
-              style={{ backgroundColor: "var(--card-bg)", borderColor: "var(--border-color)" }}
-            >
-              {[10, 25, 50, 100].map((size) => (
-                <option key={size} value={size}>{size}</option>
-              ))}
-            </select>
-          </div>
-          <div className="text-sm text-[var(--text-secondary)]">
-            {pagination.totalItems > 0 ? `Showing ${start} to ${end} of ${pagination.totalItems} entries` : "No entries"}
-          </div>
-        </div>
-
         {loading && (
           <div className="flex justify-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary-color)]"></div>
           </div>
         )}
-        {error && <div className="text-center py-4 text-red-500">Error: {error}</div>}
+        {error && (
+          <div className="text-center py-4 text-red-500">Error: {error}</div>
+        )}
 
         {!loading && !error && (
           <>
@@ -239,33 +308,56 @@ const handleDownload = async (agreement: LoanAgreement) => {
               onSort={handleSort}
             />
             {agreements.length === 0 && (
-              <div className="text-center py-12 border rounded-md" style={{ borderColor: "var(--border-color)" }}>
+              <div
+                className="text-center py-12 border rounded-md"
+                style={{ borderColor: "var(--border-color)" }}
+              >
                 <FileText className="w-12 h-12 mx-auto mb-3 text-[var(--text-tertiary)]" />
                 <p className="text-lg font-medium">No loan agreements found</p>
-                <p className="text-sm text-[var(--text-tertiary)] mt-1">Create a new agreement to get started.</p>
-              </div>
-            )}
-            {agreements.length > 0 && pagination.totalPages > 1 && (
-              <div className="mt-4">
-                <Pagination
-                  currentPage={currentPage}
-                  totalItems={pagination.totalItems}
-                  pageSize={pageSize}
-                  onPageChange={setCurrentPage}
-                  onPageSizeChange={setPageSize}
-                  pageSizeOptions={[10, 25, 50, 100]}
-                  showPageSize={false}
-                />
+                <p className="text-sm text-[var(--text-tertiary)] mt-1">
+                  Create a new agreement to get started.
+                </p>
               </div>
             )}
           </>
         )}
       </div>
 
-      <CreateAgreementModal isOpen={createModalOpen} onClose={() => setCreateModalOpen(false)} onSuccess={reload} />
-      <EditAgreementModal isOpen={editModalOpen} agreement={selectedAgreement} onClose={() => { setEditModalOpen(false); setSelectedAgreement(null); }} onSuccess={reload} />
-      <SignAgreementModal isOpen={signModalOpen} agreement={selectedAgreement} onClose={() => { setSignModalOpen(false); setSelectedAgreement(null); }} onConfirm={handleSignConfirm} isLoading={signLoading} />
-      <ViewAgreementModal isOpen={viewModalOpen} agreement={selectedAgreement} onClose={() => { setViewModalOpen(false); setSelectedAgreement(null); }} onDownload={() => selectedAgreement && handleDownload(selectedAgreement)} />
+      <CreateAgreementModal
+        isOpen={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        onSuccess={reload}
+      />
+      <EditAgreementModal
+        isOpen={editModalOpen}
+        agreement={selectedAgreement}
+        onClose={() => {
+          setEditModalOpen(false);
+          setSelectedAgreement(null);
+        }}
+        onSuccess={reload}
+      />
+      <SignAgreementModal
+        isOpen={signModalOpen}
+        agreement={selectedAgreement}
+        onClose={() => {
+          setSignModalOpen(false);
+          setSelectedAgreement(null);
+        }}
+        onConfirm={handleSignConfirm}
+        isLoading={signLoading}
+      />
+      <ViewAgreementModal
+        isOpen={viewModalOpen}
+        agreement={selectedAgreement}
+        onClose={() => {
+          setViewModalOpen(false);
+          setSelectedAgreement(null);
+        }}
+        onDownload={() =>
+          selectedAgreement && handleDownload(selectedAgreement)
+        }
+      />
     </div>
   );
 };

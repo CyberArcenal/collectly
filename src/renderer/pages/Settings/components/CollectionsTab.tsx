@@ -1,6 +1,7 @@
 // src/renderer/pages/Settings/components/CollectionsTab.tsx
 import React from "react";
 import type { CollectionsSettings } from "../../../api/utils/system_config";
+import Switch from "../../../components/UI/Switch";
 
 interface Props {
   settings: CollectionsSettings;
@@ -9,11 +10,13 @@ interface Props {
 
 const CollectionsTab: React.FC<Props> = ({ settings, onUpdate }) => {
   return (
-    <div className="space-y-4">
-      <h3 className="text-lg font-semibold text-[var(--text-primary)]">
-        Collections Settings
-      </h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-semibold text-[var(--text-primary)]">Collections Settings</h3>
+        <p className="text-sm text-[var(--text-secondary)]">Default rates, penalties, and loan limits</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div>
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
             Default Interest Rate (%)
@@ -28,7 +31,6 @@ const CollectionsTab: React.FC<Props> = ({ settings, onUpdate }) => {
             className="windows-input w-full"
           />
         </div>
-
         <div>
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
             Default Penalty Rate (% per day)
@@ -43,23 +45,19 @@ const CollectionsTab: React.FC<Props> = ({ settings, onUpdate }) => {
             className="windows-input w-full"
           />
         </div>
-
         <div>
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
             Penalty Calculation Method
           </label>
           <select
             value={settings.penalty_calculation_method ?? "percentage"}
-            onChange={(e) =>
-              onUpdate("penalty_calculation_method", e.target.value)
-            }
+            onChange={(e) => onUpdate("penalty_calculation_method", e.target.value)}
             className="windows-input w-full"
           >
             <option value="percentage">Percentage of remaining balance</option>
             <option value="fixed">Fixed amount</option>
           </select>
         </div>
-
         <div>
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
             Penalty Grace Days
@@ -74,47 +72,22 @@ const CollectionsTab: React.FC<Props> = ({ settings, onUpdate }) => {
             min="0"
           />
         </div>
-
         <div>
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
             Default Interest Calculation Period (for new loans)
           </label>
           <select
             value={settings.interest_calculation_period ?? "per_annum"}
-            onChange={(e) =>
-              onUpdate("interest_calculation_period", e.target.value)
-            }
+            onChange={(e) => onUpdate("interest_calculation_period", e.target.value)}
             className="windows-input w-full"
           >
-            <option value="per_annum">
-              Per Annum (yearly) - 365 days/year
-            </option>
-            <option value="per_month">
-              Per Month (monthly) - 30 days/month
-            </option>
+            <option value="per_annum">Per Annum (yearly) – 365 days/year</option>
+            <option value="per_month">Per Month (monthly) – 30 days/month</option>
           </select>
           <p className="text-xs text-[var(--text-tertiary)] mt-1">
-            This setting will be applied as default when creating a new loan.
-            Existing loans retain their own period.
+            Applied as default for new loans. Existing loans retain their own period.
           </p>
         </div>
-
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="enable_auto_penalty"
-            checked={settings.enable_auto_penalty || false}
-            onChange={(e) => onUpdate("enable_auto_penalty", e.target.checked)}
-            className="windows-checkbox"
-          />
-          <label
-            htmlFor="enable_auto_penalty"
-            className="text-sm text-[var(--text-secondary)]"
-          >
-            Automatically apply penalty when overdue
-          </label>
-        </div>
-
         <div>
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
             Overdue Reminder Days (comma separated)
@@ -137,7 +110,6 @@ const CollectionsTab: React.FC<Props> = ({ settings, onUpdate }) => {
             placeholder="e.g., 7, 3, 1"
           />
         </div>
-
         <div>
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
             Max Loan Amount (0 = unlimited)
@@ -152,7 +124,6 @@ const CollectionsTab: React.FC<Props> = ({ settings, onUpdate }) => {
             className="windows-input w-full"
           />
         </div>
-
         <div>
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
             Min Loan Amount
@@ -167,21 +138,33 @@ const CollectionsTab: React.FC<Props> = ({ settings, onUpdate }) => {
             className="windows-input w-full"
           />
         </div>
+      </div>
 
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="enforce_credit_check"
-            checked={settings.enforce_credit_check || false}
-            onChange={(e) => onUpdate("enforce_credit_check", e.target.checked)}
-            className="windows-checkbox"
+      <div className="border-t border-[var(--border-color)] pt-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <label htmlFor="enable_auto_penalty" className="text-sm font-medium text-[var(--text-primary)]">
+              Automatically apply penalty when overdue
+            </label>
+            <p className="text-xs text-[var(--text-tertiary)]">Penalty will be applied automatically to overdue loans</p>
+          </div>
+          <Switch
+            checked={settings.enable_auto_penalty || false}
+            onChange={(checked) => onUpdate("enable_auto_penalty", checked)}
           />
-          <label
-            htmlFor="enforce_credit_check"
-            className="text-sm text-[var(--text-secondary)]"
-          >
-            Require credit check before loan approval
-          </label>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div>
+            <label htmlFor="enforce_credit_check" className="text-sm font-medium text-[var(--text-primary)]">
+              Require credit check before loan approval
+            </label>
+            <p className="text-xs text-[var(--text-tertiary)]">Prevent approval without a valid credit check</p>
+          </div>
+          <Switch
+            checked={settings.enforce_credit_check || false}
+            onChange={(checked) => onUpdate("enforce_credit_check", checked)}
+          />
         </div>
       </div>
     </div>

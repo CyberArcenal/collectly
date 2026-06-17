@@ -74,7 +74,7 @@ class UpdaterAPI {
         method: 'checkForUpdates',
         params: {},
       });
-      console.log(response)
+      // console.log(response)
       if (response.status) return response;
       throw new Error(response.message || 'Failed to check for updates');
     } catch (error: any) {
@@ -94,7 +94,7 @@ class UpdaterAPI {
         method: 'downloadUpdate',
         params: {},
       });
-      console.log(response)
+      // console.log(response)
       if (response.status) return response;
       throw new Error(response.message || 'Failed to download update');
     } catch (error: any) {
@@ -114,7 +114,7 @@ class UpdaterAPI {
         method: 'quitAndInstall',
         params: {},
       });
-      console.log(response)
+      // console.log(response)
       if (response.status) return response;
       throw new Error(response.message || 'Failed to install update');
     } catch (error: any) {
@@ -134,7 +134,7 @@ class UpdaterAPI {
         method: 'getUpdateStatus',
         params: {},
       });
-      console.log(response)
+      // console.log(response)
       if (response.status) return response;
       throw new Error(response.message || 'Failed to get update status');
     } catch (error: any) {

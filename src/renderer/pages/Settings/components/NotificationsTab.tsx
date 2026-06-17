@@ -1,6 +1,8 @@
 // src/renderer/pages/Settings/components/NotificationsTab.tsx
 import React, { useState } from "react";
 import type { NotificationsSettings } from "../../../api/utils/system_config";
+import Switch from "../../../components/UI/Switch";
+import Button from "../../../components/UI/Button";
 
 interface Props {
   settings: NotificationsSettings;
@@ -8,7 +10,7 @@ interface Props {
 }
 
 const NotificationsTab: React.FC<Props> = ({ settings, onUpdate }) => {
-  // Modal state
+  // Modal state (unchanged)
   const [modal, setModal] = useState<{
     visible: boolean;
     type: "smtp" | "sms";
@@ -32,16 +34,13 @@ const NotificationsTab: React.FC<Props> = ({ settings, onUpdate }) => {
       loading: true,
       result: null,
     });
-
     try {
       if (!window.backendAPI?.systemConfig)
         throw new Error("Electron API not available");
-
       const response = await window.backendAPI.systemConfig({
         method: "testSmtpConnection",
         params: { settings },
       });
-
       setModal((prev) => ({
         ...prev,
         loading: false,
@@ -69,16 +68,13 @@ const NotificationsTab: React.FC<Props> = ({ settings, onUpdate }) => {
       loading: true,
       result: null,
     });
-
     try {
       if (!window.backendAPI?.systemConfig)
         throw new Error("Electron API not available");
-
       const response = await window.backendAPI.systemConfig({
         method: "testSmsConnection",
         params: { settings },
       });
-
       setModal((prev) => ({
         ...prev,
         loading: false,
@@ -101,97 +97,76 @@ const NotificationsTab: React.FC<Props> = ({ settings, onUpdate }) => {
 
   return (
     <div className="space-y-6">
-      <h3 className="text-lg font-semibold text-[var(--text-primary)]">
-        Notification Settings
-      </h3>
+      <div>
+        <h3 className="text-lg font-semibold text-[var(--text-primary)]">Notification Settings</h3>
+        <p className="text-sm text-[var(--text-secondary)]">Email, SMS, and reminder preferences</p>
+      </div>
 
       {/* General toggles */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* ... existing toggles (unchanged) ... */}
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="email_enabled"
+        <div className="flex items-center justify-between">
+          <div>
+            <label htmlFor="email_enabled" className="text-sm font-medium text-[var(--text-primary)]">
+              Enable Email Notifications
+            </label>
+            <p className="text-xs text-[var(--text-tertiary)]">Send email alerts for events</p>
+          </div>
+          <Switch
             checked={settings.email_enabled || false}
-            onChange={(e) => onUpdate("email_enabled", e.target.checked)}
-            className="windows-checkbox"
+            onChange={(checked) => onUpdate("email_enabled", checked)}
           />
-          <label
-            htmlFor="email_enabled"
-            className="text-sm text-[var(--text-secondary)]"
-          >
-            Enable Email Notifications
-          </label>
         </div>
 
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="sms_enabled"
+        <div className="flex items-center justify-between">
+          <div>
+            <label htmlFor="sms_enabled" className="text-sm font-medium text-[var(--text-primary)]">
+              Enable SMS Notifications
+            </label>
+            <p className="text-xs text-[var(--text-tertiary)]">Send SMS alerts for events</p>
+          </div>
+          <Switch
             checked={settings.sms_enabled || false}
-            onChange={(e) => onUpdate("sms_enabled", e.target.checked)}
-            className="windows-checkbox"
+            onChange={(checked) => onUpdate("sms_enabled", checked)}
           />
-          <label
-            htmlFor="sms_enabled"
-            className="text-sm text-[var(--text-secondary)]"
-          >
-            Enable SMS Notifications
-          </label>
         </div>
 
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="notify_on_payment"
+        <div className="flex items-center justify-between">
+          <div>
+            <label htmlFor="notify_on_payment" className="text-sm font-medium text-[var(--text-primary)]">
+              Notify debtor on payment received
+            </label>
+          </div>
+          <Switch
             checked={settings.notify_on_payment || false}
-            onChange={(e) => onUpdate("notify_on_payment", e.target.checked)}
-            className="windows-checkbox"
+            onChange={(checked) => onUpdate("notify_on_payment", checked)}
           />
-          <label
-            htmlFor="notify_on_payment"
-            className="text-sm text-[var(--text-secondary)]"
-          >
-            Notify debtor on payment received
-          </label>
         </div>
 
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="notify_on_penalty"
+        <div className="flex items-center justify-between">
+          <div>
+            <label htmlFor="notify_on_penalty" className="text-sm font-medium text-[var(--text-primary)]">
+              Notify debtor when penalty is applied
+            </label>
+          </div>
+          <Switch
             checked={settings.notify_on_penalty || false}
-            onChange={(e) => onUpdate("notify_on_penalty", e.target.checked)}
-            className="windows-checkbox"
+            onChange={(checked) => onUpdate("notify_on_penalty", checked)}
           />
-          <label
-            htmlFor="notify_on_penalty"
-            className="text-sm text-[var(--text-secondary)]"
-          >
-            Notify debtor when penalty is applied
-          </label>
         </div>
 
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="send_reminders"
+        <div className="flex items-center justify-between">
+          <div>
+            <label htmlFor="send_reminders" className="text-sm font-medium text-[var(--text-primary)]">
+              Send overdue reminders
+            </label>
+          </div>
+          <Switch
             checked={(settings.reminder_days_before_due?.length ?? 0) > 0}
-            onChange={(e) => {
-              if (e.target.checked) {
-                onUpdate("reminder_days_before_due", [7, 3, 1]);
-              } else {
-                onUpdate("reminder_days_before_due", []);
-              }
+            onChange={(checked) => {
+              if (checked) onUpdate("reminder_days_before_due", [7, 3, 1]);
+              else onUpdate("reminder_days_before_due", []);
             }}
-            className="windows-checkbox"
           />
-          <label
-            htmlFor="send_reminders"
-            className="text-sm text-[var(--text-secondary)]"
-          >
-            Send overdue reminders
-          </label>
         </div>
 
         <div>
@@ -235,12 +210,9 @@ const NotificationsTab: React.FC<Props> = ({ settings, onUpdate }) => {
       </div>
 
       {/* Email SMTP Settings */}
-      <div className="border-t border-[var(--border-color)] pt-4">
-        <h4 className="text-md font-medium text-[var(--text-primary)] mb-3">
-          Email (SMTP) Settings
-        </h4>
+      <div className="border-t border-[var(--border-color)] pt-5">
+        <h4 className="text-md font-medium text-[var(--text-primary)] mb-3">Email (SMTP) Settings</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* ... existing SMTP fields (host, port, from, username, password) ... */}
           <div>
             <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
               SMTP Host
@@ -304,23 +276,17 @@ const NotificationsTab: React.FC<Props> = ({ settings, onUpdate }) => {
             />
           </div>
           <div className="md:col-span-2 flex justify-end">
-            <button
-              onClick={testSMTP}
-              className="windows-button windows-button-secondary text-sm"
-            >
+            <Button variant="secondary" size="sm" onClick={testSMTP}>
               Test SMTP Connection
-            </button>
+            </Button>
           </div>
         </div>
       </div>
 
       {/* SMS (Twilio) Settings */}
-      <div className="border-t border-[var(--border-color)] pt-4">
-        <h4 className="text-md font-medium text-[var(--text-primary)] mb-3">
-          SMS (Twilio) Settings
-        </h4>
+      <div className="border-t border-[var(--border-color)] pt-5">
+        <h4 className="text-md font-medium text-[var(--text-primary)] mb-3">SMS (Twilio) Settings</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* ... existing SMS fields ... */}
           <div>
             <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
               SMS Provider
@@ -380,111 +346,70 @@ const NotificationsTab: React.FC<Props> = ({ settings, onUpdate }) => {
               className="windows-input w-full"
             />
           </div>
-        </div>
-        <div className="flex justify-end mt-4">
-          <button
-            onClick={testSMS}
-            className="windows-button windows-button-secondary text-sm"
-          >
-            Test SMS Connection
-          </button>
+          <div className="md:col-span-2 flex justify-end">
+            <Button variant="secondary" size="sm" onClick={testSMS}>
+              Test SMS Connection
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* ========== MODAL COMPONENT ========== */}
+      {/* Modal for test results */}
       {modal.visible && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-all duration-300"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
           onClick={closeModal}
         >
           <div
-            className="bg-[var(--card-bg)] rounded-xl shadow-2xl max-w-md w-full mx-4 transform transition-all duration-300 scale-100 opacity-100 animate-slide-up"
+            className="bg-[var(--card-bg)] rounded-xl shadow-2xl max-w-md w-full mx-4 p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-6">
-              {/* Header */}
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-semibold text-[var(--text-primary)]">
-                  Testing {modal.type === "smtp" ? "SMTP" : "SMS"} Connection
-                </h3>
-                <button
-                  onClick={closeModal}
-                  className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition"
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* Body */}
-              <div className="flex flex-col items-center justify-center py-6">
-                {modal.loading ? (
-                  <>
-                    <div className="w-12 h-12 border-4 border-[var(--primary-color)] border-t-transparent rounded-full animate-spin mb-4"></div>
-                    <p className="text-[var(--text-secondary)]">
-                      Testing connection, please wait...
-                    </p>
-                  </>
-                ) : modal.result ? (
-                  <>
-                    <div
-                      className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 ${
-                        modal.result.success
-                          ? "bg-green-500/20 text-green-500"
-                          : "bg-red-500/20 text-red-500"
-                      }`}
-                    >
-                      {modal.result.success ? (
-                        <svg
-                          className="w-6 h-6"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M5 13l4 4L19 7"
-                          />
-                        </svg>
-                      ) : (
-                        <svg
-                          className="w-6 h-6"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M6 18L18 6M6 6l12 12"
-                          />
-                        </svg>
-                      )}
-                    </div>
-                    <p
-                      className={`text-center ${
-                        modal.result.success
-                          ? "text-green-500"
-                          : "text-red-500"
-                      }`}
-                    >
-                      {modal.result.message}
-                    </p>
-                  </>
-                ) : null}
-              </div>
-
-              {/* Footer */}
-              <div className="flex justify-end mt-4">
-                <button
-                  onClick={closeModal}
-                  className="windows-button windows-button-secondary"
-                >
-                  Close
-                </button>
-              </div>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-semibold text-[var(--text-primary)]">
+                Testing {modal.type === "smtp" ? "SMTP" : "SMS"} Connection
+              </h3>
+              <button
+                onClick={closeModal}
+                className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex flex-col items-center justify-center py-6">
+              {modal.loading ? (
+                <>
+                  <div className="w-12 h-12 border-4 border-[var(--primary-color)] border-t-transparent rounded-full animate-spin mb-4"></div>
+                  <p className="text-[var(--text-secondary)]">Testing connection, please wait...</p>
+                </>
+              ) : modal.result ? (
+                <>
+                  <div
+                    className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 ${
+                      modal.result.success
+                        ? "bg-green-500/20 text-green-500"
+                        : "bg-red-500/20 text-red-500"
+                    }`}
+                  >
+                    {modal.result.success ? (
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    ) : (
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    )}
+                  </div>
+                  <p className={`text-center ${modal.result.success ? "text-green-500" : "text-red-500"}`}>
+                    {modal.result.message}
+                  </p>
+                </>
+              ) : null}
+            </div>
+            <div className="flex justify-end mt-4">
+              <Button variant="secondary" onClick={closeModal}>
+                Close
+              </Button>
             </div>
           </div>
         </div>

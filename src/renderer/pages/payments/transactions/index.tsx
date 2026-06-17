@@ -1,7 +1,6 @@
 // src/renderer/pages/payments/transactions/index.tsx
-import React, { useState } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { Receipt, RefreshCw, Filter, Download } from "lucide-react";
-import Pagination from "../../../components/Shared/Pagination";
 import useTransactions from "./hooks/useTransactions";
 import FilterBar from "./components/FilterBar";
 import TransactionsTable from "./components/TransactionsTable";
@@ -11,16 +10,17 @@ import { formatCurrency } from "../../../utils/formatters";
 import { dialogs } from "../../../utils/dialogs";
 import paymentsAPI from "../../../api/core/payment_transaction";
 import PaymentViewDialog from "./components/PaymentViewDialog";
+import { usePagination } from "../../../contexts/PaginationContext";
 
-const IS_ADMIN = true; // or get from settings / user context
+const IS_ADMIN = true;
 
 const TransactionsPage: React.FC = () => {
   const {
-    transactions,          // current page data (no longer need paginatedTransactions)
+    transactions,
     filters,
     loading,
     error,
-    pagination,
+    totalItems,
     pageSize,
     setPageSize,
     currentPage,
@@ -43,10 +43,58 @@ const TransactionsPage: React.FC = () => {
   const [viewingTx, setViewingTx] = useState<any>(null);
   const [viewOpen, setViewOpen] = useState(false);
 
+  const { setPagination, clearPagination } = usePagination();
+
+  const handlePageChange = useCallback(
+    (newPage: number) => setCurrentPage(newPage),
+    [setCurrentPage]
+  );
+  const handlePageSizeChange = useCallback(
+    (newSize: number) => {
+      setPageSize(newSize);
+      setCurrentPage(1);
+    },
+    [setPageSize, setCurrentPage]
+  );
+
+  const handlersRef = useRef({ onPageChange: handlePageChange, onPageSizeChange: handlePageSizeChange });
+  useEffect(() => {
+    handlersRef.current = { onPageChange: handlePageChange, onPageSizeChange: handlePageSizeChange };
+  }, [handlePageChange, handlePageSizeChange]);
+
+  const prevPageRef = useRef(currentPage);
+  const prevTotalRef = useRef(totalItems);
+  const prevLimitRef = useRef(pageSize);
+
+  useEffect(() => {
+    const pageChanged = prevPageRef.current !== currentPage;
+    const totalChanged = prevTotalRef.current !== totalItems;
+    const limitChanged = prevLimitRef.current !== pageSize;
+
+    if (pageChanged || totalChanged || limitChanged) {
+      prevPageRef.current = currentPage;
+      prevTotalRef.current = totalItems;
+      prevLimitRef.current = pageSize;
+
+      setPagination({
+        currentPage,
+        totalItems,
+        pageSize,
+        onPageChange: handlersRef.current.onPageChange,
+        onPageSizeChange: handlersRef.current.onPageSizeChange,
+        pageSizeOptions: [10, 25, 50, 100],
+        showPageSize: true,
+      });
+    }
+  }, [currentPage, totalItems, pageSize, setPagination]);
+
+  useEffect(() => {
+    return () => clearPagination();
+  }, [clearPagination]);
+
   const handleExport = async () => {
     setExporting(true);
     try {
-      // Build export filters (same as current filters)
       const exportFilters: any = { ...filters };
       if (exportFilters.debtorId === "") delete exportFilters.debtorId;
       if (exportFilters.debtId === "") delete exportFilters.debtId;
@@ -95,13 +143,6 @@ const TransactionsPage: React.FC = () => {
     setViewOpen(true);
   };
 
-  const getDisplayRange = () => {
-    const start = (currentPage - 1) * pageSize + 1;
-    const end = Math.min(currentPage * pageSize, pagination.totalItems);
-    return { start, end };
-  };
-  const { start, end } = getDisplayRange();
-
   return (
     <div className="m-1" style={{ backgroundColor: "var(--background-color)" }}>
       <div className="rounded-md shadow-md border p-4" style={{ backgroundColor: "var(--card-bg)", borderColor: "var(--border-color)" }}>
@@ -117,7 +158,7 @@ const TransactionsPage: React.FC = () => {
             <button onClick={reload} disabled={loading} className="px-3 py-2 rounded-md flex items-center gap-1 border" style={{ borderColor: "var(--border-color)", backgroundColor: "var(--card-secondary-bg)", color: "var(--text-primary)" }}>
               <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} /> Refresh
             </button>
-            <button onClick={handleExport} disabled={exporting || pagination.totalItems === 0} className="px-3 py-2 rounded-md flex items-center gap-1" style={{ backgroundColor: "var(--success-color)", color: "white" }}>
+            <button onClick={handleExport} disabled={exporting || totalItems === 0} className="px-3 py-2 rounded-md flex items-center gap-1" style={{ backgroundColor: "var(--success-color)", color: "white" }}>
               <Download className="w-4 h-4" /> Export CSV
             </button>
           </div>
@@ -126,16 +167,8 @@ const TransactionsPage: React.FC = () => {
         {showFilters && <FilterBar filters={filters} onFilterChange={handleFilterChange} onReset={resetFilters} />}
 
         <div className="mb-3 flex flex-wrap justify-between items-center gap-2">
-          <div className="flex items-center gap-2">
-            <label className="text-sm" style={{ color: "var(--text-secondary)" }}>Show:</label>
-            <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))} className="px-2 py-1 border rounded text-sm" style={{ backgroundColor: "var(--card-bg)", borderColor: "var(--border-color)", color: "var(--text-primary)" }}>
-              {[10, 25, 50, 100].map((s) => (<option key={s}>{s}</option>))}
-            </select>
-          </div>
           <div className="text-sm" style={{ color: "var(--text-primary)" }}>Total Amount (current page): <span className="font-bold" style={{ color: "var(--success-color)" }}>{formatCurrency(totalAmount)}</span></div>
-          <div className="text-sm" style={{ color: "var(--text-secondary)" }}>
-            {pagination.totalItems > 0 ? `Showing ${start} to ${end} of ${pagination.totalItems} entries` : "No entries"}
-          </div>
+          {/* Removed "Show:" dropdown and showing info – global pagination handles it */}
         </div>
 
         {loading && <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: "var(--primary-color)" }}></div></div>}
@@ -154,19 +187,6 @@ const TransactionsPage: React.FC = () => {
             />
             {transactions.length === 0 && (
               <div className="text-center py-8" style={{ color: "var(--text-secondary)" }}>No transactions found.</div>
-            )}
-            {pagination.totalPages > 1 && (
-              <div className="mt-4">
-                <Pagination
-                  currentPage={currentPage}
-                  totalItems={pagination.totalItems}
-                  pageSize={pageSize}
-                  onPageChange={setCurrentPage}
-                  onPageSizeChange={setPageSize}
-                  pageSizeOptions={[10, 25, 50, 100]}
-                  showPageSize={false}
-                />
-              </div>
             )}
           </>
         )}

@@ -4,11 +4,13 @@ import { Outlet } from "react-router-dom";
 import Sidebar from "./SideBar";
 import TopBar from "./TopBar";
 import { NotificationToastListener } from "../components/Shared/NotificationToastListener";
+import { PaginationProvider, usePagination } from "../contexts/PaginationContext";
+import Pagination from "../components/UI/Pagination";
 
-const Layout: React.FC = () => {
+const LayoutContent: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-
+const { pagination } = usePagination();
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -40,11 +42,38 @@ const Layout: React.FC = () => {
             <main className="flex-1 overflow-y-auto p-4 md:p-6">
               <Outlet />
             </main>
+                {/* Pagination wrapper – always rendered, animated visibility */}
+            <div
+              className={`
+                px-4 py-2 border-t border-[var(--border-color)] bg-[var(--card-bg)]
+                overflow-hidden transition-all duration-300 ease-in-out
+                ${pagination.visible ? 'max-h-64 opacity-100' : 'max-h-0 opacity-0 pointer-events-none'}
+              `}
+            >
+              <Pagination
+                variant="compact"
+                currentPage={pagination.currentPage}
+                totalItems={pagination.totalItems}
+                pageSize={pagination.pageSize}
+                onPageChange={pagination.onPageChange}
+                onPageSizeChange={pagination.onPageSizeChange}
+                pageSizeOptions={pagination.pageSizeOptions}
+                showPageSize={pagination.showPageSize}
+              />
+            </div>
           </div>
         </div>
       </div>
       <NotificationToastListener />
     </div>
+  );
+};
+
+const Layout: React.FC = () => {
+  return (
+    <PaginationProvider>
+      <LayoutContent />
+    </PaginationProvider>
   );
 };
 

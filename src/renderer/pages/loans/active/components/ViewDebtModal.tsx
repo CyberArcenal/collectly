@@ -94,19 +94,6 @@ const ViewDebtModal: React.FC<ViewDebtModalProps> = ({ isOpen, debt, onClose }) 
   // ✅ Accrued interest (interes + penalty na naipon)
   const accruedInterest = Math.max(0, remainingBalance - (debt.totalAmount - totalPaid));
 
-  // Optional: logging para ma-verify
-  console.group(`🔍 ViewDebtModal - Debt: ${debt.name} (ID: ${debt.id})`);
-  console.log("totalAmount:", debt.totalAmount);
-  console.log("paidAmount (direct):", debt.paidAmount);
-  console.log("totalPaid (used):", totalPaid);
-  console.log("remainingAmount (direct):", debt.remainingAmount);
-  console.log("remainingBalance (used):", remainingBalance);
-  console.log("totalAmount - totalPaid:", debt.totalAmount - totalPaid);
-  console.log("accruedInterest (computed):", accruedInterest);
-  console.log("totalPenalty (from list):", totalPenalty);
-  console.log("daysOverdue (computed):", daysOverdue);
-  console.log("lastInterestAccrualDate:", debt.lastInterestAccrualDate);
-  console.log("interestCalculationPeriod:", debt.interestCalculationPeriod); // ✅ idinagdag
   console.groupEnd();
 
   const SkeletonTableRow = () => (

@@ -4,6 +4,8 @@ import type { GeneralSettings } from "../../../api/utils/system_config";
 import { dialogs } from "../../../utils/dialogs";
 import { useVersion } from "../../../hooks/useVersion";
 import handshakeAPI from "../../../api/utils/handshake";
+import Switch from "../../../components/UI/Switch";
+import Button from "../../../components/UI/Button";
 
 interface Props {
   settings: GeneralSettings;
@@ -16,13 +18,12 @@ const GeneralTab: React.FC<Props> = ({ settings, onUpdate }) => {
   const [tempServerUrl, setTempServerUrl] = useState(settings.server_url || "");
   const [connecting, setConnecting] = useState(false);
 
-  const handleSyncModeChange = async (mode: "offline" | "online") => {
+  const handleSyncModeChange = (mode: "offline" | "online") => {
     if (mode === "offline") {
       onUpdate("sync_mode", "offline");
       onUpdate("server_url", "");
       return;
     }
-    // mode === "online": show modal to enter server URL
     setTempServerUrl(settings.server_url || "");
     setShowServerModal(true);
   };
@@ -57,11 +58,13 @@ const GeneralTab: React.FC<Props> = ({ settings, onUpdate }) => {
   };
 
   return (
-    <div className="space-y-4">
-      <h3 className="text-lg font-semibold text-[var(--text-primary)]">
-        General Settings
-      </h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-semibold text-[var(--text-primary)]">General Settings</h3>
+        <p className="text-sm text-[var(--text-secondary)]">Basic system preferences and branding</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div>
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
             Company Name
@@ -148,8 +151,7 @@ const GeneralTab: React.FC<Props> = ({ settings, onUpdate }) => {
             placeholder="YYYY-MM-DD"
           />
         </div>
-
-        <div className="col-span-2">
+        <div className="md:col-span-2">
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
             Receipt Footer Message
           </label>
@@ -161,65 +163,48 @@ const GeneralTab: React.FC<Props> = ({ settings, onUpdate }) => {
           />
         </div>
       </div>
+
       {/* Sync Mode */}
-      <div className="col-span-2 border-t border-[var(--border-color)] pt-4 mt-2">
-        <h4 className="text-md font-medium text-[var(--text-primary)] mb-2">
-          Sync Mode
-        </h4>
+      <div className="border-t border-[var(--border-color)] pt-5">
+        <h4 className="text-md font-medium text-[var(--text-primary)] mb-3">Sync Mode</h4>
         <div className="flex flex-col sm:flex-row gap-4">
           <label className="flex items-center gap-2">
             <input
               type="radio"
               name="sync_mode"
               value="offline"
-              checked={
-                settings.sync_mode ===
-                ("offline" as "offline_first" | "online_only" | undefined)
-              }
+              checked={settings.sync_mode === ("offline" as any)}
               onChange={() => handleSyncModeChange("offline")}
-              className="windows-radio"
+              className="w-4 h-4 text-[var(--primary-color)] border-[var(--border-color)] focus:ring-[var(--primary-color)]"
             />
-            <span className="text-sm text-[var(--text-primary)]">
-              Offline Mode
-            </span>
-            <span className="text-xs text-[var(--text-tertiary)] ml-1">
-              Work locally, no sync
-            </span>
+            <span className="text-sm text-[var(--text-primary)]">Offline Mode</span>
+            <span className="text-xs text-[var(--text-tertiary)] ml-1">Work locally, no sync</span>
           </label>
           <label className="flex items-center gap-2">
             <input
               type="radio"
               name="sync_mode"
               value="online"
-              checked={
-                settings.sync_mode ===
-                ("online" as "offline_first" | "online_only" | undefined)
-              }
+              checked={settings.sync_mode === ("online" as any)}
               onChange={() => handleSyncModeChange("online")}
-              className="windows-radio"
+              className="w-4 h-4 text-[var(--primary-color)] border-[var(--border-color)] focus:ring-[var(--primary-color)]"
             />
-            <span className="text-sm text-[var(--text-primary)]">
-              Online Mode
-            </span>
-            <span className="text-xs text-[var(--text-tertiary)] ml-1">
-              Connect to server
-            </span>
+            <span className="text-sm text-[var(--text-primary)]">Online Mode</span>
+            <span className="text-xs text-[var(--text-tertiary)] ml-1">Connect to server</span>
           </label>
         </div>
-        {settings.sync_mode ===
-          ("online" as "offline_first" | "online_only" | undefined) &&
-          settings.server_url && (
-            <p className="text-xs text-[var(--text-tertiary)] mt-2">
-              Connected to:{" "}
-              <span className="font-mono">{settings.server_url}</span>
-            </p>
-          )}
+        {settings.sync_mode === ("online" as any) && settings.server_url && (
+          <p className="text-xs text-[var(--text-tertiary)] mt-2">
+            Connected to: <span className="font-mono">{settings.server_url}</span>
+          </p>
+        )}
       </div>
+
       {/* Modal for server URL */}
       {showServerModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-[var(--card-bg)] rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">Connect to Server</h3>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
+          <div className="bg-[var(--card-bg)] rounded-xl p-6 w-full max-w-md shadow-2xl border border-[var(--border-color)]">
+            <h3 className="text-lg font-semibold mb-4 text-[var(--text-primary)]">Connect to Server</h3>
             <input
               type="url"
               value={tempServerUrl}
@@ -228,19 +213,12 @@ const GeneralTab: React.FC<Props> = ({ settings, onUpdate }) => {
               className="windows-input w-full mb-4"
             />
             <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setShowServerModal(false)}
-                className="windows-button windows-button-secondary"
-              >
+              <Button variant="secondary" onClick={() => setShowServerModal(false)}>
                 Cancel
-              </button>
-              <button
-                onClick={connectServer}
-                disabled={connecting}
-                className="windows-button windows-button-primary"
-              >
-                {connecting ? "Connecting..." : "Connect"}
-              </button>
+              </Button>
+              <Button variant="primary" onClick={connectServer} loading={connecting}>
+                Connect
+              </Button>
             </div>
           </div>
         </div>
