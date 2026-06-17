@@ -6,13 +6,13 @@ import loanApplicationsAPI from "../../../../api/core/loan_application";
 interface UseLoanApplicationsReturn {
   applications: LoanApplication[];
   loading: boolean;
-  pagination: { page: number; totalPages: number; totalItems: number; pageSize: number };
-  activeTab: "pending" | "approved" | "rejected";
-  setActiveTab: (tab: "pending" | "approved" | "rejected") => void;
+  totalItems: number;  // renamed from pagination
   currentPage: number;
   setCurrentPage: (page: number) => void;
   pageSize: number;
   setPageSize: (size: number) => void;
+  activeTab: "pending" | "approved" | "rejected";
+  setActiveTab: (tab: "pending" | "approved" | "rejected") => void;
   refresh: () => Promise<void>;
   approve: (id: number) => Promise<void>;
   reject: (id: number, reason?: string) => Promise<void>;
@@ -25,7 +25,7 @@ const useLoanApplications = (initialPageSize = 9): UseLoanApplicationsReturn => 
   const [activeTab, setActiveTab] = useState<"pending" | "approved" | "rejected">("pending");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(initialPageSize);
-  const [paginationMeta, setPaginationMeta] = useState({ page: 1, totalPages: 1, totalItems: 0, pageSize: initialPageSize });
+  const [totalItems, setTotalItems] = useState(0);
 
   const loadApplications = useCallback(async () => {
     setLoading(true);
@@ -38,21 +38,15 @@ const useLoanApplications = (initialPageSize = 9): UseLoanApplicationsReturn => 
         sortOrder: "DESC",
       });
       if (response.status) {
-        // response.data is PaginatedResult<LoanApplication>
         setApplications(response.data.data);
-        setPaginationMeta({
-          page: response.data.pagination.page,
-          totalPages: response.data.pagination.pages,
-          totalItems: response.data.pagination.total,
-          pageSize: response.data.pagination.limit,
-        });
+        setTotalItems(response.data.pagination.total);
       } else {
         throw new Error(response.message);
       }
     } catch (err: any) {
       console.error("Failed to load loan applications:", err);
       setApplications([]);
-      setPaginationMeta({ page: 1, totalPages: 1, totalItems: 0, pageSize });
+      setTotalItems(0);
     } finally {
       setLoading(false);
     }
@@ -66,7 +60,6 @@ const useLoanApplications = (initialPageSize = 9): UseLoanApplicationsReturn => 
     try {
       const response = await loanApplicationsAPI.approve(id);
       if (response.status) {
-        // After approval, the application status changes; refresh current tab
         await loadApplications();
       } else {
         throw new Error(response.message);
@@ -112,18 +105,13 @@ const useLoanApplications = (initialPageSize = 9): UseLoanApplicationsReturn => 
   return {
     applications,
     loading,
-    pagination: {
-      page: paginationMeta.page,
-      totalPages: paginationMeta.totalPages,
-      totalItems: paginationMeta.totalItems,
-      pageSize: paginationMeta.pageSize,
-    },
-    activeTab,
-    setActiveTab,
+    totalItems,
     currentPage,
     setCurrentPage,
     pageSize,
     setPageSize,
+    activeTab,
+    setActiveTab,
     refresh,
     approve,
     reject,

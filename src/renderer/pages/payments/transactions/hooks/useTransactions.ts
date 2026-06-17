@@ -1,4 +1,3 @@
-// src/renderer/pages/payments/transactions/hooks/useTransactions.ts
 import { useState, useEffect, useCallback, useMemo } from "react";
 import type { PaymentTransaction } from "../../../../api/core/payment_transaction";
 import paymentsAPI from "../../../../api/core/payment_transaction";
@@ -14,10 +13,10 @@ export interface TransactionFilters {
 }
 
 interface UseTransactionsReturn {
-  transactions: PaymentTransaction[];      // current page data
+  transactions: PaymentTransaction[];
   loading: boolean;
   error: string | null;
-  pagination: { page: number; totalPages: number; totalItems: number; pageSize: number };
+  totalItems: number;
   filters: TransactionFilters;
   pageSize: number;
   setPageSize: (size: number) => void;
@@ -28,8 +27,7 @@ interface UseTransactionsReturn {
   resetFilters: () => void;
   handleSort: (key: string) => void;
   sortConfig: { key: string; direction: "asc" | "desc" };
-  totalAmount: number;   // sum of amounts in current page
-  // Admin actions
+  totalAmount: number;
   updateTransaction: (id: number, data: any) => Promise<void>;
   deleteTransaction: (id: number) => Promise<void>;
 }
@@ -40,13 +38,12 @@ const useTransactions = (): UseTransactionsReturn => {
   const [error, setError] = useState<string | null>(null);
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
-  const [paginationMeta, setPaginationMeta] = useState({ page: 1, totalPages: 1, totalItems: 0, pageSize: 10 });
-  const [sortConfig, setSortConfig] = useState({ key: "paymentDate", direction: "desc" });
+  const [totalItems, setTotalItems] = useState(0);
+  const [sortConfig, setSortConfig] = useState({ key: "paymentDate", direction: "desc" as "asc" | "desc" });
   const [filters, setFilters] = useState<TransactionFilters>({
     search: "", dateFrom: "", dateTo: "", debtorId: "", debtId: "", minAmount: 0, maxAmount: 0,
   });
 
-  // Helper to convert client filters to backend parameters
   const buildApiParams = useCallback(() => {
     const params: any = {
       page: currentPage,
@@ -71,14 +68,9 @@ const useTransactions = (): UseTransactionsReturn => {
       const params = buildApiParams();
       const response = await paymentsAPI.getAll(params);
       if (!response.status) throw new Error(response.message);
-      const paginated = response.data; // PaginatedResult<PaymentTransaction>
+      const paginated = response.data;
       setTransactions(paginated.data);
-      setPaginationMeta({
-        page: paginated.pagination.page,
-        totalPages: paginated.pagination.pages,
-        totalItems: paginated.pagination.total,
-        pageSize: paginated.pagination.limit,
-      });
+      setTotalItems(paginated.pagination.total);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -114,7 +106,6 @@ const useTransactions = (): UseTransactionsReturn => {
 
   const reload = () => fetchTransactions();
 
-  // Admin actions
   const updateTransaction = async (id: number, data: any) => {
     await paymentsAPI.update(id, data);
     await fetchTransactions();
@@ -129,12 +120,7 @@ const useTransactions = (): UseTransactionsReturn => {
     transactions,
     loading,
     error,
-    pagination: {
-      page: paginationMeta.page,
-      totalPages: paginationMeta.totalPages,
-      totalItems: paginationMeta.totalItems,
-      pageSize: paginationMeta.pageSize,
-    },
+    totalItems,
     filters,
     pageSize,
     setPageSize,

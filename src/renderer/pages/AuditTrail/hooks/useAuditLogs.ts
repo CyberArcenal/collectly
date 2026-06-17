@@ -1,3 +1,4 @@
+// src/renderer/pages/audit/hooks/useAuditLogs.ts
 import { useState, useEffect, useCallback } from "react";
 import type { AuditLogEntry } from "../../../api/core/audit";
 import auditAPI from "../../../api/core/audit";
@@ -8,7 +9,7 @@ export interface AuditFilters {
   endDate?: string;
   search: string;
   entity?: string;
-  user?: string; // changed from userId
+  user?: string;
 }
 
 interface Summary {
@@ -18,7 +19,6 @@ interface Summary {
   mostAffectedEntity: { entity: string; count: number } | null;
 }
 
-// Helper to get color for action type
 export const getActionColor = (action: string): string => {
   const lower = action.toLowerCase();
   if (lower.includes("sale") || lower.includes("create"))
@@ -48,22 +48,20 @@ export const useAuditLogs = (initialFilters: AuditFilters) => {
     setLoading(true);
     setError(null);
     try {
-      // Build API params from filters
       const params: any = {
         action: filters.action === "all" ? undefined : filters.action,
         startDate: filters.startDate,
         endDate: filters.endDate,
-        user: filters.user, // now using user string
+        user: filters.user,
         entity: filters.entity,
-        searchTerm: filters.search, // search method uses searchTerm
+        searchTerm: filters.search,
       };
-      // Always use search (it supports all filters)
       const response = await auditAPI.search(params);
       if (!response.status) throw new Error(response.message);
       const items = response.data.items;
       setLogs(items);
 
-      // Compute summary from logs
+      // Compute summary
       const today = new Date().toISOString().split("T")[0];
       const todayLogs = items.filter((log) => {
         const logDate =
@@ -74,19 +72,14 @@ export const useAuditLogs = (initialFilters: AuditFilters) => {
       });
 
       const byAction: Record<string, number> = {};
-      const userCounts: Record<string, number> = {}; // keyed by username
+      const userCounts: Record<string, number> = {};
       const entityCounts: Record<string, number> = {};
 
       items.forEach((log) => {
-        // Count by action
         const action = log.action || "Unknown";
         byAction[action] = (byAction[action] || 0) + 1;
-
-        // Count by user (use log.user, fallback to "System")
         const userName = log.user || "System";
         userCounts[userName] = (userCounts[userName] || 0) + 1;
-
-        // Count by entity
         if (log.entity) {
           entityCounts[log.entity] = (entityCounts[log.entity] || 0) + 1;
         }

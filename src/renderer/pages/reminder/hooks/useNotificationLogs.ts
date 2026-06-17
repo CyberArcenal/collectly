@@ -3,7 +3,6 @@ import { useState, useEffect, useCallback } from "react";
 import type {
   NotificationLogEntry,
   NotificationStats,
-  PaginatedNotifications,
 } from "../../../api/core/reminder_log";
 import reminderLogAPI from "../../../api/core/reminder_log";
 
@@ -22,14 +21,7 @@ export const useNotificationLogs = (
   initialParams?: UseNotificationLogsParams,
 ) => {
   const [logs, setLogs] = useState<NotificationLogEntry[]>([]);
-  const [pagination, setPagination] = useState<
-    Omit<PaginatedNotifications, "items">
-  >({
-    total: 0,
-    page: 1,
-    limit: 10,
-    totalPages: 0,
-  });
+  const [totalItems, setTotalItems] = useState(0);
   const [stats, setStats] = useState<NotificationStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +32,10 @@ export const useNotificationLogs = (
     sortOrder: "DESC",
     ...initialParams,
   });
+
+  // Derive currentPage and pageSize from filters
+  const currentPage = filters.page || 1;
+  const pageSize = filters.limit || 10;
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
@@ -66,12 +62,7 @@ export const useNotificationLogs = (
 
       if (response.status) {
         setLogs(response.data.items);
-        setPagination({
-          total: response.data.total,
-          page: response.data.page,
-          limit: response.data.limit,
-          totalPages: response.data.totalPages,
-        });
+        setTotalItems(response.data.total);
       } else {
         throw new Error(response.message);
       }
@@ -115,7 +106,7 @@ export const useNotificationLogs = (
     });
   }, []);
 
-  const setPage = useCallback((page: number) => {
+  const setCurrentPage = useCallback((page: number) => {
     setFilters((prev) => ({ ...prev, page }));
   }, []);
 
@@ -130,14 +121,16 @@ export const useNotificationLogs = (
 
   return {
     logs,
-    pagination,
+    totalItems,
     stats,
     loading,
     error,
     filters,
+    currentPage,
+    pageSize,
     updateFilters,
     clearFilters,
-    setPage,
+    setCurrentPage,
     setPageSize,
     refetch,
   };

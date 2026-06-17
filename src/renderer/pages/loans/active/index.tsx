@@ -1,5 +1,5 @@
 // src/renderer/pages/loans/active/index.tsx
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { HandCoins, RefreshCw, Filter, X } from "lucide-react";
 import Button from "../../../components/UI/Button";
 import Pagination from "../../../components/Shared/Pagination";
@@ -14,18 +14,20 @@ import { dialogs } from "../../../utils/dialogs";
 import { ForgivenessDialog } from "./components/ForgivenessDialog";
 import ViewLoanAgreementModal from "./components/ViewLoanAgreementModal";
 import PaymentScheduleModal from "./components/PaymentScheduleModal";
+import { usePagination } from "../../../contexts/PaginationContext";
 
 const ActiveLoansPage: React.FC = () => {
   const {
     loans, // kasalukuyang page (may filter at sorting na sa server)
     loading,
+    total,
     error,
     pagination,
     filters,
-    pageSize,
-    setPageSize,
-    currentPage,
-    setCurrentPage,
+    limit,
+    setLimit,
+    page,
+    setPage,
     reload,
     handleFilterChange,
     resetFilters,
@@ -52,6 +54,59 @@ const ActiveLoansPage: React.FC = () => {
 
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [scheduleLoan, setScheduleLoan] = useState<Debt | null>(null);
+
+
+  const { setPagination, clearPagination } = usePagination();
+
+  // Stable pagination handlers
+  const handlePageChange = useCallback(
+    (newPage: number) => setPage(newPage),
+    [setPage],
+  );
+  const handlePageSizeChange = useCallback(
+    (newSize: number) => {
+      setLimit(newSize);
+      setPage(1);
+    },
+    [setLimit, setPage],
+  );
+
+  const handlersRef = useRef({ onPageChange: handlePageChange, onPageSizeChange: handlePageSizeChange });
+  useEffect(() => {
+    handlersRef.current = { onPageChange: handlePageChange, onPageSizeChange: handlePageSizeChange };
+  }, [handlePageChange, handlePageSizeChange]);
+
+  const prevPageRef = useRef(page);
+  const prevTotalRef = useRef(total);
+  const prevLimitRef = useRef(limit);
+
+  // Sync with global pagination context
+  useEffect(() => {
+    const pageChanged = prevPageRef.current !== page;
+    const totalChanged = prevTotalRef.current !== total;
+    const limitChanged = prevLimitRef.current !== limit;
+
+    if (pageChanged || totalChanged || limitChanged) {
+      prevPageRef.current = page;
+      prevTotalRef.current = total;
+      prevLimitRef.current = limit;
+
+      setPagination({
+        currentPage: page,
+        totalItems: total,
+        pageSize: limit,
+        onPageChange: handlersRef.current.onPageChange,
+        onPageSizeChange: handlersRef.current.onPageSizeChange,
+        pageSizeOptions: [10, 25, 50, 100],
+        showPageSize: true,
+      });
+    }
+  }, [page, total, limit, setPagination]);
+
+  useEffect(() => {
+    return () => clearPagination();
+  }, [clearPagination]);
+  
 
   const handleForgiveness = (loan: Debt) => {
     setForgivenessLoan(loan);
@@ -103,8 +158,8 @@ const ActiveLoansPage: React.FC = () => {
   };
 
   const getDisplayRange = () => {
-    const start = (currentPage - 1) * pageSize + 1;
-    const end = Math.min(currentPage * pageSize, pagination.totalItems);
+    const start = (page - 1) * limit + 1;
+    const end = Math.min(page * limit, pagination.totalItems);
     return { start, end };
   };
   const { start, end } = getDisplayRange();
@@ -216,8 +271,8 @@ const ActiveLoansPage: React.FC = () => {
           <div className="flex items-center gap-2">
             <label className="text-sm">Show:</label>
             <select
-              value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value))}
+              value={limit}
+              onChange={(e) => setLimit(Number(e.target.value))}
               className="px-2 py-1 border rounded text-sm"
               style={{
                 backgroundColor: "var(--card-bg)",
@@ -287,19 +342,6 @@ const ActiveLoansPage: React.FC = () => {
                 <p className="text-sm text-[var(--text-tertiary)] mt-1">
                   All debts are either paid or overdue.
                 </p>
-              </div>
-            )}
-            {loans.length > 0 && pagination.totalPages > 1 && (
-              <div className="mt-4">
-                <Pagination
-                  currentPage={currentPage}
-                  totalItems={pagination.totalItems}
-                  pageSize={pageSize}
-                  onPageChange={setCurrentPage}
-                  onPageSizeChange={setPageSize}
-                  pageSizeOptions={[10, 25, 50, 100]}
-                  showPageSize={false}
-                />
               </div>
             )}
           </>

@@ -1,12 +1,12 @@
 // src/renderer/pages/loans/closed/index.tsx
-import React, { useState } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { CheckCircle, RefreshCw, Filter, X, DollarSign } from "lucide-react";
-import Pagination from "../../../components/Shared/Pagination";
 import useClosedLoans from "./hooks/useClosedLoans";
 import ClosedLoansTable from "./components/ClosedLoansTable";
 import ReopenConfirmationModal from "./components/ReopenConfirmationModal";
 import ViewDebtModal from "../active/components/ViewDebtModal";
 import { formatCurrency } from "../../../utils/formatters";
+import { usePagination } from "../../../contexts/PaginationContext";
 
 const ClosedLoansPage: React.FC = () => {
   const {
@@ -14,11 +14,11 @@ const ClosedLoansPage: React.FC = () => {
     loading,
     error,
     summary,
-    pagination,
-    filters,
-    pageSize,
-    setPageSize,
+    totalItems,
     currentPage,
+    pageSize,
+    filters,
+    setPageSize,
     setCurrentPage,
     reload,
     handleFilterChange,
@@ -26,7 +26,6 @@ const ClosedLoansPage: React.FC = () => {
     toggleLoanSelection,
     toggleSelectAll,
     handleSort,
-    
     sortConfig,
     selectedLoans,
   } = useClosedLoans();
@@ -36,15 +35,59 @@ const ClosedLoansPage: React.FC = () => {
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [selectedLoan, setSelectedLoan] = useState<any>(null);
 
+  const { setPagination, clearPagination } = usePagination();
+
+  // Stable pagination handlers
+  const handlePageChange = useCallback(
+    (newPage: number) => setCurrentPage(newPage),
+    [setCurrentPage]
+  );
+  const handlePageSizeChange = useCallback(
+    (newSize: number) => {
+      setPageSize(newSize);
+      setCurrentPage(1);
+    },
+    [setPageSize, setCurrentPage]
+  );
+
+  const handlersRef = useRef({ onPageChange: handlePageChange, onPageSizeChange: handlePageSizeChange });
+  useEffect(() => {
+    handlersRef.current = { onPageChange: handlePageChange, onPageSizeChange: handlePageSizeChange };
+  }, [handlePageChange, handlePageSizeChange]);
+
+  const prevPageRef = useRef(currentPage);
+  const prevTotalRef = useRef(totalItems);
+  const prevLimitRef = useRef(pageSize);
+
+  // Sync with global pagination context
+  useEffect(() => {
+    const pageChanged = prevPageRef.current !== currentPage;
+    const totalChanged = prevTotalRef.current !== totalItems;
+    const limitChanged = prevLimitRef.current !== pageSize;
+
+    if (pageChanged || totalChanged || limitChanged) {
+      prevPageRef.current = currentPage;
+      prevTotalRef.current = totalItems;
+      prevLimitRef.current = pageSize;
+
+      setPagination({
+        currentPage,
+        totalItems,
+        pageSize,
+        onPageChange: handlersRef.current.onPageChange,
+        onPageSizeChange: handlersRef.current.onPageSizeChange,
+        pageSizeOptions: [10, 25, 50, 100],
+        showPageSize: true,
+      });
+    }
+  }, [currentPage, totalItems, pageSize, setPagination]);
+
+  useEffect(() => {
+    return () => clearPagination();
+  }, [clearPagination]);
+
   const openViewModal = (loan: any) => { setSelectedLoan(loan); setViewModalOpen(true); };
   const openReopenModal = (loan: any) => { setSelectedLoan(loan); setReopenModalOpen(true); };
-
-  const getDisplayRange = () => {
-    const start = (currentPage - 1) * pageSize + 1;
-    const end = Math.min(currentPage * pageSize, pagination.totalItems);
-    return { start, end };
-  };
-  const { start, end } = getDisplayRange();
 
   return (
     <div className="m-1" style={{ backgroundColor: "var(--background-color)" }}>
@@ -75,11 +118,7 @@ const ClosedLoansPage: React.FC = () => {
           </div>
         )}
 
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3">
-          <div className="flex items-center gap-2"><label className="text-sm" style={{ color: "var(--text-secondary)" }}>Show:</label><select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))} className="px-2 py-1 border rounded text-sm" style={{ backgroundColor: "var(--card-bg)", borderColor: "var(--border-color)", color: "var(--text-primary)" }}>{[10,25,50,100].map(s => <option key={s} value={s}>{s}</option>)}</select></div>
-          <div className="text-sm" style={{ color: "var(--text-secondary)" }}>{pagination.totalItems > 0 ? `Showing ${start} to ${end} of ${pagination.totalItems} entries` : "No entries"}</div>
-        </div>
-
+        {/* Loading & Error states */}
         {loading && <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: "var(--primary-color)" }}></div></div>}
         {error && <div className="text-center py-4" style={{ color: "var(--danger-color)" }}>Error: {error}</div>}
 
@@ -102,7 +141,6 @@ const ClosedLoansPage: React.FC = () => {
                 <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>All active loans will appear here when paid.</p>
               </div>
             )}
-            {loans.length > 0 && pagination.totalPages > 1 && <div className="mt-4"><Pagination currentPage={currentPage} totalItems={pagination.totalItems} pageSize={pageSize} onPageChange={setCurrentPage} onPageSizeChange={setPageSize} pageSizeOptions={[10,25,50,100]} showPageSize={false} /></div>}
           </>
         )}
       </div>

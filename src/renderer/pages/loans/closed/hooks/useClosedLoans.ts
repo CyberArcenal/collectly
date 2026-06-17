@@ -6,7 +6,6 @@ import type { Debt } from "../../../../api/core/debt";
 
 export interface ClosedLoanFilters {
   search: string;
-  // closedDateFrom and closedDateTo removed – not supported by backend
 }
 
 export interface ClosedLoan extends Debt {
@@ -20,15 +19,15 @@ interface UseClosedLoansReturn {
   loading: boolean;
   error: string | null;
   summary: { totalCount: number; totalAmountPaid: number };
-  pagination: { page: number; totalPages: number; totalItems: number; pageSize: number };
+  totalItems: number;
+  currentPage: number;
+  pageSize: number;
   filters: ClosedLoanFilters;
   selectedLoans: number[];
   setSelectedLoans: React.Dispatch<React.SetStateAction<number[]>>;
   sortConfig: { key: string; direction: "asc" | "desc" };
   setSortConfig: React.Dispatch<React.SetStateAction<{ key: string; direction: "asc" | "desc" }>>;
-  pageSize: number;
   setPageSize: (size: number) => void;
-  currentPage: number;
   setCurrentPage: (page: number) => void;
   reload: () => void;
   handleFilterChange: (key: keyof ClosedLoanFilters, value: string) => void;
@@ -49,7 +48,7 @@ const useClosedLoans = (): UseClosedLoansReturn => {
   });
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
-  const [paginationMeta, setPaginationMeta] = useState({ page: 1, totalPages: 1, totalItems: 0, pageSize: 10 });
+  const [totalItems, setTotalItems] = useState(0);
   const [filters, setFilters] = useState<ClosedLoanFilters>({
     search: "",
   });
@@ -68,7 +67,7 @@ const useClosedLoans = (): UseClosedLoansReturn => {
     try {
       let sortBy = sortConfig.key;
       if (sortBy === "borrower") sortBy = "borrowerName";
-      if (sortBy === "closedAt") sortBy = "updatedAt";      // backend sorts by updatedAt for closure date
+      if (sortBy === "closedAt") sortBy = "updatedAt";
       if (sortBy === "lastPaymentDate") sortBy = "updatedAt";
       if (sortBy === "paidAmount") sortBy = "paidAmount";
       if (sortBy === "totalAmount") sortBy = "totalAmount";
@@ -81,13 +80,11 @@ const useClosedLoans = (): UseClosedLoansReturn => {
         search: filters.search || undefined,
         sortBy,
         sortOrder: sortConfig.direction.toUpperCase() as "ASC" | "DESC",
-        // no closedDate filters – backend doesn't support them
       });
       if (!response.status) throw new Error(response.message || "Failed to fetch closed loans");
       const debtsData = response.data.data;
       const pagination = response.data.pagination;
 
-      // Add last payment date for each loan in current page
       const loansWithDetails: ClosedLoan[] = await Promise.all(
         debtsData.map(async (debt) => {
           let lastPaymentDate: string | null = null;
@@ -113,15 +110,10 @@ const useClosedLoans = (): UseClosedLoansReturn => {
 
       if (mountedRef.current) {
         setLoans(loansWithDetails);
-        setPaginationMeta({
-          page: pagination.page,
-          totalPages: pagination.pages,
-          totalItems: pagination.total,
-          pageSize: pagination.limit,
-        });
+        setTotalItems(pagination.total);
         setSummary({
           totalCount: pagination.total,
-          totalAmountPaid: debtsData.reduce((sum, d) => sum + d.paidAmount, 0), // only current page
+          totalAmountPaid: debtsData.reduce((sum, d) => sum + d.paidAmount, 0),
         });
       }
     } catch (err: any) {
@@ -179,20 +171,15 @@ const useClosedLoans = (): UseClosedLoansReturn => {
     loading,
     error,
     summary,
-    pagination: {
-      page: paginationMeta.page,
-      totalPages: paginationMeta.totalPages,
-      totalItems: paginationMeta.totalItems,
-      pageSize: paginationMeta.pageSize,
-    },
+    totalItems,
+    currentPage,
+    pageSize,
     filters,
     selectedLoans,
     setSelectedLoans,
     sortConfig,
     setSortConfig,
-    pageSize,
     setPageSize: setPageSizeHandler,
-    currentPage,
     setCurrentPage,
     reload,
     handleFilterChange,

@@ -1,5 +1,5 @@
 // src/renderer/pages/debtors/index.tsx
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Plus, Users, RefreshCw } from "lucide-react";
 import Button from "../../components/UI/Button";
 import { dialogs } from "../../utils/dialogs";
@@ -11,21 +11,21 @@ import DebtorTable from "./components/DebtorTable";
 import DebtorFormDialog from "./components/DebtorFormDialog";
 import DebtorViewDialog from "./components/DebtorViewDialog";
 import borrowersAPI from "../../api/core/borrower";
-import Pagination from "../../components/Shared/Pagination";
+import { usePagination } from "../../contexts/PaginationContext";
 
 const DebtorDirectory: React.FC = () => {
   const {
     debtors,
     loading,
     error,
-    pagination,
+    totalItems,
+    currentPage,
+    pageSize,
     filters,
     selectedDebtors,
     setSelectedDebtors,
     sortConfig,
-    pageSize,
     setPageSize,
-    currentPage,
     setCurrentPage,
     reload,
     handleFilterChange,
@@ -41,21 +41,58 @@ const DebtorDirectory: React.FC = () => {
   const [viewOpen, setViewOpen] = useState(false);
   const [viewingDebtor, setViewingDebtor] = useState<any>(null);
 
-  // Ref para sa pagination container (para sa auto-scroll)
-  const paginationRef = useRef<HTMLDivElement>(null);
+  const { setPagination, clearPagination } = usePagination();
 
-  // Auto-scroll pababa sa pagination kapag nagbago ang currentPage AT tapos na ang loading
+  // Stable pagination handlers
+  const handlePageChange = useCallback(
+    (newPage: number) => setCurrentPage(newPage),
+    [setCurrentPage]
+  );
+  const handlePageSizeChange = useCallback(
+    (newSize: number) => {
+      setPageSize(newSize);
+      setCurrentPage(1);
+    },
+    [setPageSize, setCurrentPage]
+  );
+
+  const handlersRef = useRef({ onPageChange: handlePageChange, onPageSizeChange: handlePageSizeChange });
   useEffect(() => {
-    if (!loading && paginationRef.current) {
-      setTimeout(() => {
-        paginationRef.current?.scrollIntoView({
-          behavior: "smooth",
-          block: "end",
-        });
-      }, 200);
-    }
-  }, [currentPage, loading]);
+    handlersRef.current = { onPageChange: handlePageChange, onPageSizeChange: handlePageSizeChange };
+  }, [handlePageChange, handlePageSizeChange]);
 
+  const prevPageRef = useRef(currentPage);
+  const prevTotalRef = useRef(totalItems);
+  const prevLimitRef = useRef(pageSize);
+
+  // Sync with global pagination context
+  useEffect(() => {
+    const pageChanged = prevPageRef.current !== currentPage;
+    const totalChanged = prevTotalRef.current !== totalItems;
+    const limitChanged = prevLimitRef.current !== pageSize;
+
+    if (pageChanged || totalChanged || limitChanged) {
+      prevPageRef.current = currentPage;
+      prevTotalRef.current = totalItems;
+      prevLimitRef.current = pageSize;
+
+      setPagination({
+        currentPage,
+        totalItems,
+        pageSize,
+        onPageChange: handlersRef.current.onPageChange,
+        onPageSizeChange: handlersRef.current.onPageSizeChange,
+        pageSizeOptions: [10, 25, 50, 100],
+        showPageSize: true,
+      });
+    }
+  }, [currentPage, totalItems, pageSize, setPagination]);
+
+  useEffect(() => {
+    return () => clearPagination();
+  }, [clearPagination]);
+
+  // Modal handlers
   const openAddForm = () => {
     setFormMode("add");
     setEditingDebtor(null);
@@ -120,13 +157,6 @@ const DebtorDirectory: React.FC = () => {
     }
   };
 
-  const getDisplayRange = () => {
-    const start = (currentPage - 1) * pageSize + 1;
-    const end = Math.min(currentPage * pageSize, pagination.totalItems);
-    return { start, end };
-  };
-  const { start, end } = getDisplayRange();
-
   return (
     <div
       className="rounded-md shadow-md border p-4 m-1"
@@ -135,12 +165,10 @@ const DebtorDirectory: React.FC = () => {
         borderColor: "var(--border-color)",
       }}
     >
+      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
         <div>
-          <h2
-            className="text-lg font-semibold"
-            style={{ color: "var(--sidebar-text)" }}
-          >
+          <h2 className="text-lg font-semibold" style={{ color: "var(--sidebar-text)" }}>
             Debtor Directory
           </h2>
           <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
@@ -192,43 +220,13 @@ const DebtorDirectory: React.FC = () => {
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3">
-        <div className="flex items-center gap-2">
-          <label className="text-sm">Show:</label>
-          <select
-            value={pageSize}
-            onChange={(e) => setPageSize(Number(e.target.value))}
-            className="px-2 py-1 border rounded text-sm"
-            style={{
-              backgroundColor: "var(--card-bg)",
-              borderColor: "var(--border-color)",
-              color: "var(--sidebar-text)",
-            }}
-          >
-            {[10, 25, 50, 100].map((size) => (
-              <option key={size} value={size}>
-                {size}
-              </option>
-            ))}
-          </select>
-          <span className="text-sm text-[var(--text-secondary)]">entries</span>
-        </div>
-        <div className="text-sm text-[var(--text-secondary)]">
-          {pagination.totalItems > 0
-            ? `Showing ${start} to ${end} of ${pagination.totalItems} entries`
-            : "No entries"}
-        </div>
-      </div>
-
-      {/* Center loading and error vertically */}
+      {/* Loading / Error */}
       {(loading || error) && (
         <div className="flex-1 flex items-center justify-center min-h-[400px]">
           {loading && (
             <div className="flex flex-col items-center gap-3">
               <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[var(--primary-color)]"></div>
-              <p className="text-sm text-[var(--text-secondary)]">
-                Loading debtors...
-              </p>
+              <p className="text-sm text-[var(--text-secondary)]">Loading debtors...</p>
             </div>
           )}
           {error && (
@@ -278,20 +276,6 @@ const DebtorDirectory: React.FC = () => {
                   Add Debtor
                 </Button>
               </div>
-            </div>
-          )}
-
-          {debtors.length > 0 && pagination.totalPages > 1 && (
-            <div ref={paginationRef} className="mt-4">
-              <Pagination
-                currentPage={currentPage}
-                totalItems={pagination.totalItems}
-                pageSize={pageSize}
-                onPageChange={setCurrentPage}
-                onPageSizeChange={setPageSize}
-                pageSizeOptions={[10, 25, 50, 100]}
-                showPageSize={false}
-              />
             </div>
           )}
         </>

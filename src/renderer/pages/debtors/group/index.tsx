@@ -45,7 +45,7 @@ const DebtorGroupsPage: React.FC = () => {
   const [viewingDebtor, setViewingDebtor] = useState<any>(null);
 
   const openView = (debtor: any) => {
-    console.log(debtor);
+    // console.log(debtor);
     setViewingDebtor(debtor);
     setViewOpen(true);
   };

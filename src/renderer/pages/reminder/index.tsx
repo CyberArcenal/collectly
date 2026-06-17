@@ -1,28 +1,31 @@
-import React, { useState } from "react";
+// src/renderer/pages/notification/index.tsx
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { Filter, RefreshCw, Mail } from "lucide-react";
 import { dialogs } from "../../utils/dialogs";
 import reminderLogAPI from "../../api/core/reminder_log";
 import { showSuccess, showError } from "../../utils/notification";
 import type { NotificationLogEntry } from "../../api/core/reminder_log";
-import Pagination from "../../components/Shared/Pagination";
 import { useNotificationLogs } from "./hooks/useNotificationLogs";
 import { NotificationStats } from "./components/reminderStats";
 import { NotificationSearch } from "./components/reminderSearch";
 import { NotificationFilterPanel } from "./components/reminderFilterPannel";
 import { NotificationTable } from "./components/reminderTable";
 import { NotificationViewDialog } from "./components/reminderViewDialogs";
+import { usePagination } from "../../contexts/PaginationContext";
 
 const NotificationLogPage: React.FC = () => {
   const {
     logs,
-    pagination,
+    totalItems,
     stats,
     loading,
     error,
     filters,
+    currentPage,
+    pageSize,
     updateFilters,
     clearFilters,
-    setPage,
+    setCurrentPage,
     setPageSize,
     refetch,
   } = useNotificationLogs();
@@ -33,6 +36,58 @@ const NotificationLogPage: React.FC = () => {
   const [sendingRows, setSendingRows] = useState<Set<number>>(new Set());
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
 
+  const { setPagination, clearPagination } = usePagination();
+
+  // Stable pagination handlers
+  const handlePageChange = useCallback(
+    (newPage: number) => setCurrentPage(newPage),
+    [setCurrentPage]
+  );
+  const handlePageSizeChange = useCallback(
+    (newSize: number) => {
+      setPageSize(newSize);
+      setCurrentPage(1);
+    },
+    [setPageSize, setCurrentPage]
+  );
+
+  const handlersRef = useRef({ onPageChange: handlePageChange, onPageSizeChange: handlePageSizeChange });
+  useEffect(() => {
+    handlersRef.current = { onPageChange: handlePageChange, onPageSizeChange: handlePageSizeChange };
+  }, [handlePageChange, handlePageSizeChange]);
+
+  const prevPageRef = useRef(currentPage);
+  const prevTotalRef = useRef(totalItems);
+  const prevLimitRef = useRef(pageSize);
+
+  // Sync with global pagination context
+  useEffect(() => {
+    const pageChanged = prevPageRef.current !== currentPage;
+    const totalChanged = prevTotalRef.current !== totalItems;
+    const limitChanged = prevLimitRef.current !== pageSize;
+
+    if (pageChanged || totalChanged || limitChanged) {
+      prevPageRef.current = currentPage;
+      prevTotalRef.current = totalItems;
+      prevLimitRef.current = pageSize;
+
+      setPagination({
+        currentPage,
+        totalItems,
+        pageSize,
+        onPageChange: handlersRef.current.onPageChange,
+        onPageSizeChange: handlersRef.current.onPageSizeChange,
+        pageSizeOptions: [10, 25, 50, 100],
+        showPageSize: true,
+      });
+    }
+  }, [currentPage, totalItems, pageSize, setPagination]);
+
+  useEffect(() => {
+    return () => clearPagination();
+  }, [clearPagination]);
+
+  // Handlers (unchanged)
   const handleSearchChange = (query: string) => {
     setSearchQuery(query);
     updateFilters({ keyword: query });
@@ -154,7 +209,7 @@ const NotificationLogPage: React.FC = () => {
               Email Reminder Logs
             </h2>
             <p className="text-[var(--text-secondary)] mt-1">
-              {pagination.total} total email records
+              {totalItems} total email records
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -231,17 +286,7 @@ const NotificationLogPage: React.FC = () => {
           />
         </div>
 
-        {!loading && pagination.total > 0 && (
-          <Pagination
-            currentPage={pagination.page}
-            totalItems={pagination.total}
-            pageSize={pagination.limit}
-            onPageChange={setPage}
-            onPageSizeChange={setPageSize}
-            pageSizeOptions={[10, 25, 50, 100]}
-            showPageSize={true}
-          />
-        )}
+        {/* Global pagination will appear here via Layout */}
       </main>
 
       {selectedLog && (

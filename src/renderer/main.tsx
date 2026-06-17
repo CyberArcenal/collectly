@@ -2,7 +2,7 @@
 import ReactDOM from "react-dom/client";
 import "./styles/App.css";
 import "./styles/App-dark.css";
-// import './styles/scrollbar.css';
+import './styles/scrollbar.css';
 // import './styles/windows-friendly.css';
 import "reflect-metadata";
 import React from "react";

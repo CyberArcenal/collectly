@@ -44,13 +44,13 @@ const useCreditCheck = () => {
     setLoadingLogs(true);
     try {
       const response = await creditCheckAPI.getHistory(debtorId, page, logsLimit);
-      console.log("[CreditCheck] History response:", response);
+      // console.log("[CreditCheck] History response:", response);
       
       if (response.status && response.data) {
         // response.data is PaginatedResult<CreditCheckLog>
         const items = response.data.data || [];
         const pagination = response.data.pagination;
-        console.log(`[CreditCheck] Got ${items.length} logs, total ${pagination?.total || 0}`);
+        // console.log(`[CreditCheck] Got ${items.length} logs, total ${pagination?.total || 0}`);
         
         const mappedLogs: CreditCheckLog[] = items.map((log: any) => ({
           id: log.id,

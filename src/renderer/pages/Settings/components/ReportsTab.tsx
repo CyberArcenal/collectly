@@ -1,6 +1,7 @@
 // src/renderer/pages/Settings/components/ReportsTab.tsx
 import React from "react";
 import type { ReportsSettings } from "../../../api/utils/system_config";
+import Switch from "../../../components/UI/Switch";
 
 interface Props {
   settings: ReportsSettings;
@@ -30,11 +31,13 @@ const ReportsTab: React.FC<Props> = ({ settings, onUpdate }) => {
   };
 
   return (
-    <div className="space-y-4">
-      <h3 className="text-lg font-semibold text-[var(--text-primary)]">
-        Reports Settings
-      </h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-semibold text-[var(--text-primary)]">Reports Settings</h3>
+        <p className="text-sm text-[var(--text-secondary)]">Export, backup, and retention preferences</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div>
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
             Export Formats (comma separated)
@@ -47,7 +50,6 @@ const ReportsTab: React.FC<Props> = ({ settings, onUpdate }) => {
             placeholder="CSV, Excel, PDF"
           />
         </div>
-
         <div>
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
             Default Export Format
@@ -62,23 +64,6 @@ const ReportsTab: React.FC<Props> = ({ settings, onUpdate }) => {
             <option value="PDF">PDF</option>
           </select>
         </div>
-
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="auto_backup_enabled"
-            checked={settings.auto_backup_enabled || false}
-            onChange={(e) => onUpdate("auto_backup_enabled", e.target.checked)}
-            className="windows-checkbox"
-          />
-          <label
-            htmlFor="auto_backup_enabled"
-            className="text-sm text-[var(--text-secondary)]"
-          >
-            Enable Automatic Backups
-          </label>
-        </div>
-
         <div>
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
             Backup Schedule (cron expression)
@@ -91,7 +76,6 @@ const ReportsTab: React.FC<Props> = ({ settings, onUpdate }) => {
             placeholder="0 2 * * *"
           />
         </div>
-
         <div>
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
             Backup Location
@@ -103,7 +87,6 @@ const ReportsTab: React.FC<Props> = ({ settings, onUpdate }) => {
             className="windows-input w-full"
           />
         </div>
-
         <div>
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
             Data Retention (days)
@@ -118,23 +101,33 @@ const ReportsTab: React.FC<Props> = ({ settings, onUpdate }) => {
             min="0"
           />
         </div>
+      </div>
 
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="include_audit_in_backup"
-            checked={settings.include_audit_in_backup || false}
-            onChange={(e) =>
-              onUpdate("include_audit_in_backup", e.target.checked)
-            }
-            className="windows-checkbox"
+      <div className="border-t border-[var(--border-color)] pt-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <label htmlFor="auto_backup_enabled" className="text-sm font-medium text-[var(--text-primary)]">
+              Enable Automatic Backups
+            </label>
+            <p className="text-xs text-[var(--text-tertiary)]">Automatically backup system data on schedule</p>
+          </div>
+          <Switch
+            checked={settings.auto_backup_enabled || false}
+            onChange={(checked) => onUpdate("auto_backup_enabled", checked)}
           />
-          <label
-            htmlFor="include_audit_in_backup"
-            className="text-sm text-[var(--text-secondary)]"
-          >
-            Include audit logs in backup
-          </label>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div>
+            <label htmlFor="include_audit_in_backup" className="text-sm font-medium text-[var(--text-primary)]">
+              Include audit logs in backup
+            </label>
+            <p className="text-xs text-[var(--text-tertiary)]">Backup audit trail along with other data</p>
+          </div>
+          <Switch
+            checked={settings.include_audit_in_backup || false}
+            onChange={(checked) => onUpdate("include_audit_in_backup", checked)}
+          />
         </div>
       </div>
     </div>

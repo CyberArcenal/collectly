@@ -11,19 +11,20 @@ export interface ActiveLoanFilters {
 }
 
 interface UseActiveLoansReturn {
-  loans: Debt[];                     // current page data
+  loans: Debt[];
   loading: boolean;
   error: string | null;
-  pagination: { page: number; totalPages: number; totalItems: number; pageSize: number };
+  total: number;
+  pagination: { page: number; totalPages: number; totalItems: number; limit: number };
   filters: ActiveLoanFilters;
   selectedLoans: number[];
   setSelectedLoans: React.Dispatch<React.SetStateAction<number[]>>;
   sortConfig: { key: string; direction: "asc" | "desc" };
   setSortConfig: React.Dispatch<React.SetStateAction<{ key: string; direction: "asc" | "desc" }>>;
-  pageSize: number;
-  setPageSize: (size: number) => void;
-  currentPage: number;
-  setCurrentPage: (page: number) => void;
+  limit: number;
+  setLimit: (size: number) => void;
+  page: number;
+  setPage: (page: number) => void;
   reload: () => void;
   handleFilterChange: (key: keyof ActiveLoanFilters, value: string | number) => void;
   resetFilters: () => void;
@@ -37,13 +38,18 @@ const useActiveLoans = (): UseActiveLoansReturn => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedLoans, setSelectedLoans] = useState<number[]>([]);
-  const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" }>({
-    key: "dueDate",
-    direction: "asc",
+  const [sortConfig, setSortConfig] = useState<{
+    key: string;
+    direction: "asc" | "desc";
+  }>({ key: "dueDate", direction: "asc" });
+  const [limit, setLimit] = useState(10);
+  const [page, setPage] = useState(1);
+  const [paginationMeta, setPaginationMeta] = useState({
+    page: 1,
+    totalPages: 1,
+    totalItems: 0,
+    limit: 10,
   });
-  const [pageSize, setPageSize] = useState(10);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [paginationMeta, setPaginationMeta] = useState({ page: 1, totalPages: 1, totalItems: 0, pageSize: 10 });
   const [filters, setFilters] = useState<ActiveLoanFilters>({
     search: "",
     dueDateFrom: "",
@@ -55,46 +61,41 @@ const useActiveLoans = (): UseActiveLoansReturn => {
 
   useEffect(() => {
     mountedRef.current = true;
-    return () => { mountedRef.current = false; };
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   const fetchActiveLoans = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      // Map sort key to backend field
-      let sortBy = sortConfig.key;
-      if (sortBy === "borrower") sortBy = "borrower.name"; // but backend may not support nested sort; we'll use 'borrowerName' if available
-      // For simplicity, we'll use the sortBy as is, assuming backend can handle 'dueDate', 'remainingAmount', 'totalAmount', 'name', etc.
-      // For borrower name, we need to join; backend must support sorting by borrower.name. We'll assume it does or fallback.
       const response = await debtsAPI.getAll({
         status: "active",
         includeDeleted: false,
-        page: currentPage,
-        limit: pageSize,
+        page,
+        limit,
         search: filters.search || undefined,
         sortBy: sortConfig.key === "borrower" ? "borrowerName" : sortConfig.key,
         sortOrder: sortConfig.direction.toUpperCase() as "ASC" | "DESC",
         dueDateFrom: filters.dueDateFrom || undefined,
         dueDateTo: filters.dueDateTo || undefined,
-        minTotalAmount: undefined,
-        maxTotalAmount: undefined,
-        // We need to filter by remainingAmount? Backend doesn't have direct param for minRemainingAmount.
-        // We'll handle minRemainingAmount client-side for now, or enhance backend later.
       });
-      if (!response.status) throw new Error(response.message || "Failed to fetch active loans");
+      if (!response.status)
+        throw new Error(response.message || "Failed to fetch active loans");
       if (mountedRef.current) {
-        // Apply client-side minRemainingAmount filter (since backend may not support it)
         let data = response.data.data;
         if (filters.minRemainingAmount > 0) {
-          data = data.filter(loan => loan.remainingAmount >= filters.minRemainingAmount);
+          data = data.filter(
+            (loan) => loan.remainingAmount >= filters.minRemainingAmount,
+          );
         }
         setLoans(data);
         setPaginationMeta({
           page: response.data.pagination.page,
           totalPages: response.data.pagination.pages,
           totalItems: response.data.pagination.total,
-          pageSize: response.data.pagination.limit,
+          limit: response.data.pagination.limit,
         });
         setError(null);
       }
@@ -106,25 +107,28 @@ const useActiveLoans = (): UseActiveLoansReturn => {
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  }, [currentPage, pageSize, filters.search, filters.dueDateFrom, filters.dueDateTo, filters.minRemainingAmount, sortConfig.key, sortConfig.direction]);
+  }, [page, limit, filters, sortConfig]);
 
   useEffect(() => {
     fetchActiveLoans();
   }, [fetchActiveLoans]);
 
-  const handleFilterChange = useCallback((key: keyof ActiveLoanFilters, value: string | number) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
-    setCurrentPage(1);
-  }, []);
+  const handleFilterChange = useCallback(
+    (key: keyof ActiveLoanFilters, value: string | number) => {
+      setFilters((prev) => ({ ...prev, [key]: value }));
+      setPage(1);
+    },
+    [],
+  );
 
   const resetFilters = useCallback(() => {
     setFilters({ search: "", dueDateFrom: "", dueDateTo: "", minRemainingAmount: 0 });
-    setCurrentPage(1);
+    setPage(1);
   }, []);
 
   const toggleLoanSelection = useCallback((id: number) => {
-    setSelectedLoans(prev =>
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    setSelectedLoans((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
     );
   }, []);
 
@@ -132,16 +136,16 @@ const useActiveLoans = (): UseActiveLoansReturn => {
     if (selectedLoans.length === loans.length) {
       setSelectedLoans([]);
     } else {
-      setSelectedLoans(loans.map(l => l.id));
+      setSelectedLoans(loans.map((l) => l.id));
     }
   }, [loans, selectedLoans]);
 
   const handleSort = useCallback((key: string) => {
-    setSortConfig(prev => ({
+    setSortConfig((prev) => ({
       key,
       direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
     }));
-    setCurrentPage(1);
+    setPage(1);
   }, []);
 
   const reload = useCallback(() => {
@@ -149,29 +153,30 @@ const useActiveLoans = (): UseActiveLoansReturn => {
   }, [fetchActiveLoans]);
 
   const setPageSizeHandler = useCallback((size: number) => {
-    setPageSize(size);
-    setCurrentPage(1);
+    setLimit(size);
+    setPage(1);
   }, []);
 
   return {
     loans,
     loading,
     error,
+    total: paginationMeta.totalItems,
     pagination: {
       page: paginationMeta.page,
       totalPages: paginationMeta.totalPages,
       totalItems: paginationMeta.totalItems,
-      pageSize: paginationMeta.pageSize,
+      limit: paginationMeta.limit,
     },
     filters,
     selectedLoans,
     setSelectedLoans,
     sortConfig,
     setSortConfig,
-    pageSize,
-    setPageSize: setPageSizeHandler,
-    currentPage,
-    setCurrentPage,
+    limit,
+    setLimit: setPageSizeHandler,
+    page,
+    setPage,
     reload,
     handleFilterChange,
     resetFilters,

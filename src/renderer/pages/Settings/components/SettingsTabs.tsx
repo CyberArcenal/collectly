@@ -19,16 +19,20 @@ interface Props {
 
 const SettingsTabs: React.FC<Props> = ({ activeTab, onTabChange }) => {
   return (
-    <div className="flex flex-wrap gap-2 mb-4 border-b border-[var(--border-color)] pb-2">
+    <div className="flex flex-wrap gap-1 mb-6 border-b border-[var(--border-color)]">
       {tabs.map((tab) => (
         <button
           key={tab.id}
           onClick={() => onTabChange(tab.id)}
-          className={`px-4 py-2 rounded-t-lg transition-colors duration-200 text-sm font-medium ${
-            activeTab === tab.id
-              ? "bg-[var(--primary-color)] text-white"
-              : "text-[var(--text-secondary)] hover:bg-[var(--card-hover-bg)] hover:text-white"
-          }`}
+          className={`
+            px-4 py-2.5 text-sm font-medium transition-all duration-200
+            border-b-2 border-transparent
+            hover:text-[var(--text-primary)] hover:border-[var(--border-color)]
+            ${activeTab === tab.id
+              ? "text-[var(--primary-color)] border-[var(--primary-color)]"
+              : "text-[var(--text-secondary)]"
+            }
+          `}
         >
           {tab.label}
         </button>

@@ -1,5 +1,5 @@
 // src/renderer/pages/loans/applications/index.tsx
-import React, { useState } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
   FileText,
   Plus,
@@ -9,25 +9,25 @@ import {
   Clock,
 } from "lucide-react";
 import Button from "../../../components/UI/Button";
-import Pagination from "../../../components/Shared/Pagination";
 import useLoanApplications from "./hooks/useLoanApplications";
 import ApplicationCard from "./components/ApplicationCard";
 import ApplicationFormModal from "./components/ApplicationFormModal";
 import ApplicationDetailModal from "./components/ApplicationDetailModal";
 import ApprovalConfirmationModal from "./components/ApprovalConfirmationModal";
 import { dialogs } from "../../../utils/dialogs";
+import { usePagination } from "../../../contexts/PaginationContext";
 
 const LoanApplicationsPage: React.FC = () => {
   const {
     applications,
     loading,
-    pagination,
-    activeTab,
-    setActiveTab,
+    totalItems,
     currentPage,
     setCurrentPage,
     pageSize,
     setPageSize,
+    activeTab,
+    setActiveTab,
     refresh,
     approve,
     reject,
@@ -42,6 +42,63 @@ const LoanApplicationsPage: React.FC = () => {
     app: any;
   }>({ open: false, type: "approve", app: null });
 
+  const { setPagination, clearPagination } = usePagination();
+
+  // Stable pagination handlers
+  const handlePageChange = useCallback(
+    (newPage: number) => setCurrentPage(newPage),
+    [setCurrentPage],
+  );
+  const handlePageSizeChange = useCallback(
+    (newSize: number) => {
+      setPageSize(newSize);
+      setCurrentPage(1);
+    },
+    [setPageSize, setCurrentPage],
+  );
+
+  const handlersRef = useRef({
+    onPageChange: handlePageChange,
+    onPageSizeChange: handlePageSizeChange,
+  });
+  useEffect(() => {
+    handlersRef.current = {
+      onPageChange: handlePageChange,
+      onPageSizeChange: handlePageSizeChange,
+    };
+  }, [handlePageChange, handlePageSizeChange]);
+
+  const prevPageRef = useRef(currentPage);
+  const prevTotalRef = useRef(totalItems);
+  const prevLimitRef = useRef(pageSize);
+
+  // Sync with global pagination context
+  useEffect(() => {
+    const pageChanged = prevPageRef.current !== currentPage;
+    const totalChanged = prevTotalRef.current !== totalItems;
+    const limitChanged = prevLimitRef.current !== pageSize;
+
+    if (pageChanged || totalChanged || limitChanged) {
+      prevPageRef.current = currentPage;
+      prevTotalRef.current = totalItems;
+      prevLimitRef.current = pageSize;
+
+      setPagination({
+        currentPage,
+        totalItems,
+        pageSize,
+        onPageChange: handlersRef.current.onPageChange,
+        onPageSizeChange: handlersRef.current.onPageSizeChange,
+        pageSizeOptions: [9, 18, 27], // grid layout with 3 columns
+        showPageSize: true,
+      });
+    }
+  }, [currentPage, totalItems, pageSize, setPagination]);
+
+  useEffect(() => {
+    return () => clearPagination();
+  }, [clearPagination]);
+
   const openDetail = (app: any) => {
     setSelectedApp(app);
     setDetailOpen(true);
@@ -55,30 +112,27 @@ const LoanApplicationsPage: React.FC = () => {
     setConfirmModal({ open: true, type: "reject", app });
   };
 
-const confirmAction = async (reason?: string) => {
-  const { type, app } = confirmModal;
-  try {
-    if (type === "approve") {
-      await approve(app.id);
-      dialogs.success(`Application approved. Active loan created.`);
-    } else {
-      await reject(app.id, reason);
-      dialogs.success(`Application rejected.`);
+  const confirmAction = async (reason?: string) => {
+    const { type, app } = confirmModal;
+    try {
+      if (type === "approve") {
+        await approve(app.id);
+        dialogs.success(`Application approved. Active loan created.`);
+      } else {
+        await reject(app.id, reason);
+        dialogs.success(`Application rejected.`);
+      }
+      refresh();
+      setConfirmModal({ open: false, type: "approve", app: null });
+      setDetailOpen(false);
+    } catch (err: any) {
+      dialogs.error(err.message);
     }
-    refresh();
-    // Close the modal after success (the modal will also close, but we close here as well for safety)
-    setConfirmModal({ open: false, type: "approve", app: null });
-    setDetailOpen(false);
-  } catch (err: any) {
-    dialogs.error(err.message);
-    // Do NOT close the modal on error – the modal will reset its loading state
-    // and stay open so the user can retry.
-  }
-};
+  };
 
   const handleTabChange = (tab: "pending" | "approved" | "rejected") => {
     setActiveTab(tab);
-    setCurrentPage(1); // reset to first page when tab changes
+    setCurrentPage(1);
   };
 
   const tabs = [
@@ -217,33 +271,18 @@ const confirmAction = async (reason?: string) => {
             </p>
           </div>
         ) : (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {applications.map((app) => (
-                <ApplicationCard
-                  key={app.id}
-                  application={app}
-                  onView={openDetail}
-                  onApprove={handleApprove}
-                  onReject={handleReject}
-                  showActions={app.status === "pending"}
-                />
-              ))}
-            </div>
-            {pagination.totalPages > 1 && (
-              <div className="mt-6">
-                <Pagination
-                  currentPage={currentPage}
-                  totalItems={pagination.totalItems}
-                  pageSize={pageSize}
-                  onPageChange={setCurrentPage}
-                  onPageSizeChange={setPageSize}
-                  pageSizeOptions={[9, 18, 27]}
-                  showPageSize={true}
-                />
-              </div>
-            )}
-          </>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {applications.map((app) => (
+              <ApplicationCard
+                key={app.id}
+                application={app}
+                onView={openDetail}
+                onApprove={handleApprove}
+                onReject={handleReject}
+                showActions={app.status === "pending"}
+              />
+            ))}
+          </div>
         )}
       </div>
 

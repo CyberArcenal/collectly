@@ -52,7 +52,7 @@ const ActiveLoansTable: React.FC<ActiveLoansTableProps> = ({
     return Math.max(0, remaining - (total - paid));
   };
 
-  console.log(loans)
+  // console.log(loans)
 
   return (
     <div className="overflow-x-auto rounded-md border" style={{ borderColor: "var(--border-color)" }}>
