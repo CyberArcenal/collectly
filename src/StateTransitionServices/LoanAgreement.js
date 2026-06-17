@@ -1,10 +1,15 @@
 // src/services/LoanAgreementStateTransitionService.js
+//@ts-check
 const LoanAgreement = require("../entities/LoanAgreement");
 const { logger } = require("../utils/logger");
 const auditLogger = require("../utils/auditLogger");
 const notificationService = require("../services/Notification");
-const { emailEnabled } = require("../utils/system");
+const { emailEnabled, getSystemSetting, defaultInterestCalculationPeriod } = require("../utils/system");
 const { reminderLogService } = require("../services/ReminderLog");
+const {
+  generateDraftCreatedEmail,
+  generateSignedEmail,
+} = require("../email-templates/loanAgreementTemplates");
 
 class LoanAgreementStateTransitionService {
   constructor(dataSource) {
@@ -17,6 +22,20 @@ class LoanAgreementStateTransitionService {
     return this.dataSource.getRepository(entityClass);
   }
 
+  /**
+   * Helper to get common email data from system settings
+   */
+  async _getEmailData() {
+    const [companyName, branchAddress, contactEmail, contactPhone] =
+      await Promise.all([
+        getSystemSetting("company_name", "Collectly"),
+        getSystemSetting("branch_location", "Manila, Philippines"),
+        getSystemSetting("smtp_from_email", "support@collectly.ph"),
+        getSystemSetting("twilio_phone_number", "+63 (2) 8123-4567"),
+      ]);
+    return { companyName, branchAddress, contactEmail, contactPhone };
+  }
+
   async _sendEmail(recipient, subject, message, user, queryRunner) {
     try {
       await reminderLogService.createReminder(
@@ -25,6 +44,28 @@ class LoanAgreementStateTransitionService {
           subject,
           html: `<p>${message.replace(/\n/g, "<br/>")}</p>`,
           text: message,
+        },
+        user,
+        queryRunner,
+      );
+      return true;
+    } catch (err) {
+      logger.error(`Failed to queue email to ${recipient}:`, err);
+      throw err;
+    }
+  }
+
+  /**
+   * Send email using template
+   */
+  async _sendTemplateEmail(recipient, subject, html, user, queryRunner) {
+    try {
+      await reminderLogService.createReminder(
+        {
+          to: recipient,
+          subject,
+          html,
+          text: html.replace(/<[^>]*>/g, ""), // plain text fallback
         },
         user,
         queryRunner,
@@ -66,11 +107,23 @@ class LoanAgreementStateTransitionService {
 
       // Optional email (draft)
       const canSendEmail = await emailEnabled();
+      const interestPeriod = debt.interestCalculationPeriod || await defaultInterestCalculationPeriod();
       if (canSendEmail && debt.borrower.email) {
-        await this._sendEmail(
+        const emailData = await this._getEmailData();
+        const html = generateDraftCreatedEmail({
+          borrowerName: debt.borrower.name,
+          agreementId: agreement.id,
+          debtId: debt.id,
+          debtName: debt.name,
+          interestPeriod: interestPeriod,
+          principalAmount: debt.totalAmount || 0,
+          interestRate: debt.interestRate || 0,
+          ...emailData,
+        });
+        await this._sendTemplateEmail(
           debt.borrower.email,
-          "Loan Agreement Draft Created",
-          `Dear ${debt.borrower.name},\n\nA draft loan agreement for your debt "${debt.name}" has been created. Please review and sign when ready.`,
+          "📄 Draft Loan Agreement Created",
+          html,
           user,
           queryRunner,
         );
@@ -125,12 +178,28 @@ class LoanAgreementStateTransitionService {
       );
 
       // Email notification (if enabled at may email ang borrower)
+      // Send email with template
       const canSendEmail = await emailEnabled();
+      const interestPeriod = debt.interestCalculationPeriod || await defaultInterestCalculationPeriod();
+
       if (canSendEmail && borrower.email) {
-        await this._sendEmail(
+        const emailData = await this._getEmailData();
+        const html = generateSignedEmail({
+          borrowerName: borrower.name,
+          agreementId: fullAgreement.id,
+          debtId: debt.id,
+          debtName: debt.name,
+          principalAmount: debt.totalAmount || 0,
+          interestRate: debt.interestRate || 0,
+          interestPeriod: interestPeriod,
+          signedAt: fullAgreement.signedAt || new Date(),
+          signedBy: fullAgreement.signedBy || user,
+          ...emailData,
+        });
+        await this._sendTemplateEmail(
           borrower.email,
-          "Loan Agreement Signed",
-          `Dear ${borrower.name},\n\nThe loan agreement for your debt "${debt.name}" has been signed. This document is now legally binding.`,
+          "✅ Loan Agreement Signed",
+          html,
           user,
           queryRunner,
         );
