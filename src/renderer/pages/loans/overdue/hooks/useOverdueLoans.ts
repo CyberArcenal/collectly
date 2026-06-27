@@ -1,5 +1,6 @@
 // src/renderer/pages/loans/overdue/hooks/useOverdueLoans.ts
-import { useState, useEffect, useCallback, useRef } from "react";
+
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import debtsAPI from "../../../../api/core/debt";
 import type { Debt } from "../../../../api/core/debt";
 
@@ -8,9 +9,8 @@ export interface OverdueFilter {
   daysOverdue: string; // "all", "30", "60", "90"
 }
 
-// Extended type: ang stats ay palaging present para sa overdue page
 export interface OverdueLoan extends Debt {
-  stats: NonNullable<Debt["stats"]>; // siguraduhing may stats
+  stats: NonNullable<Debt["stats"]>;
 }
 
 interface UseOverdueLoansReturn {
@@ -36,7 +36,7 @@ interface UseOverdueLoansReturn {
 }
 
 const useOverdueLoans = (): UseOverdueLoansReturn => {
-  const [loans, setLoans] = useState<OverdueLoan[]>([]);
+  const [allLoans, setAllLoans] = useState<OverdueLoan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedLoans, setSelectedLoans] = useState<number[]>([]);
@@ -46,7 +46,6 @@ const useOverdueLoans = (): UseOverdueLoansReturn => {
   });
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
-  const [paginationMeta, setPaginationMeta] = useState({ page: 1, totalPages: 1, totalItems: 0, pageSize: 10 });
   const [filters, setFilters] = useState<OverdueFilter>({ search: "", daysOverdue: "all" });
 
   const mountedRef = useRef(true);
@@ -56,74 +55,140 @@ const useOverdueLoans = (): UseOverdueLoansReturn => {
     return () => { mountedRef.current = false; };
   }, []);
 
+  // Compute daysOverdue for a debt
+  const computeDaysOverdue = (debt: Debt): number => {
+    if (debt.stats?.daysOverdue !== undefined) return debt.stats.daysOverdue;
+    const dueDate = new Date(debt.dueDate);
+    dueDate.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diff = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+    return Math.max(0, diff);
+  };
+
   const fetchOverdueLoans = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      // Gamitin ang `sortBy` na "dueDate" para sa daysOverdue sorting (dahil ang daysOverdue ay derived sa dueDate)
-      let effectiveSortBy = sortConfig.key;
-      if (sortConfig.key === "daysOverdue") effectiveSortBy = "dueDate";
-      if (sortConfig.key === "borrower") effectiveSortBy = "borrowerName";
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayStr = today.toISOString().split('T')[0];
 
+      // Fetch all debts with dueDate <= today (overdue by date)
       const response = await debtsAPI.getAll({
-        status: "overdue",
         includeDeleted: false,
-        page: currentPage,
-        limit: pageSize,
-        search: filters.search || undefined,
-        sortBy: effectiveSortBy,
-        sortOrder: sortConfig.direction.toUpperCase() as "ASC" | "DESC",
+        limit: 1000, // fetch all for now; we'll do frontend pagination
+        dueDateTo: todayStr,
+        sortBy: "dueDate",
+        sortOrder: "ASC",
       });
 
       if (!response.status) throw new Error(response.message || "Failed to fetch overdue loans");
 
-      const debtsData = response.data.data;
-      const pagination = response.data.pagination;
+      // Filter: only active or overdue, and not paid/defaulted, and remaining > 0
+      let filtered = response.data.data.filter(debt => {
+        const isActiveOrOverdue = debt.status === "active" || debt.status === "overdue";
+        const hasRemaining = debt.remainingAmount > 0.01;
+        return isActiveOrOverdue && hasRemaining;
+      });
 
-      // ✅ Direktang gamitin ang stats mula sa backend (kasama na ang totalPenalty at daysOverdue)
-      let loansWithStats = debtsData
-        .filter(debt => debt.stats) // i-filter kung walang stats (safety)
-        .map(debt => ({
-          ...debt,
-          stats: debt.stats!,
-        })) as OverdueLoan[];
+      // Ensure stats exist
+      const withStats: OverdueLoan[] = filtered.map(debt => ({
+        ...debt,
+        stats: debt.stats || {
+          totalPaid: debt.paidAmount,
+          totalPenalty: 0,
+          remainingBalance: debt.remainingAmount,
+          daysOverdue: computeDaysOverdue(debt),
+          paymentCount: 0,
+          penaltyCount: 0,
+          lastPaymentDate: null,
+          isFullyPaid: false,
+        },
+      }));
 
-      // I‑filter ayon sa `daysOverdue` (gamit ang stats.daysOverdue)
-      if (filters.daysOverdue !== "all") {
-        const minDays = parseInt(filters.daysOverdue);
-        loansWithStats = loansWithStats.filter(loan => loan.stats.daysOverdue >= minDays);
-      }
-
-      // Kung ang sorting ay "daysOverdue", kailangan pang i‑sort ulit (dahil ang backend sort ay ayon sa dueDate)
-      if (sortConfig.key === "daysOverdue") {
-        loansWithStats.sort((a, b) => {
-          const aVal = a.stats.daysOverdue;
-          const bVal = b.stats.daysOverdue;
-          if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
-          if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
-          return 0;
-        });
-      }
-
-      if (mountedRef.current) {
-        setLoans(loansWithStats);
-        setPaginationMeta({
-          page: pagination.page,
-          totalPages: pagination.pages,
-          totalItems: pagination.total,
-          pageSize: pagination.limit,
-        });
-      }
+      setAllLoans(withStats);
     } catch (err: any) {
       if (mountedRef.current) setError(err.message || "Failed to load overdue loans");
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  }, [currentPage, pageSize, filters.search, filters.daysOverdue, sortConfig.key, sortConfig.direction]);
+  }, []);
 
   useEffect(() => {
     fetchOverdueLoans();
   }, [fetchOverdueLoans]);
+
+  // Apply filters and sorting, then paginate
+  const filteredAndSortedLoans = useMemo(() => {
+    let result = [...allLoans];
+
+    // Search filter
+    if (filters.search.trim()) {
+      const search = filters.search.toLowerCase();
+      result = result.filter(loan =>
+        loan.name.toLowerCase().includes(search) ||
+        loan.borrower?.name?.toLowerCase().includes(search) ||
+        loan.borrower?.contact?.toLowerCase().includes(search) ||
+        loan.borrower?.email?.toLowerCase().includes(search)
+      );
+    }
+
+    // Days overdue filter
+    if (filters.daysOverdue !== "all") {
+      const minDays = parseInt(filters.daysOverdue);
+      result = result.filter(loan => loan.stats.daysOverdue >= minDays);
+    }
+
+    // Sorting
+    const key = sortConfig.key;
+    const direction = sortConfig.direction;
+    result.sort((a, b) => {
+      let aVal: any, bVal: any;
+      if (key === "daysOverdue") {
+        aVal = a.stats.daysOverdue;
+        bVal = b.stats.daysOverdue;
+      } else if (key === "borrower") {
+        aVal = a.borrower?.name || "";
+        bVal = b.borrower?.name || "";
+      } else if (key === "remainingAmount") {
+        aVal = a.remainingAmount;
+        bVal = b.remainingAmount;
+      } else if (key === "dueDate") {
+        aVal = new Date(a.dueDate);
+        bVal = new Date(b.dueDate);
+      } else if (key === "name") {
+        aVal = a.name;
+        bVal = b.name;
+      } else {
+        aVal = a[key as keyof Debt];
+        bVal = b[key as keyof Debt];
+      }
+
+      if (aVal < bVal) return direction === "asc" ? -1 : 1;
+      if (aVal > bVal) return direction === "asc" ? 1 : -1;
+      return 0;
+    });
+
+    return result;
+  }, [allLoans, filters, sortConfig]);
+
+  // Paginate
+  const paginatedLoans = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    const end = start + pageSize;
+    return filteredAndSortedLoans.slice(start, end);
+  }, [filteredAndSortedLoans, currentPage, pageSize]);
+
+  const totalItems = filteredAndSortedLoans.length;
+  const totalPages = Math.ceil(totalItems / pageSize) || 1;
+
+  // Ensure currentPage is within bounds
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
 
   const handleFilterChange = (key: keyof OverdueFilter, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -143,7 +208,7 @@ const useOverdueLoans = (): UseOverdueLoansReturn => {
 
   const toggleSelectAll = () => {
     setSelectedLoans(prev =>
-      prev.length === loans.length ? [] : loans.map(l => l.id)
+      prev.length === paginatedLoans.length ? [] : paginatedLoans.map(l => l.id)
     );
   };
 
@@ -165,14 +230,14 @@ const useOverdueLoans = (): UseOverdueLoansReturn => {
   };
 
   return {
-    loans,
+    loans: paginatedLoans,
     loading,
     error,
     pagination: {
-      page: paginationMeta.page,
-      totalPages: paginationMeta.totalPages,
-      totalItems: paginationMeta.totalItems,
-      pageSize: paginationMeta.pageSize,
+      page: currentPage,
+      totalPages,
+      totalItems,
+      pageSize,
     },
     filters,
     selectedLoans,
