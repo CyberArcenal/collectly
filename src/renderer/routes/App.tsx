@@ -25,6 +25,8 @@ import NotificationLogPage from "../pages/reminder";
 import SyncPage from "../pages/sync";
 import LoanAgreementsPage from "../pages/loans/loan-agreements";
 import { NotificationToastListener } from "../components/Shared/NotificationToastListener";
+import AmortizationPage from "../pages/payments/amortization";
+import CollectionPage from "../pages/payments/collection";
 // import DebtDashboard from "../pages/dashboard";
 
 function App() {
@@ -86,6 +88,8 @@ function App() {
         <Route path="loans/closed" element={<ClosedLoansPage />} />
         <Route path="loans/applications" element={<LoanApplicationsPage />} />
         <Route path="payments/schedule" element={<PaymentSchedulePage />} />
+        <Route path="payments/collection" element={<CollectionPage />} />
+        <Route path="payments/plan" element={<AmortizationPage />} />
         <Route path="payments/transactions" element={<TransactionsPage />} />
         <Route path="payments/methods" element={<PaymentMethodsPage />} />
         <Route path="reports/aging" element={<AgingAnalysisPage />} />

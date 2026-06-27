@@ -1080,6 +1080,310 @@ class DebtService {
     }
     return { count };
   }
+
+  // services/Debt.js – add to DebtService class
+
+  /**
+   * Get collection schedule grouped by period for active debts
+   * @param {string} periodType - 'weekly' | 'monthly' | 'semi-annual' | 'yearly'
+   * @param {string} asOfDate - YYYY-MM-DD (reference date)
+   * @param {import("typeorm").QueryRunner | null} qr
+   * @returns {Promise<Object>} grouped by debtor with period amounts
+   */
+  async getCollectionSchedule(
+    periodType = "monthly",
+    asOfDate = null,
+    qr = null,
+  ) {
+    const repo = this._getRepo(qr, require("../entities/Debt"));
+    const paymentRepo = this._getRepo(
+      qr,
+      require("../entities/PaymentTransaction"),
+    );
+
+    const referenceDate = asOfDate ? new Date(asOfDate) : new Date();
+    referenceDate.setHours(0, 0, 0, 0);
+
+    // Fetch all active debts with borrower
+    const debts = await repo
+      .createQueryBuilder("debt")
+      .leftJoinAndSelect("debt.borrower", "borrower")
+      .where("debt.status IN (:...statuses)", {
+        statuses: ["active", "overdue"],
+      })
+      .andWhere("debt.deletedAt IS NULL")
+      .getMany();
+
+    if (debts.length === 0) {
+      return {
+        periodType,
+        periodLabel: this._getPeriodLabel(periodType),
+        asOfDate: referenceDate.toISOString().slice(0, 10),
+        debtors: [],
+        totalDue: 0,
+        totalDebtors: 0,
+      };
+    }
+
+    const periodInfo = this._getPeriodInfo(periodType);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const results = [];
+
+    for (const debt of debts) {
+      const startDate = new Date(debt.createdAt);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(debt.dueDate);
+      endDate.setHours(0, 0, 0, 0);
+
+      if (endDate < today) continue;
+
+      const totalDays = Math.floor(
+        (endDate - startDate) / (1000 * 60 * 60 * 24),
+      );
+      const totalPeriods = Math.max(1, Math.floor(totalDays / periodInfo.days));
+
+      const annualRate = debt.interestRate || 0;
+      const periodsPerYear = 365 / periodInfo.days;
+      const ratePerPeriod = annualRate / 100 / periodsPerYear;
+
+      let periodicPayment;
+      if (ratePerPeriod === 0) {
+        periodicPayment = debt.totalAmount / totalPeriods;
+      } else {
+        const factor = Math.pow(1 + ratePerPeriod, totalPeriods);
+        periodicPayment =
+          (debt.totalAmount * ratePerPeriod * factor) / (factor - 1);
+      }
+
+      const daysSinceStart = Math.floor(
+        (today - startDate) / (1000 * 60 * 60 * 24),
+      );
+      const currentPeriod = Math.floor(daysSinceStart / periodInfo.days);
+      const nextPeriodDate = new Date(startDate);
+      nextPeriodDate.setDate(
+        startDate.getDate() + (currentPeriod + 1) * periodInfo.days,
+      );
+
+      const periodStart = new Date(startDate);
+      periodStart.setDate(
+        startDate.getDate() + currentPeriod * periodInfo.days,
+      );
+      const periodEnd = new Date(startDate);
+      periodEnd.setDate(
+        startDate.getDate() + (currentPeriod + 1) * periodInfo.days,
+      );
+
+      // Fetch payments in this period
+      const payments = await paymentRepo
+        .createQueryBuilder("payment")
+        .where("payment.debtId = :debtId", { debtId: debt.id })
+        .andWhere("payment.paymentDate >= :start", { start: periodStart })
+        .andWhere("payment.paymentDate < :end", { end: periodEnd })
+        .andWhere("payment.deletedAt IS NULL")
+        .getMany();
+
+      const totalPaidInPeriod = payments.reduce((sum, p) => sum + p.amount, 0);
+      const isPaid = totalPaidInPeriod >= periodicPayment;
+
+      if (debt.remainingAmount > 0.01) {
+        results.push({
+          debtId: debt.id,
+          debtName: debt.name,
+          borrowerId: debt.borrower?.id || 0,
+          borrowerName: debt.borrower?.name || "Unknown",
+          periodAmount: Math.round(periodicPayment * 100) / 100,
+          totalPaidInPeriod: Math.round(totalPaidInPeriod * 100) / 100,
+          isPaid,
+          nextDueDate: nextPeriodDate.toISOString().slice(0, 10),
+          remainingBalance: debt.remainingAmount,
+          contact: debt.borrower?.contact || null,
+          email: debt.borrower?.email || null,
+        });
+      }
+    }
+
+    // Group by debtor
+    const debtorMap = new Map();
+    for (const item of results) {
+      if (!debtorMap.has(item.borrowerId)) {
+        debtorMap.set(item.borrowerId, {
+          borrowerId: item.borrowerId,
+          borrowerName: item.borrowerName,
+          contact: item.contact,
+          email: item.email,
+          debts: [],
+          totalPeriodAmount: 0,
+          totalPaidInPeriod: 0,
+          allPaid: true,
+        });
+      }
+      const debtor = debtorMap.get(item.borrowerId);
+      debtor.debts.push(item);
+      debtor.totalPeriodAmount += item.periodAmount;
+      debtor.totalPaidInPeriod += item.totalPaidInPeriod;
+      if (!item.isPaid) debtor.allPaid = false;
+    }
+
+    const debtors = Array.from(debtorMap.values());
+    const totalDue = debtors.reduce((sum, d) => sum + d.totalPeriodAmount, 0);
+
+    return {
+      periodType,
+      periodLabel: periodInfo.label,
+      asOfDate: referenceDate.toISOString().slice(0, 10),
+      debtors,
+      totalDue,
+      totalDebtors: debtors.length,
+    };
+  }
+
+  /**
+   * Mark all debts of a borrower as paid for the given period
+   * @param {number} borrowerId
+   * @param {string} periodType
+   * @param {string} paymentDate - YYYY-MM-DD
+   * @param {number} methodId
+   * @param {string} user
+   * @param {import("typeorm").QueryRunner | null} qr
+   */
+  async markPeriodPaid(
+    borrowerId,
+    periodType,
+    paymentDate,
+    methodId,
+    user = "system",
+    qr = null,
+  ) {
+    const { saveDb } = require("../utils/dbUtils/dbActions");
+    const repo = this._getRepo(qr, require("../entities/Debt"));
+    const paymentRepo = this._getRepo(
+      qr,
+      require("../entities/PaymentTransaction"),
+    );
+    const PaymentTransaction = require("../entities/PaymentTransaction");
+
+    // Get all active debts for this borrower
+    const debts = await repo
+      .createQueryBuilder("debt")
+      .where("debt.borrowerId = :borrowerId", { borrowerId })
+      .andWhere("debt.status IN (:...statuses)", {
+        statuses: ["active", "overdue"],
+      })
+      .andWhere("debt.deletedAt IS NULL")
+      .getMany();
+
+    if (debts.length === 0) {
+      throw new Error("No active debts found for this borrower");
+    }
+
+    // Compute period amount for each debt (same logic as getCollectionSchedule)
+    const periodInfo = this._getPeriodInfo(periodType);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const paymentDateObj = new Date(paymentDate);
+    paymentDateObj.setHours(0, 0, 0, 0);
+
+    const createdPayments = [];
+
+    for (const debt of debts) {
+      const startDate = new Date(debt.createdAt);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(debt.dueDate);
+      endDate.setHours(0, 0, 0, 0);
+
+      if (endDate < today) continue;
+
+      const totalDays = Math.floor(
+        (endDate - startDate) / (1000 * 60 * 60 * 24),
+      );
+      const totalPeriods = Math.max(1, Math.floor(totalDays / periodInfo.days));
+
+      const annualRate = debt.interestRate || 0;
+      const periodsPerYear = 365 / periodInfo.days;
+      const ratePerPeriod = annualRate / 100 / periodsPerYear;
+
+      let periodicPayment;
+      if (ratePerPeriod === 0) {
+        periodicPayment = debt.totalAmount / totalPeriods;
+      } else {
+        const factor = Math.pow(1 + ratePerPeriod, totalPeriods);
+        periodicPayment =
+          (debt.totalAmount * ratePerPeriod * factor) / (factor - 1);
+      }
+
+      const daysSinceStart = Math.floor(
+        (today - startDate) / (1000 * 60 * 60 * 24),
+      );
+      const currentPeriod = Math.floor(daysSinceStart / periodInfo.days);
+
+      const periodStart = new Date(startDate);
+      periodStart.setDate(
+        startDate.getDate() + currentPeriod * periodInfo.days,
+      );
+      const periodEnd = new Date(startDate);
+      periodEnd.setDate(
+        startDate.getDate() + (currentPeriod + 1) * periodInfo.days,
+      );
+
+      // Check if already paid for this period
+      const existingPayments = await paymentRepo
+        .createQueryBuilder("payment")
+        .where("payment.debtId = :debtId", { debtId: debt.id })
+        .andWhere("payment.paymentDate >= :start", { start: periodStart })
+        .andWhere("payment.paymentDate < :end", { end: periodEnd })
+        .andWhere("payment.deletedAt IS NULL")
+        .getMany();
+
+      const totalPaidInPeriod = existingPayments.reduce(
+        (sum, p) => sum + p.amount,
+        0,
+      );
+      if (totalPaidInPeriod >= periodicPayment) continue; // already paid
+
+      const remainingToPay =
+        Math.round((periodicPayment - totalPaidInPeriod) * 100) / 100;
+      if (remainingToPay <= 0.01) continue;
+
+      // Create payment
+      const payment = paymentRepo.create({
+        amount: remainingToPay,
+        paymentDate: paymentDateObj,
+        reference: `Period payment (${periodInfo.label}) - auto`,
+        notes: `Automated payment for ${periodInfo.label} period`,
+        methodId,
+        debt,
+        recordedAt: new Date(),
+      });
+      const saved = await saveDb(paymentRepo, payment, { queryRunner: qr });
+      createdPayments.push(saved);
+    }
+
+    await auditLogger.logUpdate(
+      "Debt",
+      borrowerId,
+      { action: "markPeriodPaid", periodType },
+      { count: createdPayments.length },
+      user,
+    );
+    return { payments: createdPayments, count: createdPayments.length };
+  }
+
+  // Helper methods
+  _getPeriodInfo(periodType) {
+    const map = {
+      weekly: { days: 7, label: "Weekly" },
+      monthly: { days: 30, label: "Monthly" },
+      "semi-annual": { days: 182, label: "Semi-Annual" },
+      yearly: { days: 365, label: "Yearly" },
+    };
+    return map[periodType];
+  }
+
+  _getPeriodLabel(periodType) {
+    return this._getPeriodInfo(periodType).label;
+  }
 }
 
 // Singleton instance
