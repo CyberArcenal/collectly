@@ -1,4 +1,5 @@
 // src/main/services/PrinterService.js
+//@ts-check
 const auditLogger = require("../utils/auditLogger");
 const { exec } = require("child_process");
 const util = require("util");
@@ -9,6 +10,7 @@ const { companyName, receiptFooterMessage } = require("../utils/system");
 const { logger } = require("../utils/logger");
 
 const { paginateQueryBuilder } = require("../utils/dbUtils/pagination");
+const { formatCurrency } = require("../utils/currencyFormatter");
 class PrinterService {
   constructor() {
     this.printerRepository = null;
@@ -91,7 +93,11 @@ class PrinterService {
   }
 
   async _ensureSingleDefault(excludeId = null, qr = null) {
-    const { updateDb, saveDb, removeDb } = require("../utils/dbUtils/dbActions");
+    const {
+      updateDb,
+      saveDb,
+      removeDb,
+    } = require("../utils/dbUtils/dbActions");
     const Printer = require("../entities/Printer");
     const printerRepo = this._getRepo(qr, Printer);
     const defaultPrinters = await printerRepo.find({
@@ -106,16 +112,16 @@ class PrinterService {
     }
   }
 
-async getAllPrinters(page = 1, limit = 10) {
-  const { printer: repo } = await this.getRepositories();
-  const qb = repo
-    .createQueryBuilder("printer")
-    .orderBy("printer.isDefault", "DESC")
-    .addOrderBy("printer.name", "ASC");
-  const result = await paginateQueryBuilder(qb, { page, limit });
-  await auditLogger.logView("Printer", null, "system");
-  return result;
-}
+  async getAllPrinters(page = 1, limit = 10) {
+    const { printer: repo } = await this.getRepositories();
+    const qb = repo
+      .createQueryBuilder("printer")
+      .orderBy("printer.isDefault", "DESC")
+      .addOrderBy("printer.name", "ASC");
+    const result = await paginateQueryBuilder(qb, { page, limit });
+    await auditLogger.logView("Printer", null, "system");
+    return result;
+  }
 
   async getPrinterById(id) {
     const { printer: repo } = await this.getRepositories();
@@ -133,7 +139,11 @@ async getAllPrinters(page = 1, limit = 10) {
   }
 
   async createPrinter(data, user = "system", qr = null) {
-    const { updateDb, saveDb, removeDb } = require("../utils/dbUtils/dbActions");
+    const {
+      updateDb,
+      saveDb,
+      removeDb,
+    } = require("../utils/dbUtils/dbActions");
     const Printer = require("../entities/Printer");
     const printerRepo = this._getRepo(qr, Printer);
 
@@ -168,7 +178,11 @@ async getAllPrinters(page = 1, limit = 10) {
   }
 
   async updatePrinter(id, data, user = "system", qr = null) {
-    const { updateDb, saveDb, removeDb } = require("../utils/dbUtils/dbActions");
+    const {
+      updateDb,
+      saveDb,
+      removeDb,
+    } = require("../utils/dbUtils/dbActions");
     const Printer = require("../entities/Printer");
     const printerRepo = this._getRepo(qr, Printer);
 
@@ -191,7 +205,11 @@ async getAllPrinters(page = 1, limit = 10) {
   }
 
   async setDefaultPrinter(id, user = "system", qr = null) {
-    const { updateDb, saveDb, removeDb } = require("../utils/dbUtils/dbActions");
+    const {
+      updateDb,
+      saveDb,
+      removeDb,
+    } = require("../utils/dbUtils/dbActions");
     const Printer = require("../entities/Printer");
     const printerRepo = this._getRepo(qr, Printer);
 
@@ -224,7 +242,11 @@ async getAllPrinters(page = 1, limit = 10) {
   }
 
   async refreshPrinterStatus(id, user = "system", qr = null) {
-    const { updateDb, saveDb, removeDb } = require("../utils/dbUtils/dbActions");
+    const {
+      updateDb,
+      saveDb,
+      removeDb,
+    } = require("../utils/dbUtils/dbActions");
     const Printer = require("../entities/Printer");
     const printerRepo = this._getRepo(qr, Printer);
 
@@ -366,7 +388,11 @@ async getAllPrinters(page = 1, limit = 10) {
   // ----------------------------------------------------------------------
 
   async testPrinter(id, user = "system", qr = null) {
-    const { updateDb, saveDb, removeDb } = require("../utils/dbUtils/dbActions");
+    const {
+      updateDb,
+      saveDb,
+      removeDb,
+    } = require("../utils/dbUtils/dbActions");
     const Printer = require("../entities/Printer");
     const printerRepo = this._getRepo(qr, Printer);
 
@@ -411,8 +437,12 @@ async getAllPrinters(page = 1, limit = 10) {
    * @param {number} debtId
    * @returns {Promise<boolean>}
    */
-  async printReceipt(debtId, qr=null) {
-    const { updateDb, saveDb, removeDb } = require("../utils/dbUtils/dbActions");
+  async printReceipt(debtId, qr = null) {
+    const {
+      updateDb,
+      saveDb,
+      removeDb,
+    } = require("../utils/dbUtils/dbActions");
     const { AppDataSource } = require("../main/db/data-source");
     const notificationService = require("../services/Notification");
 
@@ -503,10 +533,16 @@ async getAllPrinters(page = 1, limit = 10) {
     const storeName = await companyName();
     const footer = await receiptFooterMessage();
 
+    // ✅ Format all amounts using the currency formatter
+    const totalAmount = formatCurrency(debt.totalAmount);
+    const paidAmount = formatCurrency(debt.paidAmount);
+    const remaining = formatCurrency(debt.remainingAmount);
+    const interestRate = debt.interestRate ? `${debt.interestRate}%` : "0%";
+
     const paymentsText = (debt.payments || [])
       .map(
         (p) =>
-          `${new Date(p.paymentDate).toISOString().split("T")[0]} - ${p.amount} (${p.method || "cash"})`,
+          `${new Date(p.paymentDate).toISOString().split("T")[0]} - ${formatCurrency(p.amount)} (${p.method || "cash"})`,
       )
       .join("\n");
 
@@ -515,10 +551,10 @@ ${storeName}
 -------------------------
 DEBT #${debt.id} - ${debt.borrower?.name || "Unknown"}
 -------------------------
-Total Amount: ${debt.totalAmount}
-Paid Amount: ${debt.paidAmount}
-Remaining: ${debt.remainingAmount}
-Interest Rate: ${debt.interestRate}%
+Total Amount: ${totalAmount}
+Paid Amount: ${paidAmount}
+Remaining: ${remaining}
+Interest Rate: ${interestRate}
 Due Date: ${new Date(debt.dueDate).toLocaleDateString()}
 Status: ${debt.status}
 -------------------------

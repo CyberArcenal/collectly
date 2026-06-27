@@ -5,10 +5,18 @@ const Debt = require("../entities/Debt");
 const { logger } = require("../utils/logger");
 const auditLogger = require("../utils/auditLogger");
 const notificationService = require("../services/Notification");
+const { reminderLogService } = require("../services/ReminderLog");
+const {
+  emailEnabled,
+  smsEnabled,
+  getSystemSetting,
+  enablePartialPayment,
+} = require("../utils/system");
+const { generatePaidEmail } = require("../email-templates/debtStatusTemplates");
 
 class PaymentTransactionStateTransitionService {
   /**
-   * @param {{ getRepository: (arg0: import("typeorm").EntitySchema<{ id: unknown; methodId: unknown; amount: unknown; paymentDate: unknown; reference: unknown; notes: unknown; deletedAt: unknown; recordedAt: unknown; }> | import("typeorm").EntitySchema<{ id: unknown; name: unknown; totalAmount: unknown; paidAmount: unknown; remainingAmount: unknown; dueDate: unknown; status: unknown; interestRate: unknown; penaltyRate: unknown; deletedAt: unknown; createdAt: unknown; updatedAt: unknown; lastInterestAccrualDate: unknown; }>) => any; }} dataSource
+   * @param {{ getRepository: (arg0: any) => any; }} dataSource
    */
   constructor(dataSource) {
     this.dataSource = dataSource;
@@ -18,7 +26,7 @@ class PaymentTransactionStateTransitionService {
 
   /**
    * @param {{ manager: { getRepository: (arg0: any) => any; }; } | null} qr
-   * @param {import("typeorm").EntitySchema<{ id: unknown; methodId: unknown; amount: unknown; paymentDate: unknown; reference: unknown; notes: unknown; deletedAt: unknown; recordedAt: unknown; }> | import("typeorm").EntitySchema<{ id: unknown; name: unknown; totalAmount: unknown; paidAmount: unknown; remainingAmount: unknown; dueDate: unknown; status: unknown; interestRate: unknown; penaltyRate: unknown; deletedAt: unknown; createdAt: unknown; updatedAt: unknown; lastInterestAccrualDate: unknown; }>} entityClass
+   * @param {any} entityClass
    */
   _getRepo(qr, entityClass) {
     if (qr) return qr.manager.getRepository(entityClass);
@@ -27,8 +35,8 @@ class PaymentTransactionStateTransitionService {
 
   /**
    * Helper: reload debt with borrower relation (transactional)
-   * @param {any} debtId
-   * @param {null} queryRunner
+   * @param {number} debtId
+   * @param {import("typeorm").QueryRunner | null} queryRunner
    */
   async _getDebtWithBorrower(debtId, queryRunner) {
     const debtRepo = this._getRepo(queryRunner, Debt);
@@ -38,6 +46,62 @@ class PaymentTransactionStateTransitionService {
     });
     if (!debt) throw new Error(`Debt #${debtId} not found`);
     return debt;
+  }
+
+  /**
+   * Helper: get common email data from system settings
+   */
+  async _getEmailData() {
+    const [companyName, branchAddress, contactEmail, contactPhone] =
+      await Promise.all([
+        getSystemSetting("company_name", "Collectly"),
+        getSystemSetting("branch_location", "Manila, Philippines"),
+        getSystemSetting("smtp_from_email", "support@collectly.ph"),
+        getSystemSetting("twilio_phone_number", "+63 (2) 8123-4567"),
+      ]);
+    return { companyName, branchAddress, contactEmail, contactPhone };
+  }
+
+  /**
+   * Send email via ReminderLogService (queues and logs automatically)
+   * @param {string} recipient
+   * @param {string} subject
+   * @param {string} html
+   * @param {string} user
+   * @param {import("typeorm").QueryRunner | null} queryRunner
+   */
+  async _sendEmail(recipient, subject, html, user, queryRunner) {
+    try {
+      await reminderLogService.createReminder(
+        {
+          to: recipient,
+          subject,
+          html,
+          text: html.replace(/<[^>]*>/g, ""), // plain text fallback
+        },
+        user,
+        queryRunner,
+      );
+      return true;
+    } catch (err) {
+      // @ts-ignore
+      logger.error(`Failed to queue email to ${recipient}:`, err);
+      throw err;
+    }
+  }
+
+  /**
+   * Send SMS (placeholder – implement actual SMS service)
+   * @param {string} phoneNumber
+   * @param {string} message
+   * @param {string} user
+   * @param {import("typeorm").QueryRunner | null} queryRunner
+   */
+  // @ts-ignore
+  async _sendSms(phoneNumber, message, user, queryRunner) {
+    // Placeholder – actual SMS sending would go through a similar ReminderSmsService
+    logger.info(`[SMS] Would send to ${phoneNumber}: ${message}`);
+    return true;
   }
 
   /**
@@ -85,7 +149,6 @@ class PaymentTransactionStateTransitionService {
     const debt = await debtRepo.findOne({ where: { id: payment.debt.id } });
     if (!debt) throw new Error("Payment has no associated debt");
 
-    // ✅ Correct: subtract from paidAmount, add back to remainingAmount
     debt.paidAmount = Math.max(0, (debt.paidAmount || 0) - payment.amount);
     debt.remainingAmount = debt.remainingAmount + payment.amount;
     debt.updatedAt = new Date();
@@ -217,7 +280,6 @@ class PaymentTransactionStateTransitionService {
     // @ts-ignore
     await updateDb(paymentRepo, payment, { queryRunner, skipSignal: true });
 
-    // Reload debt with borrower for notification
     const debtWithBorrower = await this._getDebtWithBorrower(
       payment.debt.id,
       queryRunner,
@@ -260,7 +322,6 @@ class PaymentTransactionStateTransitionService {
     const debt = await debtRepo.findOne({ where: { id: payment.debt.id } });
     if (!debt) throw new Error("Payment has no associated debt");
 
-    // Create refund transaction record (negative amount)
     const refund = paymentRepo.create({
       amount: -refundAmount,
       paymentDate: new Date(),
@@ -271,7 +332,6 @@ class PaymentTransactionStateTransitionService {
     // @ts-ignore
     await saveDb(paymentRepo, refund, { queryRunner, skipSignal: true });
 
-    // Update debt (subtract refund amount from paidAmount)
     debt.paidAmount = Math.max(0, debt.paidAmount - refundAmount);
     debt.remainingAmount = debt.totalAmount - debt.paidAmount;
     if (debt.remainingAmount < 0) debt.remainingAmount = 0;
@@ -279,7 +339,6 @@ class PaymentTransactionStateTransitionService {
     // @ts-ignore
     await updateDb(debtRepo, debt, { queryRunner, skipSignal: true });
 
-    // Reload debt with borrower for notification
     const debtWithBorrower = await this._getDebtWithBorrower(
       debt.id,
       queryRunner,
@@ -313,7 +372,6 @@ class PaymentTransactionStateTransitionService {
    */
   async onConfirm(payment, user = "system", queryRunner = null) {
     const { updateDb } = require("../utils/dbUtils/dbActions");
-    const { enablePartialPayment } = require("../utils/system");
     logger.info(`[Transition] Confirming payment #${payment.id} by ${user}`);
 
     // 1. Apply payment (update debt paidAmount, remainingAmount)
@@ -377,12 +435,12 @@ class PaymentTransactionStateTransitionService {
       logger.warn(`Failed to schedule receipt printing:`, err);
     }
 
-    // 6. In-app notification
+    // 6. In-app notification (for admin)
     await notificationService.create(
       {
         userId: 1,
         title: "Payment Confirmed",
-        message: `Your payment of ${payment.amount} for debt "${debtWithBorrower.name}" has been confirmed. Thank you!`,
+        message: `Payment of ${payment.amount} for debt "${debtWithBorrower.name}" has been confirmed.`,
         type: "payment_confirmation",
         metadata: { paymentId: payment.id, debtId: payment.debt.id },
       },
@@ -390,7 +448,83 @@ class PaymentTransactionStateTransitionService {
       queryRunner,
     );
 
-    // 7. Audit log
+    // ================================================================
+    // 🆕 7. Send Email to Debtor
+    // ================================================================
+    const canSendEmail = await emailEnabled();
+    const canSendSms = await smsEnabled();
+
+    // Format payment amount for email
+    const formattedAmount = payment.amount.toFixed(2);
+    const formattedRemaining = debtWithBorrower.remainingAmount.toFixed(2);
+    // @ts-ignore
+    const formattedTotal = debtWithBorrower.totalAmount.toFixed(2);
+
+    // Send email if enabled and debtor has email
+    if (canSendEmail && debtWithBorrower.borrower?.email) {
+      try {
+        const emailData = await this._getEmailData();
+
+        const html = generatePaidEmail({
+          debtorName: debtWithBorrower.borrower.name,
+          debtId: debtWithBorrower.id,
+          originalAmount: debtWithBorrower.totalAmount,
+          totalPaid: payment.amount,
+          remainingBalance: debtWithBorrower.remainingAmount,
+          // @ts-ignore
+          paymentDate: payment.paymentDate || new Date(),
+          ...emailData,
+        });
+
+        await this._sendEmail(
+          debtWithBorrower.borrower.email,
+          "✅ Payment Confirmed – Thank You!",
+          html,
+          user,
+          queryRunner,
+        );
+        logger.info(
+          `[Transition] Payment confirmation email sent to ${debtWithBorrower.borrower.email}`,
+        );
+      } catch (err) {
+        logger.error(
+          `[Transition] Failed to send payment confirmation email:`,
+          // @ts-ignore
+          err,
+        );
+      }
+    } else {
+      logger.info(
+        `[Transition] Email not sent. emailEnabled=${canSendEmail}, hasEmail=${!!debtWithBorrower.borrower?.email}`,
+      );
+    }
+
+    // Send SMS if enabled and debtor has contact number
+    if (canSendSms && debtWithBorrower.borrower?.contact) {
+      try {
+        await this._sendSms(
+          debtWithBorrower.borrower.contact,
+          `Dear ${debtWithBorrower.borrower.name}, your payment of ₱${formattedAmount} for debt "${debtWithBorrower.name}" has been confirmed. Remaining balance: ₱${formattedRemaining}. Thank you!`,
+          user,
+          queryRunner,
+        );
+        logger.info(
+          `[Transition] Payment confirmation SMS sent to ${debtWithBorrower.borrower.contact}`,
+        );
+      } catch (err) {
+        logger.error(
+          `[Transition] Failed to send payment confirmation SMS:`,
+          // @ts-ignore
+          err,
+        );
+      }
+    } else {
+      logger.info(
+        `[Transition] SMS not sent. smsEnabled=${canSendSms}, hasContact=${!!debtWithBorrower.borrower?.contact}`,
+      );
+    }
+
+    // 8. Audit log
     await auditLogger.logUpdate(
       "PaymentTransaction",
       payment.id,

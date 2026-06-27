@@ -1081,8 +1081,6 @@ class DebtService {
     return { count };
   }
 
-  // services/Debt.js – add to DebtService class
-
   /**
    * Get collection schedule grouped by period for active debts
    * @param {string} periodType - 'weekly' | 'monthly' | 'semi-annual' | 'yearly'
@@ -1090,6 +1088,7 @@ class DebtService {
    * @param {import("typeorm").QueryRunner | null} qr
    * @returns {Promise<Object>} grouped by debtor with period amounts
    */
+
   async getCollectionSchedule(
     periodType = "monthly",
     asOfDate = null,
@@ -1104,7 +1103,6 @@ class DebtService {
     const referenceDate = asOfDate ? new Date(asOfDate) : new Date();
     referenceDate.setHours(0, 0, 0, 0);
 
-    // Fetch all active debts with borrower
     const debts = await repo
       .createQueryBuilder("debt")
       .leftJoinAndSelect("debt.borrower", "borrower")
@@ -1130,6 +1128,7 @@ class DebtService {
     today.setHours(0, 0, 0, 0);
 
     const results = [];
+    const PAID_TOLERANCE = 0.05;
 
     for (const debt of debts) {
       const startDate = new Date(debt.createdAt);
@@ -1156,6 +1155,7 @@ class DebtService {
         periodicPayment =
           (debt.totalAmount * ratePerPeriod * factor) / (factor - 1);
       }
+      periodicPayment = Math.round(periodicPayment * 100) / 100;
 
       const daysSinceStart = Math.floor(
         (today - startDate) / (1000 * 60 * 60 * 24),
@@ -1175,17 +1175,45 @@ class DebtService {
         startDate.getDate() + (currentPeriod + 1) * periodInfo.days,
       );
 
-      // Fetch payments in this period
+      // 🔍 DEBUG LOGS
+      if (debt.id === 16) {
+        console.log(
+          `[getCollectionSchedule] Debt #16: periodStart=${periodStart.toISOString()}, periodEnd=${periodEnd.toISOString()}, today=${today.toISOString()}`,
+        );
+      }
+
+      const periodStartStr = periodStart.toISOString().slice(0, 10);
+      const periodRef = `[${periodType}:${periodStartStr}]`;
+
       const payments = await paymentRepo
         .createQueryBuilder("payment")
         .where("payment.debtId = :debtId", { debtId: debt.id })
-        .andWhere("payment.paymentDate >= :start", { start: periodStart })
-        .andWhere("payment.paymentDate < :end", { end: periodEnd })
         .andWhere("payment.deletedAt IS NULL")
+        .andWhere(
+          `(payment.reference LIKE :periodRef OR (payment.reference NOT LIKE :periodRef AND payment.paymentDate >= :start AND payment.paymentDate < :end))`,
+          {
+            periodRef: `%${periodRef}%`,
+            start: periodStart,
+            end: periodEnd,
+          },
+        )
         .getMany();
 
+      console.log(
+        `[getCollectionSchedule] Debt #${debt.id}: found ${payments.length} payments in period`,
+      );
+      if (debt.id === 16) {
+        payments.forEach((p) =>
+          console.log(
+            `  Payment #${p.id}: date=${p.paymentDate.toISOString()}, amount=${p.amount}`,
+          ),
+        );
+      }
+
       const totalPaidInPeriod = payments.reduce((sum, p) => sum + p.amount, 0);
-      const isPaid = totalPaidInPeriod >= periodicPayment;
+      const totalPaidRounded = Math.round(totalPaidInPeriod * 100) / 100;
+
+      const isPaid = totalPaidRounded >= periodicPayment - PAID_TOLERANCE;
 
       if (debt.remainingAmount > 0.01) {
         results.push({
@@ -1193,8 +1221,8 @@ class DebtService {
           debtName: debt.name,
           borrowerId: debt.borrower?.id || 0,
           borrowerName: debt.borrower?.name || "Unknown",
-          periodAmount: Math.round(periodicPayment * 100) / 100,
-          totalPaidInPeriod: Math.round(totalPaidInPeriod * 100) / 100,
+          periodAmount: periodicPayment,
+          totalPaidInPeriod: totalPaidRounded,
           isPaid,
           nextDueDate: nextPeriodDate.toISOString().slice(0, 10),
           remainingBalance: debt.remainingAmount,
@@ -1204,7 +1232,6 @@ class DebtService {
       }
     }
 
-    // Group by debtor
     const debtorMap = new Map();
     for (const item of results) {
       if (!debtorMap.has(item.borrowerId)) {
@@ -1248,6 +1275,7 @@ class DebtService {
    * @param {string} user
    * @param {import("typeorm").QueryRunner | null} qr
    */
+
   async markPeriodPaid(
     borrowerId,
     periodType,
@@ -1262,9 +1290,7 @@ class DebtService {
       qr,
       require("../entities/PaymentTransaction"),
     );
-    const PaymentTransaction = require("../entities/PaymentTransaction");
 
-    // Get all active debts for this borrower
     const debts = await repo
       .createQueryBuilder("debt")
       .where("debt.borrowerId = :borrowerId", { borrowerId })
@@ -1278,7 +1304,6 @@ class DebtService {
       throw new Error("No active debts found for this borrower");
     }
 
-    // Compute period amount for each debt (same logic as getCollectionSchedule)
     const periodInfo = this._getPeriodInfo(periodType);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -1286,6 +1311,7 @@ class DebtService {
     paymentDateObj.setHours(0, 0, 0, 0);
 
     const createdPayments = [];
+    const PAID_TOLERANCE = 0.05;
 
     for (const debt of debts) {
       const startDate = new Date(debt.createdAt);
@@ -1312,6 +1338,7 @@ class DebtService {
         periodicPayment =
           (debt.totalAmount * ratePerPeriod * factor) / (factor - 1);
       }
+      periodicPayment = Math.round(periodicPayment * 100) / 100;
 
       const daysSinceStart = Math.floor(
         (today - startDate) / (1000 * 60 * 60 * 24),
@@ -1327,37 +1354,51 @@ class DebtService {
         startDate.getDate() + (currentPeriod + 1) * periodInfo.days,
       );
 
-      // Check if already paid for this period
-      const existingPayments = await paymentRepo
+      // ✅ Use SUM aggregation for accuracy
+      const paymentResult = await paymentRepo
         .createQueryBuilder("payment")
+        .select("COALESCE(SUM(payment.amount), 0)", "totalPaid")
         .where("payment.debtId = :debtId", { debtId: debt.id })
         .andWhere("payment.paymentDate >= :start", { start: periodStart })
         .andWhere("payment.paymentDate < :end", { end: periodEnd })
         .andWhere("payment.deletedAt IS NULL")
-        .getMany();
+        .getRawOne();
 
-      const totalPaidInPeriod = existingPayments.reduce(
-        (sum, p) => sum + p.amount,
-        0,
-      );
-      if (totalPaidInPeriod >= periodicPayment) continue; // already paid
+      const totalPaidRounded =
+        Math.round(parseFloat(paymentResult.totalPaid || 0) * 100) / 100;
+
+      // ✅ Skip if already paid
+      if (totalPaidRounded >= periodicPayment - PAID_TOLERANCE) {
+        console.log(
+          `[markPeriodPaid] Debt #${debt.id} already paid for ${periodInfo.label} period`,
+        );
+        continue;
+      }
+
+      const periodStartStr = periodStart.toISOString().slice(0, 10); // YYYY-MM-DD
+      const periodRef = `[${periodType}:${periodStartStr}]`;
 
       const remainingToPay =
-        Math.round((periodicPayment - totalPaidInPeriod) * 100) / 100;
-      if (remainingToPay <= 0.01) continue;
+        Math.round((periodicPayment - totalPaidRounded) * 100) / 100;
+      if (remainingToPay <= PAID_TOLERANCE) continue;
 
-      // Create payment
       const payment = paymentRepo.create({
         amount: remainingToPay,
         paymentDate: paymentDateObj,
-        reference: `Period payment (${periodInfo.label}) - auto`,
-        notes: `Automated payment for ${periodInfo.label} period`,
+        reference: `Period payment (${periodInfo.label}) - auto ${periodRef}`,
+        notes: `Automated payment for ${periodInfo.label} period (${periodStartStr})`,
         methodId,
         debt,
         recordedAt: new Date(),
       });
       const saved = await saveDb(paymentRepo, payment, { queryRunner: qr });
       createdPayments.push(saved);
+    }
+
+    if (createdPayments.length === 0) {
+      throw new Error(
+        `All debts for borrower #${borrowerId} are already paid for this period`,
+      );
     }
 
     await auditLogger.logUpdate(
@@ -1383,6 +1424,45 @@ class DebtService {
 
   _getPeriodLabel(periodType) {
     return this._getPeriodInfo(periodType).label;
+  }
+
+  /**
+   * Fix floating-point precision issues in debt amounts
+   * @param {number} debtId - Optional, if not provided, fix all debts
+   * @param {import("typeorm").QueryRunner | null} qr
+   */
+  async fixFloatingPointPrecision(debtId = null, qr = null) {
+    const { updateDb } = require("../utils/dbUtils/dbActions");
+    const repo = this._getRepo(qr, require("../entities/Debt"));
+
+    const qb = repo.createQueryBuilder("debt");
+    if (debtId) {
+      qb.where("debt.id = :id", { id: debtId });
+    }
+    const debts = await qb.getMany();
+
+    let fixed = 0;
+    for (const debt of debts) {
+      const paidAmount = Math.round(debt.paidAmount * 100) / 100;
+      const totalAmount = Math.round(debt.totalAmount * 100) / 100;
+      const remainingAmount = Math.round(debt.remainingAmount * 100) / 100;
+
+      if (
+        debt.paidAmount !== paidAmount ||
+        debt.totalAmount !== totalAmount ||
+        debt.remainingAmount !== remainingAmount
+      ) {
+        debt.paidAmount = paidAmount;
+        debt.totalAmount = totalAmount;
+        debt.remainingAmount = remainingAmount;
+        debt.updatedAt = new Date();
+        await updateDb(repo, debt, { queryRunner: qr, skipSignal: true });
+        fixed++;
+      }
+    }
+
+    console.log(`[fixFloatingPointPrecision] Fixed ${fixed} debts`);
+    return { fixed };
   }
 }
 

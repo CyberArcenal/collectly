@@ -1,4 +1,5 @@
 // src/renderer/pages/payments/schedule/hooks/usePaymentSchedule.ts
+
 import { useState, useEffect, useCallback, useMemo } from "react";
 import debtsAPI from "../../../../api/core/debt";
 import type { ScheduledPayment, PaymentScheduleFilters } from "../types";
@@ -12,6 +13,12 @@ interface UsePaymentScheduleReturn {
   setFilters: React.Dispatch<React.SetStateAction<PaymentScheduleFilters>>;
   refresh: () => void;
   markAsPaid: (debtId: number, amount: number, paymentDate: string, methodId: number) => Promise<void>;
+  // Pagination
+  page: number;
+  setPage: (page: number) => void;
+  limit: number;
+  setLimit: (limit: number) => void;
+  totalItems: number;
 }
 
 const usePaymentSchedule = (): UsePaymentScheduleReturn => {
@@ -22,6 +29,9 @@ const usePaymentSchedule = (): UsePaymentScheduleReturn => {
     dateRange: "30",
     viewMode: "list",
   });
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
 
   const fetchUpcomingPayments = useCallback(async () => {
     setLoading(true);
@@ -38,7 +48,8 @@ const usePaymentSchedule = (): UsePaymentScheduleReturn => {
         includeDeleted: false,
         dueDateFrom: today.toISOString().split('T')[0],
         dueDateTo: cutoffDate.toISOString().split('T')[0],
-        limit: 500, // sufficient for upcoming payments
+        page,
+        limit,
         sortBy: "dueDate",
         sortOrder: "ASC",
       });
@@ -48,7 +59,7 @@ const usePaymentSchedule = (): UsePaymentScheduleReturn => {
       const scheduled: ScheduledPayment[] = debts.map(debt => ({
         debtId: debt.id,
         debtName: debt.name,
-        borrowerId: debt.borrower?.id ?? 0, // fallback to 0 if borrower missing (should not happen for active debts)
+        borrowerId: debt.borrower?.id ?? 0,
         borrowerName: debt.borrower?.name || "Unknown",
         dueDate: debt.dueDate,
         amountDue: debt.remainingAmount,
@@ -56,12 +67,13 @@ const usePaymentSchedule = (): UsePaymentScheduleReturn => {
         email: debt.borrower?.email || null,
       }));
       setPayments(scheduled);
+      setTotalItems(response.data.pagination?.total || 0);
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [filters.dateRange]);
+  }, [filters.dateRange, page, limit]);
 
   useEffect(() => {
     fetchUpcomingPayments();
@@ -93,6 +105,11 @@ const usePaymentSchedule = (): UsePaymentScheduleReturn => {
     setFilters,
     refresh,
     markAsPaid,
+    page,
+    setPage,
+    limit,
+    setLimit,
+    totalItems,
   };
 };
 

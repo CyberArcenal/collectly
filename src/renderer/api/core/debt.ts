@@ -626,6 +626,20 @@ class DebtsAPI {
     if (response.status) return response;
     throw new Error(response.message || "Failed to mark period paid");
   }
+
+  async fixPrecision(
+    debtId?: number,
+  ): Promise<{ status: boolean; message: string; data: { fixed: number } }> {
+    if (!window.backendAPI?.debt) {
+      throw new Error("Electron API (debt) not available");
+    }
+    const response = await window.backendAPI.debt({
+      method: "fixPrecision",
+      params: { debtId },
+    });
+    if (response.status) return response;
+    throw new Error(response.message || "Failed to fix precision");
+  }
 }
 
 // ----------------------------------------------------------------------

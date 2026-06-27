@@ -1,10 +1,16 @@
-// src/main/ipc/core/debt/mark_period_paid.ipc.js
 const debtService = require('../../../../services/Debt');
 const onlineClient = require('../../../../utils/onlineClient');
 const { syncMode, serverUrl } = require('../../../../utils/system');
 
 module.exports = async (params, queryRunner) => {
   const { borrowerId, periodType, paymentDate, methodId, user = 'system' } = params;
+
+  // Validate required fields
+  if (!borrowerId) throw new Error('borrowerId is required');
+  if (!periodType) throw new Error('periodType is required');
+  if (!paymentDate) throw new Error('paymentDate is required');
+  if (!methodId) throw new Error('methodId is required');
+
   const mode = await syncMode();
 
   if (mode === 'online') {
