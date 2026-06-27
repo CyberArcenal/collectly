@@ -1,6 +1,7 @@
 // src/renderer/api/debt.ts
 
 import type { PaginatedResult } from "./common";
+import type { PaymentTransaction } from "./payment_transaction";
 
 // ----------------------------------------------------------------------
 // 📦 Types & Interfaces
@@ -15,7 +16,6 @@ export interface DebtStats {
   lastPaymentDate: string | null;
   isFullyPaid: boolean;
 }
-
 
 export interface Debt {
   id: number;
@@ -593,6 +593,38 @@ class DebtsAPI {
    */
   async isAvailable(): Promise<boolean> {
     return !!window.backendAPI?.debt;
+  }
+
+  async getCollectionSchedule(periodType: string) {
+    const response = await window.backendAPI.debt({
+      method: "getCollectionSchedule",
+      params: { periodType },
+    });
+    return response;
+  }
+
+  // Add to DebtsAPI class
+
+  async markPeriodPaid(
+    borrowerId: number,
+    periodType: string,
+    paymentDate: string,
+    methodId: number,
+    user = "system",
+  ): Promise<{
+    status: boolean;
+    message: string;
+    data: { payments: PaymentTransaction[]; count: number };
+  }> {
+    if (!window.backendAPI?.debt) {
+      throw new Error("Electron API (debt) not available");
+    }
+    const response = await window.backendAPI.debt({
+      method: "markPeriodPaid",
+      params: { borrowerId, periodType, paymentDate, methodId, user },
+    });
+    if (response.status) return response;
+    throw new Error(response.message || "Failed to mark period paid");
   }
 }
 
