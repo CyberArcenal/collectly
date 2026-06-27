@@ -1,10 +1,12 @@
 // src/renderer/pages/loans/overdue/components/SendReminderModal.tsx
+
 import React, { useState } from "react";
 import Modal from "../../../../components/UI/Modal";
 import Button from "../../../../components/UI/Button";
 import { dialogs } from "../../../../utils/dialogs";
 import reminderLogAPI from "../../../../api/core/reminder_log";
 import type { OverdueLoan } from "../hooks/useOverdueLoans";
+import { formatCurrency } from "../../../../utils/formatters";
 
 interface SendReminderModalProps {
   isOpen: boolean;
@@ -24,8 +26,15 @@ const SendReminderModal: React.FC<SendReminderModalProps> = ({
 
   React.useEffect(() => {
     if (loan) {
+      const daysOverdue = loan.stats?.daysOverdue ?? 0;
+      const remaining = loan.remainingAmount?.toFixed(2) ?? "0.00";
+      
       setMessage(
-        `Dear ${loan.borrower?.name},\n\nYour loan "${loan.name}" is overdue by ${loan.daysOverdue} days. Remaining balance: ${loan.remainingAmount.toFixed(2)}. Please make a payment as soon as possible to avoid additional penalties.\n\nThank you.`,
+        `Dear ${loan.borrower?.name || "Valued Customer"},
+
+Your loan "${loan.name}" is overdue by ${daysOverdue} days. Remaining balance: ${formatCurrency(remaining)}. Please make a payment as soon as possible to avoid additional penalties.
+
+Thank you.`,
       );
     }
   }, [loan]);
@@ -69,9 +78,9 @@ const SendReminderModal: React.FC<SendReminderModalProps> = ({
               borderColor: "var(--border-color)",
             }}
           >
-            <p><strong>To:</strong> {loan.borrower?.name} ({loan.borrower?.email || "No email"})</p>
+            <p><strong>To:</strong> {loan.borrower?.name || "Unknown"} ({loan.borrower?.email || "No email"})</p>
             <p><strong>Debt:</strong> {loan.name}</p>
-            <p><strong>Overdue:</strong> {loan.daysOverdue} days</p>
+            <p><strong>Overdue:</strong> {loan.stats?.daysOverdue ?? 0} days</p>
           </div>
           <div>
             <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>

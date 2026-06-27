@@ -16,9 +16,9 @@ class DebtHandler {
     this.getAllDebts = this.importHandler("./get/all.ipc");
     this.getDebtStatistics = this.importHandler("./get/statistics.ipc");
     this.searchDebts = this.importHandler("./search.ipc");
-    this.getCollectionSchedule = this.importHandler('./get_collection_schedule.ipc');
-
-
+    this.getCollectionSchedule = this.importHandler(
+      "./get_collection_schedule.ipc",
+    );
 
     this.getAgingSummary = this.importHandler("./get/aging_summary.ipc");
     this.getDebtsInBucket = this.importHandler("./get/debts_in_bucket.ipc");
@@ -28,15 +28,15 @@ class DebtHandler {
     this.updateDebt = this.importHandler("./update.ipc");
     this.deleteDebt = this.importHandler("./delete.ipc");
     this.restoreDebt = this.importHandler("./restore.ipc");
-    this.markPeriodPaid = this.importHandler('./mark_period_paid.ipc');
-    
+    this.markPeriodPaid = this.importHandler("./mark_period_paid.ipc");
+    this.fixPrecision = this.importHandler('./fix_precision.ipc');
+
     this.permanentlyDeleteDebt = this.importHandler("./permanent_delete.ipc");
     this.recalculateRemainingAmount = this.importHandler(
       "./recalculate_remaining.ipc",
     );
     this.correctTotalAmount = this.importHandler("./correct_total_amount.ipc");
     this.applyForgiveness = this.importHandler("./apply_forgiveness.ipc");
-    
 
     // 🔄 BATCH OPERATIONS
     this.bulkCreateDebts = this.importHandler("./bulk_create.ipc");
@@ -84,8 +84,8 @@ class DebtHandler {
           return await this.getAgingSummary(params);
         case "getDebtsInBucket":
           return await this.getDebtsInBucket(params);
-          case 'getCollectionSchedule':
-  return await this.getCollectionSchedule(params);
+        case "getCollectionSchedule":
+          return await this.getCollectionSchedule(params);
 
         // ✏️ WRITE (with transaction)
         case "createDebt":
@@ -101,13 +101,15 @@ class DebtHandler {
             this.permanentlyDeleteDebt,
             params,
           );
+          case 'fixPrecision':
+  return await this.handleWithTransaction(this.fixPrecision, params);
         case "recalculateRemainingAmount":
           return await this.handleWithTransaction(
             this.recalculateRemainingAmount,
             params,
           );
-          case 'markPeriodPaid':
-  return await this.handleWithTransaction(this.markPeriodPaid, params);
+        case "markPeriodPaid":
+          return await this.handleWithTransaction(this.markPeriodPaid, params);
 
         // 🔄 BATCH (with transaction)
         case "bulkCreateDebts":

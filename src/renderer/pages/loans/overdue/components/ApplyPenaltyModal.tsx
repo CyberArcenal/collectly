@@ -1,15 +1,20 @@
+// src/renderer/pages/loans/overdue/components/ApplyPenaltyModal.tsx
+
 import React, { useState } from "react";
 import Modal from "../../../../components/UI/Modal";
 import Button from "../../../../components/UI/Button";
 import { dialogs } from "../../../../utils/dialogs";
 import type { OverdueLoan } from "../hooks/useOverdueLoans";
 import penaltiesAPI from "../../../../api/core/pernalty_transaction";
+import { formatCurrency } from "../../../../utils/formatters";
+
 interface ApplyPenaltyModalProps {
   isOpen: boolean;
   loan: OverdueLoan | null;
   onClose: () => void;
   onSuccess: () => void;
 }
+
 const ApplyPenaltyModal: React.FC<ApplyPenaltyModalProps> = ({
   isOpen,
   loan,
@@ -28,7 +33,8 @@ const ApplyPenaltyModal: React.FC<ApplyPenaltyModalProps> = ({
       const suggested = loan.penaltyRate
         ? loan.remainingAmount * (loan.penaltyRate / 100)
         : 500;
-      setAmount(Math.min(suggested, loan.remainingAmount));
+      const suggestedAmount = Math.min(suggested, loan.remainingAmount);
+      setAmount(Number(suggestedAmount.toFixed(2)));
     }
   }, [loan]);
 
@@ -72,10 +78,10 @@ const ApplyPenaltyModal: React.FC<ApplyPenaltyModalProps> = ({
               <strong>Debt:</strong> {loan.name}
             </p>
             <p>
-              <strong>Overdue:</strong> {loan.daysOverdue} days
+              <strong>Overdue:</strong> {loan.stats?.daysOverdue ?? 0} days
             </p>
             <p>
-              <strong>Remaining:</strong> {loan.remainingAmount}
+              <strong>Remaining:</strong> {formatCurrency(loan.remainingAmount)}
             </p>
           </div>
           <div>
@@ -92,6 +98,11 @@ const ApplyPenaltyModal: React.FC<ApplyPenaltyModalProps> = ({
               value={amount}
               onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
               className="w-full px-3 py-2 border rounded-md"
+              style={{
+                backgroundColor: "var(--input-bg)",
+                borderColor: "var(--border-color)",
+                color: "var(--text-primary)",
+              }}
             />
           </div>
           <div>
@@ -107,6 +118,11 @@ const ApplyPenaltyModal: React.FC<ApplyPenaltyModalProps> = ({
               value={penaltyDate}
               onChange={(e) => setPenaltyDate(e.target.value)}
               className="w-full px-3 py-2 border rounded-md"
+              style={{
+                backgroundColor: "var(--input-bg)",
+                borderColor: "var(--border-color)",
+                color: "var(--text-primary)",
+              }}
             />
           </div>
           <div>
@@ -122,6 +138,11 @@ const ApplyPenaltyModal: React.FC<ApplyPenaltyModalProps> = ({
               onChange={(e) => setReason(e.target.value)}
               placeholder="e.g., Late payment fee"
               className="w-full px-3 py-2 border rounded-md"
+              style={{
+                backgroundColor: "var(--input-bg)",
+                borderColor: "var(--border-color)",
+                color: "var(--text-primary)",
+              }}
             />
           </div>
           <div className="flex justify-end gap-2">
