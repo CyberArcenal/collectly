@@ -2,6 +2,7 @@
 const paymentMethodService = require("../../../../../services/PaymentMethod");
 const onlineClient = require("../../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
+const { extractData } = require("../../../../../utils/responseTransformer");
 
 module.exports = async () => {
   const mode = await syncMode();
@@ -15,10 +16,18 @@ module.exports = async () => {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    const defaultMethod = await response.json();
-    return { status: true, message: "Default payment method retrieved from server", data: defaultMethod };
+    const serverResult = await response.json();
+    return {
+      status: true,
+      message: "Default payment method retrieved from server",
+      data: extractData(serverResult),
+    };
   } else {
     const defaultMethod = await paymentMethodService.getDefaultPaymentMethod();
-    return { status: true, message: "Default payment method retrieved locally", data: defaultMethod };
+    return {
+      status: true,
+      message: "Default payment method retrieved locally",
+      data: defaultMethod,
+    };
   }
 };

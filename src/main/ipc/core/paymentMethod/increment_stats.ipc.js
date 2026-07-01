@@ -16,9 +16,17 @@ module.exports = async (params, queryRunner) => {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    return { status: true, message: "Payment method stats updated on server", data: null };
+    return {
+      status: true,
+      message: "Payment method stats updated on server",
+      data: null,
+    };
   } else {
     await paymentMethodService.incrementPaymentMethodStats(methodId, amount, queryRunner);
-    return { status: true, message: "Payment method stats updated locally", data: null };
+    return {
+      status: true,
+      message: "Payment method stats updated locally",
+      data: null,
+    };
   }
 };

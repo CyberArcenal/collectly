@@ -2,6 +2,7 @@
 const { reminderLogService } = require("../../../../../services/ReminderLog");
 const onlineClient = require("../../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
+const { extractData } = require("../../../../../utils/responseTransformer");
 
 module.exports = async (params) => {
   const { id } = params;
@@ -16,10 +17,18 @@ module.exports = async (params) => {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    const reminder = await response.json();
-    return { status: true, message: "Reminder retrieved from server", data: reminder };
+    const serverResult = await response.json();
+    return {
+      status: true,
+      message: "Reminder retrieved from server",
+      data: extractData(serverResult),
+    };
   } else {
     const reminder = await reminderLogService.getReminderById({ id });
-    return { status: true, message: "Reminder retrieved locally", data: reminder };
+    return {
+      status: true,
+      message: "Reminder retrieved locally",
+      data: reminder,
+    };
   }
 };

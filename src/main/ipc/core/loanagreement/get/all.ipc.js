@@ -2,6 +2,7 @@
 const loanAgreementService = require("../../../../../services/LoanAgreement");
 const onlineClient = require("../../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
+const { transformPaginatedResult } = require("../../../../../utils/responseTransformer");
 
 module.exports = async (params) => {
   const mode = await syncMode();
@@ -17,12 +18,8 @@ module.exports = async (params) => {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    const result = await response.json();
-    return {
-      status: true,
-      message: "Loan agreements retrieved from server",
-      data: result,
-    };
+    const serverResult = await response.json();
+    return transformPaginatedResult(serverResult);
   } else {
     const {
       page,
@@ -54,7 +51,10 @@ module.exports = async (params) => {
     return {
       status: true,
       message: "Loan agreements retrieved locally",
-      data: agreements,
+      data: {
+        data: agreements.data,
+        pagination: agreements.pagination,
+      },
     };
   }
 };

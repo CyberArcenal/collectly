@@ -2,6 +2,7 @@
 const paymentMethodService = require("../../../../../services/PaymentMethod");
 const onlineClient = require("../../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
+const { extractData } = require("../../../../../utils/responseTransformer");
 
 module.exports = async (params) => {
   const { methodId } = params;
@@ -16,10 +17,18 @@ module.exports = async (params) => {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    const result = await response.json();
-    return { status: true, message: "Payment method stats retrieved from server", data: result };
+    const serverResult = await response.json();
+    return {
+      status: true,
+      message: "Payment method stats retrieved from server",
+      data: extractData(serverResult), // { methodId, transactionCount, totalAmount }
+    };
   } else {
     const result = await paymentMethodService.getPaymentMethodStats(methodId);
-    return { status: true, message: "Payment method stats retrieved locally", data: result };
+    return {
+      status: true,
+      message: "Payment method stats retrieved locally",
+      data: result,
+    };
   }
 };

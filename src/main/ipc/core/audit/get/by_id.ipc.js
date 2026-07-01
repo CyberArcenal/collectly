@@ -3,6 +3,7 @@ const { AuditLog } = require("../../../../../entities/AuditLog");
 const { AppDataSource } = require("../../../../db/data-source");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
 const onlineClient = require("../../../../../utils/onlineClient");
+const { transformSingle } = require("../../../../../utils/responseTransformer");
 
 module.exports = async (params) => {
   const mode = await syncMode();
@@ -16,8 +17,8 @@ module.exports = async (params) => {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    const result = await response.json();
-    return { status: true, message: "Audit log retrieved from server", data: result.data };
+    const serverResult = await response.json();
+    return transformSingle(serverResult);
   } else {
     const { id } = params;
     const repo = AppDataSource.getRepository(AuditLog);

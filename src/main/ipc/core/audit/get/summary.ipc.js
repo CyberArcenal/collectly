@@ -1,9 +1,9 @@
 // src/main/ipc/audit/get/summary.ipc.js
-
 const { AuditLog } = require("../../../../../entities/AuditLog");
 const onlineClient = require("../../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
 const { AppDataSource } = require("../../../../db/data-source");
+const { extractData } = require("../../../../../utils/responseTransformer");
 
 module.exports = async (params) => {
   const mode = await syncMode();
@@ -17,8 +17,12 @@ module.exports = async (params) => {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    const result = await response.json();
-    return { status: true, message: "Audit summary retrieved from server", data: result.data };
+    const serverResult = await response.json();
+    return {
+      status: true,
+      message: "Audit summary retrieved from server",
+      data: extractData(serverResult), // { byAction, byEntity, byUser }
+    };
   } else {
     const { startDate, endDate } = params;
     const repo = AppDataSource.getRepository(AuditLog);

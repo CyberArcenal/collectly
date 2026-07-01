@@ -1,7 +1,9 @@
+// src/utils/onlineClient.js
 const Store = require('electron-store').default;
 const fetch = require('electron-fetch').default;
 const { logger } = require('./logger');
 const { BrowserWindow } = require('electron');
+const TokenStorage = require('./tokenStorage');
 
 const store = new Store({ name: 'auth' });
 
@@ -17,38 +19,54 @@ class OnlineClient {
   }
 
   getToken() {
+    // Use TokenStorage for consistency
     if (this.token) return this.token;
-    this.token = store.get('jwt_token');
+    this.token = TokenStorage.getAccessToken();
     return this.token;
   }
 
   setToken(token) {
     this.token = token;
-    store.set('jwt_token', token);
+    TokenStorage.setToken(token);
   }
 
   clearToken() {
     this.token = null;
-    store.delete('jwt_token');
-    store.delete('refresh_token');
+    TokenStorage.clearTokens();
   }
 
   async refreshToken() {
     if (this.refreshPromise) return this.refreshPromise;
     this.refreshPromise = (async () => {
       try {
-        const refreshToken = store.get('refresh_token');
+        const refreshToken = TokenStorage.getRefreshToken();
         if (!refreshToken) throw new Error('No refresh token');
-        const response = await fetch(`${this.baseUrl}/auth/refresh`, {
+        
+        // Use the correct refresh endpoint from your Django backend
+        const response = await fetch(`${this.baseUrl}/refresh`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refresh_token: refreshToken }),
+          body: JSON.stringify({ refresh: refreshToken }),
         });
-        if (!response.ok) throw new Error('Refresh failed');
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.detail || 'Refresh failed');
+        }
+        
         const data = await response.json();
-        this.setToken(data.access_token);
-        if (data.refresh_token) store.set('refresh_token', data.refresh_token);
-        return data.access_token;
+        // Handle both response formats: { access, refresh } or { access_token, refresh_token }
+        const accessToken = data.access || data.access_token;
+        const newRefreshToken = data.refresh || data.refresh_token;
+        const expiresIn = data.expires_in || data.expiresIn || 3600;
+        
+        this.setToken(accessToken);
+        if (newRefreshToken) {
+          TokenStorage.setRefreshToken(newRefreshToken);
+        }
+        TokenStorage.setTokenExpiration(expiresIn);
+        
+        return accessToken;
       } catch (err) {
         this.clearToken();
         // Notify renderer to redirect to login
@@ -67,13 +85,16 @@ class OnlineClient {
     if (!this.baseUrl) throw new Error('Server URL not set');
     const url = `${this.baseUrl}${endpoint}`;
     const makeRequest = async (token) => {
+      const requestHeaders = {
+        'Content-Type': 'application/json',
+        ...headers,
+      };
+      if (token) {
+        requestHeaders['Authorization'] = `Bearer ${token}`;
+      }
       return await fetch(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : '',
-          ...headers,
-        },
+        headers: requestHeaders,
         body: body ? JSON.stringify(body) : null,
       });
     };
@@ -81,6 +102,7 @@ class OnlineClient {
     let token = this.getToken();
     let response = await makeRequest(token);
 
+    // If unauthorized and we have a token, try refresh
     if (response.status === 401 && token) {
       try {
         const newToken = await this.refreshToken();
@@ -93,10 +115,25 @@ class OnlineClient {
     return response;
   }
 
-  async get(endpoint) { return this.request('GET', endpoint); }
-  async post(endpoint, body) { return this.request('POST', endpoint, body); }
-  async put(endpoint, body) { return this.request('PUT', endpoint, body); }
-  async delete(endpoint) { return this.request('DELETE', endpoint); }
+  async get(endpoint, options = {}) {
+    return this.request('GET', endpoint, null, options.headers || {});
+  }
+  
+  async post(endpoint, body, headers = {}) {
+    return this.request('POST', endpoint, body, headers);
+  }
+  
+  async put(endpoint, body, headers = {}) {
+    return this.request('PUT', endpoint, body, headers);
+  }
+  
+  async patch(endpoint, body, headers = {}) {
+    return this.request('PATCH', endpoint, body, headers);
+  }
+  
+  async delete(endpoint, headers = {}) {
+    return this.request('DELETE', endpoint, null, headers);
+  }
 }
 
 module.exports = new OnlineClient();

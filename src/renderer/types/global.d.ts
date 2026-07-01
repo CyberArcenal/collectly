@@ -94,6 +94,28 @@ declare global {
       deleteFile: (filePath) => Promise<any>;
       copyFileToClipboard: (filePath) => Promise<any>;
 
+      // ========== USER MODULE (online-only) ==========
+      user: (payload: { method: string; params?: any }) => Promise<{
+        status: boolean;
+        message: string;
+        data: any;
+        pagination?: {
+          next: string | null;
+          previous: string | null;
+          count: number;
+          current_page: number;
+          total_pages: number;
+          page_size: number;
+        };
+      }>;
+      // ========== AUTHENTICATION & SECURITY MODULE ==========
+      auth: (payload: { method: string; params?: any }) => Promise<{
+        status: boolean;
+        message: string;
+        data: any;
+        pagination?: any;
+      }>;
+
       // ========== LOGGING ==========
       log: {
         info: (message: string, data?: any) => void;

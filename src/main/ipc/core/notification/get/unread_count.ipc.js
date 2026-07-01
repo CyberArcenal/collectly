@@ -2,6 +2,7 @@
 const notificationService = require("../../../../../services/Notification");
 const onlineClient = require("../../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
+const { extractData } = require("../../../../../utils/responseTransformer");
 
 module.exports = async (params) => {
   const { debtId, type, includeDeleted = false } = params;
@@ -16,10 +17,18 @@ module.exports = async (params) => {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    const result = await response.json();
-    return { status: true, message: "Unread count retrieved from server", data: result };
+    const serverResult = await response.json();
+    return {
+      status: true,
+      message: "Unread count retrieved from server",
+      data: extractData(serverResult), // { count }
+    };
   } else {
     const count = await notificationService.getUnreadCount({ debtId, type }, includeDeleted);
-    return { status: true, message: "Unread count retrieved locally", data: { count } };
+    return {
+      status: true,
+      message: "Unread count retrieved locally",
+      data: { count },
+    };
   }
 };

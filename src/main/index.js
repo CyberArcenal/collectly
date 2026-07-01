@@ -889,6 +889,8 @@ function registerIpcHandlers() {
       "./ipc/core/loanApplication/index.ipc.js",
       "./ipc/core/paymentMethod/index.ipc.js",
       "./ipc/core/interestRateChangeLog/index.ipc.js",
+      "./ipc/core/user/index.ipc.js",
+      "./ipc/core/auth/index.ipc.js",
     ];
 
     ipcModules.forEach((modulePath) => {

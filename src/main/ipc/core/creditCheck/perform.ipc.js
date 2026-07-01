@@ -2,6 +2,7 @@
 const creditCheckService = require("../../../../services/CreditCheck");
 const onlineClient = require("../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../utils/system");
+const { extractData } = require("../../../../utils/responseTransformer");
 
 module.exports = async (params, queryRunner) => {
   try {
@@ -17,11 +18,19 @@ module.exports = async (params, queryRunner) => {
         const errorText = await response.text();
         throw new Error(`Server error: ${response.status} - ${errorText}`);
       }
-      const result = await response.json();
-      return { status: true, message: "Credit check performed on server", data: result.data };
+      const serverResult = await response.json();
+      return {
+        status: true,
+        message: "Credit check performed on server",
+        data: extractData(serverResult), // { score, riskLevel, remarks, dateChecked }
+      };
     } else {
       const result = await creditCheckService.performCreditCheck(debtorId, user, queryRunner);
-      return { status: true, message: "Credit check performed locally", data: result };
+      return {
+        status: true,
+        message: "Credit check performed locally",
+        data: result,
+      };
     }
   } catch (error) {
     console.error("Error in performCreditCheck:", error);

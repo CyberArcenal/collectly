@@ -1,5 +1,4 @@
 // src/main/ipc/audit/export_csv.ipc.js
-//@ts-check
 const { AuditLog } = require("../../../../entities/AuditLog");
 const { AppDataSource } = require("../../../db/data-source");
 const fs = require("fs").promises;
@@ -7,6 +6,7 @@ const path = require("path");
 const os = require("os");
 const { syncMode, serverUrl } = require("../../../../utils/system");
 const onlineClient = require("../../../../utils/onlineClient");
+const { extractData } = require("../../../../utils/responseTransformer");
 
 module.exports = async (params) => {
   const mode = await syncMode();
@@ -15,14 +15,17 @@ module.exports = async (params) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    // Use POST to send filters in body (since export may be large)
     const response = await onlineClient.post('/api/v1/audit/export', params);
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    const result = await response.json();
-    return { status: true, message: "CSV exported from server", data: result.data };
+    const serverResult = await response.json();
+    return {
+      status: true,
+      message: "CSV exported from server",
+      data: extractData(serverResult), // { filePath, filename }
+    };
   } else {
     const { searchTerm, entity, user, action, startDate, endDate, limit = 5000 } = params;
     const repo = AppDataSource.getRepository(AuditLog);

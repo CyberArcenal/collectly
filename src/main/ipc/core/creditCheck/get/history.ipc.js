@@ -2,6 +2,7 @@
 const creditCheckService = require("../../../../../services/CreditCheck");
 const onlineClient = require("../../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
+const { transformPaginatedResult } = require("../../../../../utils/responseTransformer");
 
 module.exports = async (params) => {
   try {
@@ -17,11 +18,21 @@ module.exports = async (params) => {
         const errorText = await response.text();
         throw new Error(`Server error: ${response.status} - ${errorText}`);
       }
-      const result = await response.json();
-      return { status: true, message: "Credit check history retrieved from server", data: result.data };
+      const serverResult = await response.json();
+      // Transform server pagination to client format
+      return transformPaginatedResult(serverResult);
     } else {
       const result = await creditCheckService.getCreditCheckHistory(debtorId, page, limit);
-      return { status: true, message: "Credit check history retrieved locally", data: result };
+      // Local service returns { data: [...], pagination: { page, limit, total, pages } }
+      // Wrap it to match client format
+      return {
+        status: true,
+        message: "Credit check history retrieved locally",
+        data: {
+          data: result.data,
+          pagination: result.pagination,
+        },
+      };
     }
   } catch (error) {
     console.error("Error in getCreditCheckHistory:", error);

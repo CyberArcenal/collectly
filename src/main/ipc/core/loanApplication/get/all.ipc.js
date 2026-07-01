@@ -2,6 +2,7 @@
 const loanApplicationService = require("../../../../../services/LoanApplication");
 const onlineClient = require("../../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
+const { transformPaginatedResult } = require("../../../../../utils/responseTransformer");
 
 module.exports = async (params) => {
   const mode = await syncMode();
@@ -15,10 +16,17 @@ module.exports = async (params) => {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    const result = await response.json();
-    return { status: true, message: "Loan applications retrieved from server", data: result };
+    const serverResult = await response.json();
+    return transformPaginatedResult(serverResult);
   } else {
     const result = await loanApplicationService.getAllApplications(params);
-    return { status: true, message: "Loan applications retrieved locally", data: result };
+    return {
+      status: true,
+      message: "Loan applications retrieved locally",
+      data: {
+        data: result.data,
+        pagination: result.pagination,
+      },
+    };
   }
 };

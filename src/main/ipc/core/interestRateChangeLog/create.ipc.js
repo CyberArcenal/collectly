@@ -2,6 +2,7 @@
 const interestRateChangeLogService = require("../../../../services/InterestRateChangeLog");
 const onlineClient = require("../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../utils/system");
+const { extractData } = require("../../../../utils/responseTransformer");
 
 module.exports = async (params, queryRunner) => {
   const {
@@ -30,8 +31,12 @@ module.exports = async (params, queryRunner) => {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    const result = await response.json();
-    return { status: true, message: "Log created on server", data: result };
+    const serverResult = await response.json();
+    return {
+      status: true,
+      message: "Log created on server",
+      data: extractData(serverResult),
+    };
   } else {
     const log = await interestRateChangeLogService.createLog(
       settingKey,
@@ -42,6 +47,10 @@ module.exports = async (params, queryRunner) => {
       reason,
       queryRunner,
     );
-    return { status: true, message: "Log created locally", data: log };
+    return {
+      status: true,
+      message: "Log created locally",
+      data: log,
+    };
   }
 };

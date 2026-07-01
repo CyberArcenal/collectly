@@ -88,6 +88,9 @@ contextBridge.exposeInMainWorld("backendAPI", {
   copyFileToClipboard: (filePath) =>
     ipcRenderer.invoke("copyFileToClipboard", filePath),
 
+  user: (payload) => ipcRenderer.invoke("user", payload),
+  auth: (payload) => ipcRenderer.invoke("auth", payload),
+
   // ========== LOGGING ==========
   log: {
     info: (message, data) => console.log("[Renderer]", message, data),

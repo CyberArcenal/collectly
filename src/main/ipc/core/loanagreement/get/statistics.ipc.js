@@ -2,6 +2,7 @@
 const loanAgreementService = require("../../../../../services/LoanAgreement");
 const onlineClient = require("../../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
+const { extractData } = require("../../../../../utils/responseTransformer");
 
 module.exports = async () => {
   const mode = await syncMode();
@@ -15,10 +16,18 @@ module.exports = async () => {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    const result = await response.json();
-    return { status: true, message: "Statistics retrieved from server", data: result };
+    const serverResult = await response.json();
+    return {
+      status: true,
+      message: "Statistics retrieved from server",
+      data: extractData(serverResult),
+    };
   } else {
     const stats = await loanAgreementService.getStatistics();
-    return { status: true, message: "Statistics retrieved locally", data: stats };
+    return {
+      status: true,
+      message: "Statistics retrieved locally",
+      data: stats,
+    };
   }
 };

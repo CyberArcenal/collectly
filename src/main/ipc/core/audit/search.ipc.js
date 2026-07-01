@@ -3,6 +3,7 @@ const { AuditLog } = require("../../../../entities/AuditLog");
 const { AppDataSource } = require("../../../db/data-source");
 const { syncMode, serverUrl } = require("../../../../utils/system");
 const onlineClient = require("../../../../utils/onlineClient");
+const { transformAuditPaginated } = require("../../../../utils/responseTransformer");
 
 module.exports = async (params) => {
   const mode = await syncMode();
@@ -16,8 +17,8 @@ module.exports = async (params) => {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    const result = await response.json();
-    return { status: true, message: "Search completed on server", data: result.data };
+    const serverResult = await response.json();
+    return transformAuditPaginated(serverResult);
   } else {
     const { searchTerm, entity, user, action, startDate, endDate, page = 1, limit = 50 } = params;
     const repo = AppDataSource.getRepository(AuditLog);

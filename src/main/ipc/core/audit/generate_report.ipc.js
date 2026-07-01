@@ -6,6 +6,7 @@ const path = require("path");
 const os = require("os");
 const { syncMode, serverUrl } = require("../../../../utils/system");
 const onlineClient = require("../../../../utils/onlineClient");
+const { extractData } = require("../../../../utils/responseTransformer");
 
 module.exports = async (params) => {
   const mode = await syncMode();
@@ -19,8 +20,12 @@ module.exports = async (params) => {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    const result = await response.json();
-    return { status: true, message: "Report generated on server", data: result.data };
+    const serverResult = await response.json();
+    return {
+      status: true,
+      message: "Report generated on server",
+      data: extractData(serverResult), // { filePath, format, entryCount }
+    };
   } else {
     const { startDate, endDate, format = "json" } = params;
     const repo = AppDataSource.getRepository(AuditLog);
@@ -55,7 +60,7 @@ module.exports = async (params) => {
         <h3>By Action</h3><ul>${Object.entries(byAction).map(([k,v]) => `<li>${k}: ${v}</li>`).join("")}</ul>
         <h3>By Entity</h3><ul>${Object.entries(byEntity).map(([k,v]) => `<li>${k}: ${v}</li>`).join("")}</ul>
         <h3>By User</h3><ul>${Object.entries(byUser).map(([k,v]) => `<li>${k}: ${v}</li>`).join("")}</ul>
-        <h2>Logs (latest 500)</h2><table><td><th>ID</th><th>Action</th><th>Entity</th><th>EntityId</th><th>User</th><th>Timestamp</th></tr>
+        <h2>Logs (latest 500)</h2><table><tr><th>ID</th><th>Action</th><th>Entity</th><th>EntityId</th><th>User</th><th>Timestamp</th></tr>
         ${reportData.logs.map(log => `<tr><td>${log.id}</td><td>${log.action}</td><td>${log.entity}</td><td>${log.entityId}</td><td>${log.user}</td><td>${log.timestamp}</td></tr>`).join("")}
         </table></body></html>`;
       const filename = `audit_report_${Date.now()}.html`;

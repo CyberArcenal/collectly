@@ -2,6 +2,7 @@
 const notificationService = require("../../../../services/Notification");
 const onlineClient = require("../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../utils/system");
+const { extractData } = require("../../../../utils/responseTransformer");
 
 module.exports = async (params) => {
   const { format = "json", filters = {}, user = "system" } = params;
@@ -16,10 +17,18 @@ module.exports = async (params) => {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    const exportData = await response.json();
-    return { status: true, message: "Export completed from server", data: exportData };
+    const serverResult = await response.json();
+    return {
+      status: true,
+      message: "Export completed from server",
+      data: extractData(serverResult), // { format, data, filename }
+    };
   } else {
     const exportData = await notificationService.exportNotifications(format, filters, user);
-    return { status: true, message: "Export completed locally", data: exportData };
+    return {
+      status: true,
+      message: "Export completed locally",
+      data: exportData,
+    };
   }
 };

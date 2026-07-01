@@ -2,6 +2,7 @@
 const loanAgreementService = require("../../../../../services/LoanAgreement");
 const onlineClient = require("../../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
+const { extractData } = require("../../../../../utils/responseTransformer");
 
 module.exports = async (params) => {
   const { id, includeDeleted = false } = params;
@@ -16,10 +17,18 @@ module.exports = async (params) => {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    const result = await response.json();
-    return { status: true, message: "Loan agreement retrieved from server", data: result };
+    const serverResult = await response.json();
+    return {
+      status: true,
+      message: "Loan agreement retrieved from server",
+      data: extractData(serverResult),
+    };
   } else {
     const agreement = await loanAgreementService.findById(id, includeDeleted);
-    return { status: true, message: "Loan agreement retrieved locally", data: agreement };
+    return {
+      status: true,
+      message: "Loan agreement retrieved locally",
+      data: agreement,
+    };
   }
 };

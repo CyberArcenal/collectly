@@ -2,6 +2,7 @@
 const { reminderLogService } = require("../../../../../services/ReminderLog");
 const onlineClient = require("../../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
+const { transformPaginatedResult } = require("../../../../../utils/responseTransformer");
 
 module.exports = async (params) => {
   const { recipient_email, page, limit } = params;
@@ -16,10 +17,17 @@ module.exports = async (params) => {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    const result = await response.json();
-    return { status: true, message: "Reminders by recipient retrieved from server", ...result };
+    const serverResult = await response.json();
+    return transformPaginatedResult(serverResult);
   } else {
     const result = await reminderLogService.getRemindersByRecipient({ recipient_email, page, limit });
-    return { status: true, message: "Reminders by recipient retrieved locally", ...result };
+    return {
+      status: true,
+      message: "Reminders by recipient retrieved locally",
+      data: {
+        data: result.data,
+        pagination: result.pagination,
+      },
+    };
   }
 };

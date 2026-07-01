@@ -2,6 +2,7 @@
 const loanAgreementService = require("../../../../services/LoanAgreement");
 const onlineClient = require("../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../utils/system");
+const { extractData } = require("../../../../utils/responseTransformer");
 
 module.exports = async (params, queryRunner) => {
   const { id, data, user = "system" } = params;
@@ -16,10 +17,18 @@ module.exports = async (params, queryRunner) => {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    const result = await response.json();
-    return { status: true, message: "Loan agreement updated on server", data: result };
+    const serverResult = await response.json();
+    return {
+      status: true,
+      message: "Loan agreement updated on server",
+      data: extractData(serverResult),
+    };
   } else {
     const result = await loanAgreementService.update(id, data, user, queryRunner);
-    return { status: true, message: "Loan agreement updated locally", data: result };
+    return {
+      status: true,
+      message: "Loan agreement updated locally",
+      data: result,
+    };
   }
 };

@@ -2,6 +2,7 @@
 const penaltyTransactionService = require("../../../../../services/PenaltyTransaction");
 const onlineClient = require("../../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
+const { extractData } = require("../../../../../utils/responseTransformer");
 
 module.exports = async (params) => {
   const { id, includeDeleted = false } = params;
@@ -16,10 +17,18 @@ module.exports = async (params) => {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    const penalty = await response.json();
-    return { status: true, message: "Penalty transaction retrieved from server", data: penalty };
+    const serverResult = await response.json();
+    return {
+      status: true,
+      message: "Penalty transaction retrieved from server",
+      data: extractData(serverResult),
+    };
   } else {
     const penalty = await penaltyTransactionService.findById(id, includeDeleted);
-    return { status: true, message: "Penalty transaction retrieved locally", data: penalty };
+    return {
+      status: true,
+      message: "Penalty transaction retrieved locally",
+      data: penalty,
+    };
   }
 };

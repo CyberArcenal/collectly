@@ -11,16 +11,24 @@ module.exports = async (params, queryRunner) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
+
     const response = await onlineClient.delete(`/api/v1/borrowers/permanent/${id}`);
-    if (!response.ok) {
+    if (!response.ok && response.status !== 204) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    // Assume server returns { status, message, data: null }
-    const result = await response.json();
-    return { status: true, message: "Borrower permanently deleted on server", data: null };
+
+    return {
+      status: true,
+      message: "Borrower permanently deleted on server",
+      data: null,
+    };
   } else {
     await borrowerService.permanentlyDelete(id, user, queryRunner);
-    return { status: true, message: "Borrower permanently deleted locally", data: null };
+    return {
+      status: true,
+      message: "Borrower permanently deleted locally",
+      data: null,
+    };
   }
 };

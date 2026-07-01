@@ -2,6 +2,7 @@
 const { reminderLogService } = require("../../../../services/ReminderLog");
 const onlineClient = require("../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../utils/system");
+const { extractData } = require("../../../../utils/responseTransformer");
 
 module.exports = async (params, queryRunner) => {
   const { data, user } = params; // data = { to, subject, html, text }
@@ -16,10 +17,18 @@ module.exports = async (params, queryRunner) => {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    const result = await response.json();
-    return { status: true, message: "Reminder log created on server", data: result };
+    const serverResult = await response.json();
+    return {
+      status: true,
+      message: "Reminder log created on server",
+      data: extractData(serverResult),
+    };
   } else {
     const result = await reminderLogService.createReminder(data, user, queryRunner);
-    return { status: true, message: "Reminder log created locally", data: result };
+    return {
+      status: true,
+      message: "Reminder log created locally",
+      data: result,
+    };
   }
 };
