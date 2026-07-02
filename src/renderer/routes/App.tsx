@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import Layout from "../layouts/Layout";
 import AuditTrailPage from "../pages/AuditTrail";
 import SettingsPage from "../pages/Settings";
@@ -27,10 +27,13 @@ import LoanAgreementsPage from "../pages/loans/loan-agreements";
 import { NotificationToastListener } from "../components/Shared/NotificationToastListener";
 import AmortizationPage from "../pages/payments/amortization";
 import CollectionPage from "../pages/payments/collection";
+import LoginPage from "../pages/auth/Login";
+import Verify2FA from "../pages/auth/Verify2FA";
 // import DebtDashboard from "../pages/dashboard";
 
 function App() {
   const [licenseAccepted, setLicenseAccepted] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (window.backendAPI?.notifyAppReady) {
@@ -38,6 +41,19 @@ function App() {
       // console.log("Notified main process: renderer is ready");
     }
   }, []);
+
+  // ✅ Listen for unauthorized event from main process
+  useEffect(() => {
+    const unsubscribe = window.backendAPI?.on?.("auth:unauthorized", () => {
+      // Clear any stored tokens (already cleared in main process, but just in case)
+      // Navigate to login page
+      navigate("/login", { replace: true });
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [navigate]);
 
   const handleAccept = () => {
     setLicenseAccepted(true);
@@ -47,12 +63,12 @@ function App() {
     // Open email or external page
     if ((window as any).backendAPI?.openExternal) {
       (window as any).backendAPI.openExternal(
-        "mailto:cyberarcenal1@gmail.com?subject=Commercial%20License%20Inquiry"
+        "mailto:cyberarcenal1@gmail.com?subject=Commercial%20License%20Inquiry",
       );
     } else {
       window.open(
         "mailto:cyberarcenal1@gmail.com?subject=Commercial%20License%20Inquiry",
-        "_blank"
+        "_blank",
       );
     }
   };
@@ -68,13 +84,15 @@ function App() {
   }
   return (
     <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/verify-2fa" element={<Verify2FA />} />
       <Route path="/help" element={<Help />} />
       <Route path="/" element={<Layout />}>
         <Route index element={<Navigate to="/dashboard" replace />} />
 
         {/* Core POS */}
         <Route path="dashboard" element={<DebtDashboard />} />
-        
+
         {/* System */}
         <Route path="system/audit" element={<AuditTrailPage />} />
         <Route path="notification-logs" element={<NotificationLogPage />} />
@@ -101,7 +119,6 @@ function App() {
 
         {/* 404 Page */}
         <Route path="*" element={<div>Not found page</div>} />
-      
       </Route>
     </Routes>
   );

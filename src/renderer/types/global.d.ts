@@ -23,6 +23,7 @@ declare global {
         data: any;
       }>;
       handshake: (payload: any) => Promise<any>;
+      tokenStorage: (payload: { method: string; params?: any }) => Promise<any>;
 
       // ========== DEBT MANAGEMENT MODULES ==========
       borrower: (payload: any) => Promise<any>;

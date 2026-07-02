@@ -2,25 +2,28 @@
 import ReactDOM from "react-dom/client";
 import "./styles/App.css";
 import "./styles/App-dark.css";
-import './styles/scrollbar.css';
+import "./styles/scrollbar.css";
 // import './styles/windows-friendly.css';
 import "reflect-metadata";
 import React from "react";
 import ConditionalRouter from "./components/Shared/ConditionalRouter";
 import App from "./routes/App";
-import { SettingsProvider } from "./contexts/SettingsContext"; // adjust path
+import { SettingsProvider } from "./contexts/SettingsContext";
+import { AuthProvider } from "./contexts/AuthContext";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <SettingsProvider>
       <ConditionalRouter>
-        <App />
+        <AuthProvider>
+          <App />
+        </AuthProvider>
       </ConditionalRouter>
     </SettingsProvider>
   </React.StrictMode>,
 );
 
-// main.tsx (idagdag sa itaas bago ang ReactDOM.createRoot)
+// Theme setup
 const savedTheme = localStorage.getItem("theme");
 if (savedTheme === "dark" || savedTheme === "light") {
   document.documentElement.setAttribute("data-theme", savedTheme);

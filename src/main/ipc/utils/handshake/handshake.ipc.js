@@ -19,7 +19,7 @@ module.exports = async (params) => {
     timestamp: new Date().toISOString(),
   };
 
-  const url = `${serverUrl.replace(/\/$/, "")}/handshake`;
+  const url = `${serverUrl.replace(/\/$/, "")}/handshake/`;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10000);
 
