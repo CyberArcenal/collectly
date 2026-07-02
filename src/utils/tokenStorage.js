@@ -1,5 +1,6 @@
 // src/utils/tokenStorage.js
-const Store = require('electron-store');
+//@ts-check
+const Store = require('electron-store').default;
 
 // Use the same store name as onlineClient for consistency
 const store = new Store({ name: 'auth' });

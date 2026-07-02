@@ -66,7 +66,7 @@ class PenaltyTransactionStateTransitionService {
         {
           userId: 1,
           title: "Penalty Waived",
-          message: `The penalty of ${penalty.amount} on debt "${debtWithBorrower.name}" has been waived. Reason: ${reason || "N/A"}.`,
+          message: `The penalty of ${penalty.amount.toFixed(2)} on debt "${debtWithBorrower.name}" has been waived. Reason: ${reason || "N/A"}.`,
           type: "info",
           metadata: { penaltyId: penalty.id, debtId: debtWithBorrower.id },
         },
@@ -120,7 +120,7 @@ class PenaltyTransactionStateTransitionService {
         {
           userId: 1,
           title: "Penalty Applied",
-          message: `A penalty of ${penalty.amount} has been added to your debt "${debtWithBorrower.name}". New balance: ${debtWithBorrower.remainingAmount}.`,
+          message: `A penalty of ${penalty.amount.toFixed(2)} has been added to your debt "${debtWithBorrower.name}". New balance: ${debtWithBorrower.remainingAmount.toFixed(2)}.`,
           type: "info",
           metadata: { penaltyId: penalty.id, debtId: debtWithBorrower.id },
         },
@@ -199,7 +199,7 @@ class PenaltyTransactionStateTransitionService {
         {
           userId: 1,
           title: "Penalty Reversed",
-          message: `The penalty of ${penalty.amount} on debt "${debtWithBorrower.name}" has been reversed.`,
+          message: `The penalty of ${penalty.amount.toFixed(2)} on debt "${debtWithBorrower.name}" has been reversed.`,
           type: "info",
           metadata: { penaltyId: penalty.id, debtId: debtWithBorrower.id },
         },
