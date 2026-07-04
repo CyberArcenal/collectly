@@ -1,4 +1,5 @@
-import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
+// src/renderer/routes/App.tsx
+import { Navigate, Route, Routes } from "react-router-dom";
 import Layout from "../layouts/Layout";
 import AuditTrailPage from "../pages/AuditTrail";
 import SettingsPage from "../pages/Settings";
@@ -27,53 +28,56 @@ import LoanAgreementsPage from "../pages/loans/loan-agreements";
 import { NotificationToastListener } from "../components/Shared/NotificationToastListener";
 import AmortizationPage from "../pages/payments/amortization";
 import CollectionPage from "../pages/payments/collection";
+// Auth pages
 import LoginPage from "../pages/auth/Login";
-import Verify2FA from "../pages/auth/Verify2FA";
-// import DebtDashboard from "../pages/dashboard";
+import Verify2FAPage from "../pages/auth/Verify2FA";
+import { useAuth } from "../contexts/AuthContext";
+import { ProtectedRoute } from "../components/Shared/ProtectedRoute";
 
 function App() {
   const [licenseAccepted, setLicenseAccepted] = useState(false);
-  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
 
+  // Unauthorized listener (existing)
   useEffect(() => {
     if (window.backendAPI?.notifyAppReady) {
       window.backendAPI.notifyAppReady();
-      // console.log("Notified main process: renderer is ready");
     }
   }, []);
 
-  // ✅ Listen for unauthorized event from main process
+  // ✅ Listen for auth:unauthorized event
   useEffect(() => {
-    const unsubscribe = window.backendAPI?.on?.("auth:unauthorized", () => {
-      // Clear any stored tokens (already cleared in main process, but just in case)
-      // Navigate to login page
-      navigate("/login", { replace: true });
+    const unsubscribe = window.backendAPI?.on?.('auth:unauthorized', () => {
+      // Navigate to login - we can't use useNavigate here directly, but we can use window.location
+      // or use a ref to navigate. For simplicity, we'll reload to login.
+      // In a more complex app, you'd use useNavigate, but since this is a top-level component,
+      // we can use window.location.
+      window.location.href = '/login';
     });
 
     return () => {
       if (unsubscribe) unsubscribe();
     };
-  }, [navigate]);
+  }, []);
 
   const handleAccept = () => {
     setLicenseAccepted(true);
   };
 
   const handleCommercialRequest = () => {
-    // Open email or external page
     if ((window as any).backendAPI?.openExternal) {
       (window as any).backendAPI.openExternal(
-        "mailto:cyberarcenal1@gmail.com?subject=Commercial%20License%20Inquiry",
+        "mailto:cyberarcenal1@gmail.com?subject=Commercial%20License%20Inquiry"
       );
     } else {
       window.open(
         "mailto:cyberarcenal1@gmail.com?subject=Commercial%20License%20Inquiry",
-        "_blank",
+        "_blank"
       );
     }
   };
 
-  // Show modal on first visit if license not accepted
+  // Show license modal if not accepted
   if (!licenseAccepted && !localStorage.getItem("Debtify_license_accepted")) {
     return (
       <LicenseModal
@@ -82,40 +86,150 @@ function App() {
       />
     );
   }
+
   return (
     <Routes>
+      {/* Public routes (no layout, no auth required) */}
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/verify-2fa" element={<Verify2FA />} />
+      <Route path="/verify-2fa" element={<Verify2FAPage />} />
       <Route path="/help" element={<Help />} />
-      <Route path="/" element={<Layout />}>
+
+      {/* Protected routes with layout */}
+      <Route path="/" element={
+        <ProtectedRoute>
+          <Layout />
+        </ProtectedRoute>
+      }>
         <Route index element={<Navigate to="/dashboard" replace />} />
 
-        {/* Core POS */}
+        {/* Core POS - accessible by all authenticated users */}
         <Route path="dashboard" element={<DebtDashboard />} />
 
-        {/* System */}
-        <Route path="system/audit" element={<AuditTrailPage />} />
-        <Route path="notification-logs" element={<NotificationLogPage />} />
-        <Route path="system/settings" element={<SettingsPage />} />
-        <Route path="debtors/list" element={<DebtorDirectory />} />
-        <Route path="debtors/credit-check" element={<CreditCheckPage />} />
-        <Route path="debtors/group" element={<DebtorGroupsPage />} />
-        <Route path="loans/active" element={<ActiveLoansPage />} />
-        <Route path="/loans/agreements" element={<LoanAgreementsPage />} />
-        <Route path="loans/overdue" element={<OverdueLoansPage />} />
-        <Route path="loans/closed" element={<ClosedLoansPage />} />
-        <Route path="loans/applications" element={<LoanApplicationsPage />} />
-        <Route path="payments/schedule" element={<PaymentSchedulePage />} />
-        <Route path="payments/collection" element={<CollectionPage />} />
-        <Route path="payments/plan" element={<AmortizationPage />} />
-        <Route path="payments/transactions" element={<TransactionsPage />} />
-        <Route path="payments/methods" element={<PaymentMethodsPage />} />
-        <Route path="reports/aging" element={<AgingAnalysisPage />} />
-        <Route path="reports/collection" element={<CollectionReportPage />} />
-        <Route path="reports/debtor-stmt" element={<DebtorStatementPage />} />
-        <Route path="reports/expected" element={<ExpectedPaymentsPage />} />
-        <Route path="devices" element={<DevicesPage />} />
-        <Route path="/sync" element={<SyncPage />} />
+        {/* System - admin/manager only */}
+        <Route path="system/audit" element={
+          <ProtectedRoute roles={['admin', 'manager']}>
+            <AuditTrailPage />
+          </ProtectedRoute>
+        } />
+        <Route path="system/settings" element={
+          <ProtectedRoute roles={['admin', 'manager']}>
+            <SettingsPage />
+          </ProtectedRoute>
+        } />
+
+        {/* Notification logs - collector+ */}
+        <Route path="notification-logs" element={
+          <ProtectedRoute roles={['admin', 'manager', 'collector']}>
+            <NotificationLogPage />
+          </ProtectedRoute>
+        } />
+
+        {/* Debtors - staff+ */}
+        <Route path="debtors/list" element={
+          <ProtectedRoute roles={['admin', 'manager', 'collector', 'staff']}>
+            <DebtorDirectory />
+          </ProtectedRoute>
+        } />
+        <Route path="debtors/credit-check" element={
+          <ProtectedRoute roles={['admin', 'manager', 'collector']}>
+            <CreditCheckPage />
+          </ProtectedRoute>
+        } />
+        <Route path="debtors/group" element={
+          <ProtectedRoute roles={['admin', 'manager']}>
+            <DebtorGroupsPage />
+          </ProtectedRoute>
+        } />
+
+        {/* Loans - staff+ */}
+        <Route path="loans/active" element={
+          <ProtectedRoute roles={['admin', 'manager', 'collector', 'staff']}>
+            <ActiveLoansPage />
+          </ProtectedRoute>
+        } />
+        <Route path="loans/overdue" element={
+          <ProtectedRoute roles={['admin', 'manager', 'collector']}>
+            <OverdueLoansPage />
+          </ProtectedRoute>
+        } />
+        <Route path="loans/closed" element={
+          <ProtectedRoute roles={['admin', 'manager', 'collector']}>
+            <ClosedLoansPage />
+          </ProtectedRoute>
+        } />
+        <Route path="loans/applications" element={
+          <ProtectedRoute roles={['admin', 'manager']}>
+            <LoanApplicationsPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/loans/agreements" element={
+          <ProtectedRoute roles={['admin', 'manager', 'staff']}>
+            <LoanAgreementsPage />
+          </ProtectedRoute>
+        } />
+
+        {/* Payments - staff+ */}
+        <Route path="payments/schedule" element={
+          <ProtectedRoute roles={['admin', 'manager', 'collector', 'staff']}>
+            <PaymentSchedulePage />
+          </ProtectedRoute>
+        } />
+        <Route path="payments/collection" element={
+          <ProtectedRoute roles={['admin', 'manager', 'collector']}>
+            <CollectionPage />
+          </ProtectedRoute>
+        } />
+        <Route path="payments/plan" element={
+          <ProtectedRoute roles={['admin', 'manager', 'collector']}>
+            <AmortizationPage />
+          </ProtectedRoute>
+        } />
+        <Route path="payments/transactions" element={
+          <ProtectedRoute roles={['admin', 'manager', 'collector', 'staff']}>
+            <TransactionsPage />
+          </ProtectedRoute>
+        } />
+        <Route path="payments/methods" element={
+          <ProtectedRoute roles={['admin', 'manager']}>
+            <PaymentMethodsPage />
+          </ProtectedRoute>
+        } />
+
+        {/* Reports - collector+ */}
+        <Route path="reports/aging" element={
+          <ProtectedRoute roles={['admin', 'manager', 'collector']}>
+            <AgingAnalysisPage />
+          </ProtectedRoute>
+        } />
+        <Route path="reports/collection" element={
+          <ProtectedRoute roles={['admin', 'manager', 'collector']}>
+            <CollectionReportPage />
+          </ProtectedRoute>
+        } />
+        <Route path="reports/debtor-stmt" element={
+          <ProtectedRoute roles={['admin', 'manager', 'collector']}>
+            <DebtorStatementPage />
+          </ProtectedRoute>
+        } />
+        <Route path="reports/expected" element={
+          <ProtectedRoute roles={['admin', 'manager', 'collector']}>
+            <ExpectedPaymentsPage />
+          </ProtectedRoute>
+        } />
+
+        {/* Devices - admin/manager */}
+        <Route path="devices" element={
+          <ProtectedRoute roles={['admin', 'manager']}>
+            <DevicesPage />
+          </ProtectedRoute>
+        } />
+
+        {/* Sync - admin/manager */}
+        <Route path="/sync" element={
+          <ProtectedRoute roles={['admin', 'manager']}>
+            <SyncPage />
+          </ProtectedRoute>
+        } />
 
         {/* 404 Page */}
         <Route path="*" element={<div>Not found page</div>} />

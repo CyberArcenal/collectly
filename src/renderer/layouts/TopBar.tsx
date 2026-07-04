@@ -9,7 +9,7 @@ import ThemeToggle from "../components/Shared/ThemeToggle";
 import UpdateNotifier from "../components/Shared/UpdateNotifier";
 import StatusIndicators from "../components/Shared/StatusIndicators";
 import { NotificationDropdown } from "../components/Shared/NotificationDrawer";
-import InterestPeriodIndicator from "../components/Shared/InterestPeriodIndicator"; // ✅ import
+import InterestPeriodIndicator from "../components/Shared/InterestPeriodIndicator";
 
 interface TopBarProps {
   toggleSidebar: () => void;

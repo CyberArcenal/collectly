@@ -16,7 +16,7 @@ class AuthHandler {
       // ========== AUTHENTICATION ==========
       login: {
         method: "POST",
-        endpoint: "/login",
+        endpoint: "/login/",
         transform: (result) => {
           // Store tokens in electron-store on successful login
           if (result.status && result.accessToken && result.refreshToken) {
@@ -34,7 +34,7 @@ class AuthHandler {
       },
       logout: {
         method: "POST",
-        endpoint: "/logout",
+        endpoint: "/logout/",
         transform: (result) => {
           // Always clear tokens on logout
           TokenStorage.clearTokens();
@@ -51,7 +51,7 @@ class AuthHandler {
       },
       refreshToken: {
         method: "POST",
-        endpoint: "/refresh",
+        endpoint: "/refresh/",
         transform: (result) => {
           // Update tokens on refresh
           if (result.status && result.data) {
@@ -68,7 +68,7 @@ class AuthHandler {
       },
       verify2FA: {
         method: "POST",
-        endpoint: "/login/verify-2fa",
+        endpoint: "/login/verify-2fa/",
         transform: (result) => {
           if (result.status && result.accessToken && result.refreshToken) {
             TokenStorage.setTokens(

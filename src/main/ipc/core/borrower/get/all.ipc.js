@@ -1,8 +1,9 @@
 // src/main/ipc/borrower/get/all.ipc.js
+//@ts-check
 const borrowerService = require("../../../../../services/Borrower");
 const onlineClient = require("../../../../../utils/onlineClient");
+const { transformPagination, transformPaginatedResult } = require("../../../../../utils/responseTransformer");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
-const { transformPaginated } = require("../../../../../utils/responseTransformer");
 
 module.exports = async (params) => {
   const mode = await syncMode();
@@ -20,7 +21,7 @@ module.exports = async (params) => {
 
     const serverResult = await response.json();
     // Transform server pagination to client format
-    return transformPaginated(serverResult);
+    return transformPaginatedResult(serverResult);
   } else {
     const { page, limit, search, sortBy, sortOrder, includeDeleted, ...filters } = params;
     const options = { page, limit, search, sortBy, sortOrder, includeDeleted, ...filters };
