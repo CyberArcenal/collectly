@@ -1,18 +1,14 @@
-// src/renderer/pages/payments/amortization/hooks/useAmortizationSchedule.ts
-
 import { useState, useEffect, useCallback } from 'react';
 import type { Debt } from '../../../../api/core/debt';
 import type { AmortizationEntry, AmortizationSchedule, PaymentFrequency } from '../types';
 import debtsAPI from '../../../../api/core/debt';
 
-// Compute PMT: payment = P * r * (1+r)^n / ((1+r)^n - 1)
 function computePMT(principal: number, ratePerPeriod: number, numberOfPeriods: number): number {
   if (ratePerPeriod === 0) return principal / numberOfPeriods;
   const factor = Math.pow(1 + ratePerPeriod, numberOfPeriods);
   return principal * ratePerPeriod * factor / (factor - 1);
 }
 
-// Generate amortization schedule
 function generateSchedule(
   principal: number,
   annualRate: number,
@@ -21,18 +17,26 @@ function generateSchedule(
   frequency: PaymentFrequency
 ): AmortizationEntry[] {
   const periodsPerYear: Record<PaymentFrequency, number> = {
+    weekly: 52,
     monthly: 12,
     quarterly: 4,
     'semi-annual': 2,
     annual: 1,
   };
-  const periods = periodsPerYear[frequency];
 
-  const totalMonths = (endDate.getFullYear() - startDate.getFullYear()) * 12 +
-    (endDate.getMonth() - startDate.getMonth());
-  const totalPeriods = Math.max(1, Math.round(totalMonths / (12 / periods)));
-  const ratePerPeriod = (annualRate / 100) / periods;
+  let totalPeriods: number;
+  if (frequency === 'weekly') {
+    const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    totalPeriods = Math.max(1, Math.ceil(diffDays / 7));
+  } else {
+    const totalMonths = (endDate.getFullYear() - startDate.getFullYear()) * 12 +
+      (endDate.getMonth() - startDate.getMonth());
+    const periods = periodsPerYear[frequency];
+    totalPeriods = Math.max(1, Math.round(totalMonths / (12 / periods)));
+  }
 
+  const ratePerPeriod = (annualRate / 100) / periodsPerYear[frequency];
   const payment = computePMT(principal, ratePerPeriod, totalPeriods);
 
   const entries: AmortizationEntry[] = [];
@@ -40,7 +44,8 @@ function generateSchedule(
   let currentDate = new Date(startDate);
 
   for (let i = 1; i <= totalPeriods; i++) {
-    if (frequency === 'monthly') currentDate.setMonth(currentDate.getMonth() + 1);
+    if (frequency === 'weekly') currentDate.setDate(currentDate.getDate() + 7);
+    else if (frequency === 'monthly') currentDate.setMonth(currentDate.getMonth() + 1);
     else if (frequency === 'quarterly') currentDate.setMonth(currentDate.getMonth() + 3);
     else if (frequency === 'semi-annual') currentDate.setMonth(currentDate.getMonth() + 6);
     else if (frequency === 'annual') currentDate.setFullYear(currentDate.getFullYear() + 1);
@@ -95,7 +100,6 @@ const useAmortizationSchedule = (): UseAmortizationScheduleReturn => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch active debts
   const fetchDebts = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -110,7 +114,6 @@ const useAmortizationSchedule = (): UseAmortizationScheduleReturn => {
       if (!response.status) throw new Error(response.message);
       const debtsData = response.data.data || [];
       setDebts(debtsData);
-      // Auto-select first debt if none selected and debts exist
       if (!selectedDebtId && debtsData.length > 0) {
         setSelectedDebtId(debtsData[0].id);
       }
@@ -122,12 +125,10 @@ const useAmortizationSchedule = (): UseAmortizationScheduleReturn => {
     }
   }, [selectedDebtId]);
 
-  // Initial fetch
   useEffect(() => {
     fetchDebts();
   }, [fetchDebts]);
 
-  // Compute schedule when selectedDebtId or frequency changes
   useEffect(() => {
     if (!selectedDebtId) {
       setSchedule(null);

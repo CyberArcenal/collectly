@@ -14,7 +14,7 @@ const KPICards: React.FC<KPICardsProps> = ({ totalActual, totalExpected, collect
   const cards = [
     { title: "Total Collected", value: formatCurrency(totalActual), icon: DollarSign, color: "var(--success-color)" },
     { title: "Expected Collection", value: formatCurrency(totalExpected), icon: Target, color: "var(--accent-blue)" },
-    { title: "Collection Rate", value: `${collectionRate.toFixed(1)}%`, icon: TrendingUp, color: "var(--accent-purple)" },
+    { title: "Collection Rate", value: `${collectionRate?.toFixed(1)}%`, icon: TrendingUp, color: "var(--accent-purple)" },
     { title: "Average Per Day", value: formatCurrency(averagePerDay), icon: Calendar, color: "var(--warning-color)" },
   ];
   return (

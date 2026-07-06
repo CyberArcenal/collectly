@@ -75,9 +75,33 @@ function transformSingle(serverResponse) {
   };
 }
 
+/**
+ * Convert a string from snake_case to camelCase
+ */
+function toCamelCase(str) {
+  return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+}
+
+/**
+ * Recursively transform all object keys from snake_case to camelCase
+ */
+function transformKeysToCamelCase(obj) {
+  if (Array.isArray(obj)) {
+    return obj.map(v => transformKeysToCamelCase(v));
+  } else if (obj !== null && typeof obj === 'object') {
+    return Object.keys(obj).reduce((acc, key) => {
+      const camelKey = toCamelCase(key);
+      acc[camelKey] = transformKeysToCamelCase(obj[key]);
+      return acc;
+    }, {});
+  }
+  return obj;
+}
+
 module.exports = {
   extractData,
   transformPagination,
   transformPaginatedResult,
   transformSingle,
+  transformKeysToCamelCase,
 };

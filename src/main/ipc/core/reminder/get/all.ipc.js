@@ -1,8 +1,10 @@
 // src/main/ipc/core/reminder/get/all.ipc.js
+//@ts-check
 const { reminderLogService } = require("../../../../../services/ReminderLog");
 const onlineClient = require("../../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
 const { transformPaginatedResult } = require("../../../../../utils/responseTransformer");
+const { logger } = require("../../../../../utils/logger");
 
 /**
  * Map frontend params to backend query params for /api/v1/notifications/notification-logs/
@@ -36,6 +38,7 @@ module.exports = async (params) => {
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
     const serverResult = await response.json();
+    logger.debug(`Server response for notification logs: ${JSON.stringify(serverResult)}`);
     return transformPaginatedResult(serverResult);
   } else {
     const result = await reminderLogService.getAllReminders(params);

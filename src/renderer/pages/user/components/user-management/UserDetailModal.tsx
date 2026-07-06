@@ -1,18 +1,18 @@
+// src/renderer/pages/UserManagement/components/user-management/UserDetailModal.tsx
 import React, { useState, useEffect } from 'react';
 import { z } from 'zod';
+import type { User } from '../../../../api/core/user';
+import type { UserFormData } from '../../../users/types/user.types';
 import { useUserMutations } from '../../hooks/useUserMutations';
-import type { User, UserFormData } from '../../types/user.types';
 
 const userSchema = z.object({
   email: z.string().email('Invalid email address'),
-  display_name: z.string().min(2, 'Display name must be at least 2 characters'),
+  full_name: z.string().min(2, 'Full name must be at least 2 characters'),
   username: z.string().min(3, 'Username must be at least 3 characters'),
   password: z.string().min(6, 'Password must be at least 6 characters').optional(),
-  roles: z.array(z.string()).min(1, 'At least one role is required'),
-  status: z.enum(['active', 'inactive', 'suspended']),
-  department: z.string().optional(),
-  phone: z.string().optional(),
-  notes: z.string().optional(),
+  user_type: z.string().min(1, 'User type is required'),
+  status: z.enum(['active', 'restricted', 'suspended']),
+  phone_number: z.string().optional(),
 });
 
 interface UserDetailModalProps {
@@ -30,10 +30,11 @@ export const UserDetailModal: React.FC<UserDetailModalProps> = ({
 }) => {
   const [formData, setFormData] = useState<UserFormData>({
     email: '',
-    display_name: '',
+    full_name: '',
     username: '',
-    roles: ['user'],
+    user_type: 'viewer',
     status: 'active',
+    phone_number: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showPassword, setShowPassword] = useState(false);
@@ -42,19 +43,17 @@ export const UserDetailModal: React.FC<UserDetailModalProps> = ({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
 
-  const { updateUser, updatePassword, isLoading, error: mutationError } = useUserMutations();
+  const { createUser, updateUser, changePassword, isLoading, error: mutationError } = useUserMutations();
 
   useEffect(() => {
     if (user) {
       setFormData({
         email: user.email,
-        display_name: user.display_name,
+        full_name: user.full_name,
         username: user.username,
-        roles: user.roles,
+        user_type: user.user_type,
         status: user.status,
-        department: user.department,
-        phone: user.phone,
-        notes: user.notes,
+        phone_number: user.phone_number,
       });
     } else {
       resetForm();
@@ -64,10 +63,11 @@ export const UserDetailModal: React.FC<UserDetailModalProps> = ({
   const resetForm = () => {
     setFormData({
       email: '',
-      display_name: '',
+      full_name: '',
       username: '',
-      roles: ['user'],
+      user_type: 'viewer',
       status: 'active',
+      phone_number: '',
     });
     setErrors({});
     setCurrentPassword('');
@@ -76,15 +76,9 @@ export const UserDetailModal: React.FC<UserDetailModalProps> = ({
     setPasswordError('');
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    if (name === 'roles') {
-      const select = e.target as HTMLSelectElement;
-      const selectedRoles = Array.from(select.selectedOptions, option => option.value);
-      setFormData(prev => ({ ...prev, roles: selectedRoles }));
-    } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
-    }
+    setFormData(prev => ({ ...prev, [name]: value }));
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
@@ -97,6 +91,7 @@ export const UserDetailModal: React.FC<UserDetailModalProps> = ({
       setErrors({});
 
       if (user) {
+        // Update user
         await updateUser(user.id, formData);
         
         // Handle password change if provided
@@ -105,8 +100,15 @@ export const UserDetailModal: React.FC<UserDetailModalProps> = ({
             setPasswordError('New passwords do not match');
             return;
           }
-          await updatePassword(user.id, currentPassword, newPassword);
+          await changePassword({
+            old_password: currentPassword,
+            new_password: newPassword,
+            new_password_confirmation: confirmPassword,
+          });
         }
+      } else {
+        // Create new user (password is required)
+        await createUser(formData);
       }
 
       onSuccess();
@@ -125,7 +127,8 @@ export const UserDetailModal: React.FC<UserDetailModalProps> = ({
     }
   };
 
-  const roles = ['admin', 'manager', 'cashier', 'inventory', 'user'];
+  const userTypes = ['viewer', 'customer', 'staff', 'collector', 'manager', 'admin'];
+  const statuses = ['active', 'restricted', 'suspended'];
 
   if (!isOpen) return null;
 
@@ -181,24 +184,24 @@ export const UserDetailModal: React.FC<UserDetailModalProps> = ({
                   )}
                 </div>
 
-                {/* Display Name */}
+                {/* Full Name */}
                 <div>
                   <label className="block text-sm font-medium text-gray-400 mb-1">
-                    Display Name *
+                    Full Name *
                   </label>
                   <input
                     type="text"
-                    name="display_name"
-                    value={formData.display_name}
+                    name="full_name"
+                    value={formData.full_name}
                     onChange={handleChange}
                     className={`w-full px-3 py-2 bg-gray-900 border rounded text-white focus:outline-none focus:ring-1 ${
-                      errors.display_name
+                      errors.full_name
                         ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
                         : 'border-gray-700 focus:border-blue-500 focus:ring-blue-500'
                     }`}
                   />
-                  {errors.display_name && (
-                    <p className="mt-1 text-sm text-red-400">{errors.display_name}</p>
+                  {errors.full_name && (
+                    <p className="mt-1 text-sm text-red-400">{errors.full_name}</p>
                   )}
                 </div>
 
@@ -223,6 +226,46 @@ export const UserDetailModal: React.FC<UserDetailModalProps> = ({
                   )}
                 </div>
 
+                {/* Phone Number */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-1">
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    name="phone_number"
+                    value={formData.phone_number || ''}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* User Type */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-1">
+                    User Type *
+                  </label>
+                  <select
+                    name="user_type"
+                    value={formData.user_type}
+                    onChange={handleChange}
+                    className={`w-full px-3 py-2 bg-gray-900 border rounded text-white focus:outline-none focus:ring-1 ${
+                      errors.user_type
+                        ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                        : 'border-gray-700 focus:border-blue-500 focus:ring-blue-500'
+                    }`}
+                  >
+                    {userTypes.map((type) => (
+                      <option key={type} value={type}>
+                        {type.charAt(0).toUpperCase() + type.slice(1)}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.user_type && (
+                    <p className="mt-1 text-sm text-red-400">{errors.user_type}</p>
+                  )}
+                </div>
+
                 {/* Status */}
                 <div>
                   <label className="block text-sm font-medium text-gray-400 mb-1">
@@ -232,67 +275,47 @@ export const UserDetailModal: React.FC<UserDetailModalProps> = ({
                     name="status"
                     value={formData.status}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className={`w-full px-3 py-2 bg-gray-900 border rounded text-white focus:outline-none focus:ring-1 ${
+                      errors.status
+                        ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                        : 'border-gray-700 focus:border-blue-500 focus:ring-blue-500'
+                    }`}
                   >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                    <option value="suspended">Suspended</option>
-                  </select>
-                </div>
-
-                {/* Roles */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">
-                    Roles *
-                  </label>
-                  <select
-                    name="roles"
-                    multiple
-                    value={formData.roles}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 min-h-[100px]"
-                  >
-                    {roles.map((role) => (
-                      <option key={role} value={role}>
-                        {role.charAt(0).toUpperCase() + role.slice(1)}
+                    {statuses.map((status) => (
+                      <option key={status} value={status}>
+                        {status.charAt(0).toUpperCase() + status.slice(1)}
                       </option>
                     ))}
                   </select>
-                  {errors.roles && (
-                    <p className="mt-1 text-sm text-red-400">{errors.roles}</p>
+                  {errors.status && (
+                    <p className="mt-1 text-sm text-red-400">{errors.status}</p>
                   )}
-                  <p className="mt-1 text-xs text-gray-500">Hold Ctrl/Cmd to select multiple</p>
                 </div>
 
-                {/* Department */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">
-                    Department
-                  </label>
-                  <input
-                    type="text"
-                    name="department"
-                    value={formData.department || ''}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                  />
-                </div>
+                {/* Password (only for new users) */}
+                {!user && (
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-400 mb-1">
+                      Password *
+                    </label>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      name="password"
+                      value={formData.password || ''}
+                      onChange={handleChange}
+                      className={`w-full px-3 py-2 bg-gray-900 border rounded text-white focus:outline-none focus:ring-1 ${
+                        errors.password
+                          ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                          : 'border-gray-700 focus:border-blue-500 focus:ring-blue-500'
+                      }`}
+                    />
+                    {errors.password && (
+                      <p className="mt-1 text-sm text-red-400">{errors.password}</p>
+                    )}
+                  </div>
+                )}
 
-                {/* Phone */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">
-                    Phone
-                  </label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={formData.phone || ''}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                  />
-                </div>
-
-                {/* Password Fields (for existing users) */}
+                {/* Password Change (for existing users) */}
                 {user && (
                   <div className="md:col-span-2">
                     <div className="border-t border-gray-700 pt-4 mt-4">
@@ -353,20 +376,6 @@ export const UserDetailModal: React.FC<UserDetailModalProps> = ({
                     </div>
                   </div>
                 )}
-
-                {/* Notes */}
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-400 mb-1">
-                    Notes
-                  </label>
-                  <textarea
-                    name="notes"
-                    value={formData.notes || ''}
-                    onChange={handleChange}
-                    rows={3}
-                    className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                  />
-                </div>
               </div>
 
               <div className="mt-8 flex justify-end space-x-3">

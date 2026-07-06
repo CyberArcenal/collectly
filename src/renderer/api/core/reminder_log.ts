@@ -1,4 +1,7 @@
 // src/renderer/api/reminder_log.ts
+
+import type { PaginatedResult } from "./common";
+
 export interface NotificationLogEntry {
   id: number;
   recipient_email: string;
@@ -14,14 +17,6 @@ export interface NotificationLogEntry {
   updated_at: string;
 }
 
-export interface PaginatedNotifications {
-  items: NotificationLogEntry[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-}
-
 export interface NotificationStats {
   total: number;
   byStatus: Record<string, number>;
@@ -29,10 +24,11 @@ export interface NotificationStats {
   last24h: number;
 }
 
+// Response interfaces using the standard PaginatedResult pattern
 export interface NotificationsResponse {
   status: boolean;
   message: string;
-  data: PaginatedNotifications;
+  data: PaginatedResult<NotificationLogEntry>;
 }
 
 export interface NotificationResponse {
@@ -65,29 +61,8 @@ class ReminderLogAPI {
     return response as T;
   }
 
-  private normalizeResponse<T extends { status: boolean; message?: string }>(
-    response: T
-  ): T & { message: string } {
-    return { ...response, message: response.message ?? "" };
-  }
-
-  private toPaginatedResponse(raw: any): PaginatedNotifications {
-    if (raw && raw.items && raw.total !== undefined) {
-      return raw;
-    }
-    const items = Array.isArray(raw.data) ? raw.data : [];
-    const pagination = raw.pagination || {};
-    return {
-      items,
-      page: pagination.page || 1,
-      limit: pagination.limit || 50,
-      total: pagination.total || 0,
-      totalPages: pagination.pages || 0,
-    };
-  }
-
   // --------------------------------------------------------------------
-  // 🔎 READ-ONLY METHODS
+  // 🔎 READ-ONLY METHODS (returning the raw IPC response – already transformed)
   // --------------------------------------------------------------------
 
   async getAll(params?: {
@@ -101,15 +76,15 @@ class ReminderLogAPI {
     sortBy?: string;
     sortOrder?: "ASC" | "DESC";
   }): Promise<NotificationsResponse> {
-    const raw = await this.callRaw<any>("getAllLogs", params || {});
-    const normalized = this.normalizeResponse(raw);
-    const paginatedData = this.toPaginatedResponse(normalized);
-    return { ...normalized, data: paginatedData };
+    // The IPC handler already returns { status, message, data: { data, pagination } }
+    const raw = await this.callRaw<NotificationsResponse>("getAllLogs", params || {});
+    // raw already matches NotificationsResponse; no extra transformation needed
+    return raw;
   }
 
   async getById(id: number): Promise<NotificationResponse> {
-    const raw = await this.callRaw<any>("getLogById", { id });
-    return this.normalizeResponse(raw);
+    const raw = await this.callRaw<NotificationResponse>("getLogById", { id });
+    return raw;
   }
 
   async getByRecipient(params: {
@@ -117,10 +92,8 @@ class ReminderLogAPI {
     page?: number;
     limit?: number;
   }): Promise<NotificationsResponse> {
-    const raw = await this.callRaw<any>("getLogsByRecipient", params);
-    const normalized = this.normalizeResponse(raw);
-    const paginatedData = this.toPaginatedResponse(normalized);
-    return { ...normalized, data: paginatedData };
+    const raw = await this.callRaw<NotificationsResponse>("getLogsByRecipient", params);
+    return raw;
   }
 
   async search(params: {
@@ -128,18 +101,16 @@ class ReminderLogAPI {
     page?: number;
     limit?: number;
   }): Promise<NotificationsResponse> {
-    const raw = await this.callRaw<any>("searchLogs", params);
-    const normalized = this.normalizeResponse(raw);
-    const paginatedData = this.toPaginatedResponse(normalized);
-    return { ...normalized, data: paginatedData };
+    const raw = await this.callRaw<NotificationsResponse>("searchLogs", params);
+    return raw;
   }
 
   async getStats(params?: {
     startDate?: string;
     endDate?: string;
   }): Promise<NotificationStatsResponse> {
-    const raw = await this.callRaw<any>("getLogStats", params || {});
-    return this.normalizeResponse(raw);
+    const raw = await this.callRaw<NotificationStatsResponse>("getLogStats", params || {});
+    return raw;
   }
 
   // --------------------------------------------------------------------
@@ -153,8 +124,8 @@ class ReminderLogAPI {
     text?: string; 
     status?: "queued" | "sent" | "failed" | "resend";
   }, user = "system"): Promise<NotificationActionResponse> {
-    const raw = await this.callRaw<any>("createLog", { data, user });
-    return this.normalizeResponse(raw);
+    const raw = await this.callRaw<NotificationActionResponse>("createLog", { data, user });
+    return raw;
   }
 
   async updateStatus(params: {
@@ -163,37 +134,38 @@ class ReminderLogAPI {
     errorMessage?: string | null;
     user?: string;
   }): Promise<NotificationActionResponse> {
-    const raw = await this.callRaw<any>("updateLogStatus", params);
-    return this.normalizeResponse(raw);
+    const raw = await this.callRaw<NotificationActionResponse>("updateLogStatus", params);
+    return raw;
   }
 
   async delete(id: number, user = "system"): Promise<NotificationActionResponse> {
-    const raw = await this.callRaw<any>("deleteLog", { id, user });
-    return this.normalizeResponse(raw);
+    const raw = await this.callRaw<NotificationActionResponse>("deleteLog", { id, user });
+    return raw;
   }
 
   async retry(id: number, user = "system"): Promise<NotificationActionResponse> {
-    const raw = await this.callRaw<any>("retryLog", { id, user });
-    return this.normalizeResponse(raw);
+    const raw = await this.callRaw<NotificationActionResponse>("retryLog", { id, user });
+    return raw;
   }
 
   async retryAllFailed(filters?: { 
     recipient_email?: string; 
     createdBefore?: string 
   }, user = "system"): Promise<NotificationActionResponse> {
-    const raw = await this.callRaw<any>("retryAllFailedLogs", { filters, user });
-    return this.normalizeResponse(raw);
+    const raw = await this.callRaw<NotificationActionResponse>("retryAllFailedLogs", { filters, user });
+    return raw;
   }
 
   async resend(id: number, user = "system"): Promise<NotificationActionResponse> {
-    const raw = await this.callRaw<any>("resendLog", { id, user });
-    return this.normalizeResponse(raw);
+    const raw = await this.callRaw<NotificationActionResponse>("resendLog", { id, user });
+    return raw;
   }
 
   // --------------------------------------------------------------------
-  // 🧰 UTILITY METHODS (backward compatibility)
+  // 🧰 UTILITY METHODS (backward compatibility – keep but adapt)
   // --------------------------------------------------------------------
 
+  // These methods now simply call the primary methods; they are kept for legacy.
   async getAllReminders(params?: any): Promise<NotificationsResponse> {
     return this.getAll(params);
   }

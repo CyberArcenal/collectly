@@ -1,13 +1,14 @@
+// src/renderer/pages/UserManagement/index.tsx
 import React, { useState, useEffect } from 'react';
 import { UserProvider, useUserContext } from './context/UserContext';
-import { useUserMutations } from './hooks/useUserMutations';
-import { useUsers } from './hooks/useUsers';
-import type { User } from './types/user.types';
 import { UserFilter } from './components/user-management/UserFilter';
 import { UserStats } from './components/user-management/UserStats';
 import { UserTable } from './components/user-management/UserTable';
 import { UserDetailModal } from './components/user-management/UserDetailModal';
 import { BulkActionsBar } from './components/user-management/BulkActionsBar';
+import { useUsers } from './hooks/useUsers';
+import { useUserMutations } from './hooks/useUserMutations';
+import type { User } from '../../api/core/user';
 
 const UserManagementContent: React.FC = () => {
   const {
@@ -25,10 +26,13 @@ const UserManagementContent: React.FC = () => {
   const [userStats, setUserStats] = useState({
     total: 0,
     active: 0,
-    inactive: 0,
+    restricted: 0,
+    suspended: 0,
     admins: 0,
     managers: 0,
-    cashiers: 0,
+    collectors: 0,
+    staff: 0,
+    viewers: 0,
   });
 
   const { users, pagination, isLoading, isFetching, fetchUsers, setPage } = useUsers({
@@ -52,10 +56,13 @@ const UserManagementContent: React.FC = () => {
     const stats = {
       total: users.length,
       active: users.filter(u => u.status === 'active').length,
-      inactive: users.filter(u => u.status !== 'active').length,
-      admins: users.filter(u => u.roles?.includes('admin')).length,
-      managers: users.filter(u => u.roles?.includes('manager')).length,
-      cashiers: users.filter(u => u.roles?.includes('cashier')).length,
+      restricted: users.filter(u => u.status === 'restricted').length,
+      suspended: users.filter(u => u.status === 'suspended').length,
+      admins: users.filter(u => u.user_type === 'admin').length,
+      managers: users.filter(u => u.user_type === 'manager').length,
+      collectors: users.filter(u => u.user_type === 'collector').length,
+      staff: users.filter(u => u.user_type === 'staff').length,
+      viewers: users.filter(u => u.user_type === 'viewer').length,
     };
     setUserStats(stats);
   }, [users]);
@@ -92,15 +99,14 @@ const UserManagementContent: React.FC = () => {
   };
 
   const handleViewDetails = (user: User) => {
-    // For now, same as edit. Could be expanded to a read-only view
     setCurrentEditingUser(user);
     setIsModalOpen(true);
   };
 
   const handleDeleteUser = async (user: User) => {
-    if (window.confirm(`Are you sure you want to delete user "${user.display_name}"?`)) {
+    if (window.confirm(`Are you sure you want to delete user "${user.full_name}"?`)) {
       try {
-        await deleteUser(user.id, false);
+        await deleteUser(user.id);
         triggerRefresh();
         setSelectedUsers(selectedUsers.filter(id => id !== user.id));
       } catch (error) {
@@ -111,7 +117,12 @@ const UserManagementContent: React.FC = () => {
 
   const handleToggleStatus = async (user: User) => {
     try {
-      const newStatus = user.status === 'active' ? 'inactive' : 'active';
+      const statusMap: Record<string, 'active' | 'restricted' | 'suspended'> = {
+        'active': 'suspended',
+        'restricted': 'active',
+        'suspended': 'active',
+      };
+      const newStatus = statusMap[user.status] || 'active';
       await updateUserStatus(user.id, newStatus);
       triggerRefresh();
     } catch (error) {
@@ -217,7 +228,7 @@ const UserManagementContent: React.FC = () => {
           <div className="flex items-center justify-between mb-4">
             <div className="text-sm text-gray-300">
               Showing <span className="font-semibold text-white">
-                {((pagination.page - 1) * pagination.limit) + 1}-
+                {pagination.total > 0 ? ((pagination.page - 1) * pagination.limit) + 1 : 0}-
                 {Math.min(pagination.page * pagination.limit, pagination.total)}
               </span> of <span className="font-semibold text-white">{pagination.total}</span> users
             </div>

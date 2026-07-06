@@ -1,8 +1,12 @@
 // src/renderer/pages/payments/collection/hooks/useCollectionSchedule.ts
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import debtsAPI from '../../../../api/core/debt';
-import type { CollectionScheduleResponse, PeriodType, DebtorCollection } from '../types';
+import { useState, useEffect, useCallback, useMemo } from "react";
+import debtsAPI from "../../../../api/core/debt";
+import type {
+  CollectionScheduleResponse,
+  PeriodType,
+  DebtorCollection,
+} from "../types";
 
 interface UseCollectionScheduleReturn {
   data: CollectionScheduleResponse | null;
@@ -26,7 +30,7 @@ interface UseCollectionScheduleReturn {
 }
 
 const useCollectionSchedule = (): UseCollectionScheduleReturn => {
-  const [periodType, setPeriodType] = useState<PeriodType>('monthly');
+  const [periodType, setPeriodType] = useState<PeriodType>("monthly");
   const [data, setData] = useState<CollectionScheduleResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,11 +43,23 @@ const useCollectionSchedule = (): UseCollectionScheduleReturn => {
     try {
       const response = await debtsAPI.getCollectionSchedule(periodType);
       if (!response.status) throw new Error(response.message);
-      setData(response.data);
+      if (response.data) {
+        setData(response.data);
+      } else {
+        // fallback sa empty schedule
+        setData({
+          periodType,
+          periodLabel: "",
+          asOfDate: new Date().toISOString(),
+          debtors: [],
+          totalDue: 0,
+          totalDebtors: 0,
+        });
+      }
       // Reset to page 1 when period changes
       setPage(1);
     } catch (err: any) {
-      setError(err.message || 'Failed to load collection schedule');
+      setError(err.message || "Failed to load collection schedule");
       console.error(err);
     } finally {
       setLoading(false);

@@ -111,7 +111,7 @@ const NotificationLogPage: React.FC = () => {
     showSuccess("The email reminder has been queued for retry.");
     setSendingRows((prev) => new Set(prev).add(id));
     try {
-      const response = await reminderLogAPI.retryFailed(id);
+      const response = await reminderLogAPI.retry(id);
       if (response.status) {
         refetch();
       } else {

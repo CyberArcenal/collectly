@@ -4,6 +4,16 @@ const PaymentTransaction = require("../../../../../entities/PaymentTransaction")
 const { AppDataSource } = require("../../../../db/data-source");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
 const onlineClient = require("../../../../../utils/onlineClient");
+const { extractData } = require("../../../../../utils/responseTransformer");
+
+/**
+ * Map frontend params to backend query params for /api/v1/analytics/dashboard/recent-activities/
+ */
+function mapRecentActivitiesParams(params) {
+  const mapped = {};
+  if (params.limit) mapped.limit = params.limit;
+  return mapped;
+}
 
 module.exports = async (params) => {
   const mode = await syncMode();
@@ -12,13 +22,19 @@ module.exports = async (params) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.get('/api/v1/analytics/dashboard/recent-activities/', { params });
+
+    const query = mapRecentActivitiesParams(params);
+    const response = await onlineClient.get('/api/v1/analytics/dashboard/recent-activities/', { params: query });
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
     const result = await response.json();
-    return { status: true, message: "Recent activities retrieved from server", data: result.data };
+    return {
+      status: true,
+      message: "Recent activities retrieved from server",
+      data: extractData(result),
+    };
   } else {
     const { limit = 10 } = params;
     const auditRepo = AppDataSource.getRepository(AuditLog);

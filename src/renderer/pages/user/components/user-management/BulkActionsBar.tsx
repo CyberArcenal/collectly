@@ -1,3 +1,4 @@
+// src/renderer/pages/UserManagement/components/user-management/BulkActionsBar.tsx
 import React, { useState } from 'react';
 
 interface BulkActionsBarProps {

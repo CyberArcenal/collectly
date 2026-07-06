@@ -32,6 +32,7 @@ import { AuditViewDialog } from "../../AuditTrail/components/AuditViewDialog";
 import { useAuditView } from "../../AuditTrail/hooks/useAuditView";
 import auditAPI from "../../../api/core/audit";
 import { hideLoading, showError, showLoading } from "../../../utils/notification";
+import { showAlert } from "../../../utils/dialogs";
 
 // ==================== Subcomponents ====================
 

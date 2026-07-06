@@ -37,7 +37,7 @@ const AgingAnalysisPage: React.FC = () => {
         </div>
 
         <div className="mb-4 p-3 rounded-md" style={{ backgroundColor: "var(--card-secondary-bg)", border: `1px solid var(--border-color)` }}>
-          <p className="text-sm" style={{ color: "var(--text-primary)" }}>Total Outstanding: <span className="font-bold text-lg" style={{ color: "var(--debt-high)" }}>{totalOutstanding.toLocaleString()} PHP</span></p>
+          <p className="text-sm" style={{ color: "var(--text-primary)" }}>Total Outstanding: <span className="font-bold text-lg" style={{ color: "var(--debt-high)" }}>{totalOutstanding?.toLocaleString()} PHP</span></p>
         </div>
 
         <AgingSummaryTable

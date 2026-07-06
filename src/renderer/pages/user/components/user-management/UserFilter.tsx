@@ -1,5 +1,6 @@
+// src/renderer/pages/UserManagement/components/user-management/UserFilter.tsx
 import React from 'react';
-import type { UserFilters } from '../../types/user.types';
+import type { UserFilters } from '../../../users/types/user.types';
 
 interface UserFilterProps {
   filters: UserFilters;
@@ -12,8 +13,8 @@ export const UserFilter: React.FC<UserFilterProps> = ({
   onFilterChange,
   onReset,
 }) => {
-  const roles = ['admin', 'manager', 'cashier', 'inventory', 'user'];
-  const statuses = ['active', 'inactive', 'suspended'];
+  const userTypes = ['viewer', 'customer', 'staff', 'collector', 'manager', 'admin'];
+  const statuses = ['active', 'restricted', 'suspended', 'deleted'];
 
   const handleChange = (key: keyof UserFilters, value: string) => {
     onFilterChange({ ...filters, [key]: value || undefined });
@@ -31,7 +32,7 @@ export const UserFilter: React.FC<UserFilterProps> = ({
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Search */}
         <div>
           <label className="block text-sm font-medium text-gray-400 mb-1">
@@ -41,25 +42,25 @@ export const UserFilter: React.FC<UserFilterProps> = ({
             type="text"
             value={filters.search || ''}
             onChange={(e) => handleChange('search', e.target.value)}
-            placeholder="Search by email or name..."
+            placeholder="Search by name, email, or username..."
             className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
           />
         </div>
 
-        {/* Role Filter */}
+        {/* User Type Filter */}
         <div>
           <label className="block text-sm font-medium text-gray-400 mb-1">
-            Role
+            User Type
           </label>
           <select
-            value={filters.role || ''}
-            onChange={(e) => handleChange('role', e.target.value)}
+            value={filters.user_type || ''}
+            onChange={(e) => handleChange('user_type', e.target.value)}
             className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
           >
-            <option value="">All Roles</option>
-            {roles.map((role) => (
-              <option key={role} value={role}>
-                {role.charAt(0).toUpperCase() + role.slice(1)}
+            <option value="">All Types</option>
+            {userTypes.map((type) => (
+              <option key={type} value={type}>
+                {type.charAt(0).toUpperCase() + type.slice(1)}
               </option>
             ))}
           </select>
@@ -82,20 +83,6 @@ export const UserFilter: React.FC<UserFilterProps> = ({
               </option>
             ))}
           </select>
-        </div>
-
-        {/* Department Filter */}
-        <div>
-          <label className="block text-sm font-medium text-gray-400 mb-1">
-            Department
-          </label>
-          <input
-            type="text"
-            value={filters.department || ''}
-            onChange={(e) => handleChange('department', e.target.value)}
-            placeholder="Enter department..."
-            className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-          />
         </div>
       </div>
     </div>

@@ -33,6 +33,7 @@ export const NotificationTable: React.FC<NotificationTableProps> = ({
   isLoading,
   sendingIds = new Set(),
 }) => {
+  console.log(logs)
   const getStatusBadge = (status: string) => {
     const baseClasses =
       "px-2 py-1 text-xs font-medium rounded-full inline-flex items-center gap-1";

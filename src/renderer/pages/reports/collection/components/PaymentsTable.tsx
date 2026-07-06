@@ -27,7 +27,7 @@ const PaymentsTable: React.FC<PaymentsTableProps> = ({ payments }) => {
             </tr>
           </thead>
           <tbody>
-            {payments.map(p => (
+            {payments?.map(p => (
               <tr key={p.debtorId} className="border-t" style={{ borderColor: "var(--border-color)" }}>
                 <td className="px-4 py-2" style={{ color: "var(--text-primary)" }}>{p.debtorName}</td>
                 <td className="px-4 py-2 text-right font-medium" style={{ color: "var(--success-color)" }}>{formatCurrency(p.totalPaid)}</td>

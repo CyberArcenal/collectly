@@ -1,6 +1,7 @@
+// src/renderer/api/hooks/useUsers.ts
 import { useState, useEffect, useCallback } from 'react';
+import type { PaginatedResponse, User, UserFilters } from '../../users/types/user.types';
 import { userService } from '../api/userService';
-import type { PaginatedResponse, User, UserFilters } from '../types/user.types';
 
 interface UseUsersProps {
   filters?: UserFilters;
@@ -22,15 +23,16 @@ export const useUsers = ({
     total: 0,
     total_pages: 0,
   });
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchUsers = useCallback(async () => {
     try {
       setIsFetching(true);
+      setIsLoading(true);
       setError(null);
-      
+
       const response = await userService.getUsers(page, pageSize, filters);
       setUsers(response.data);
       setPagination(response.pagination);

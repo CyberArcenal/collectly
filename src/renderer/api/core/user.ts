@@ -5,6 +5,7 @@
 // ----------------------------------------------------------------------
 
 export interface User {
+  deleted_at: any;
   id: number;
   username: string;
   email: string;

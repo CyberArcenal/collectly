@@ -1,5 +1,6 @@
+// src/renderer/pages/UserManagement/components/user-management/UserTable.tsx
 import React from 'react';
-import type { User } from '../../types/user.types';
+import type { User } from '../../../users/types/user.types';
 
 interface UserTableProps {
   users: User[];
@@ -45,8 +46,22 @@ export const UserTable: React.FC<UserTableProps> = ({
     );
   }
 
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active': return 'bg-green-900 text-green-300';
+      case 'restricted': return 'bg-yellow-900 text-yellow-300';
+      case 'suspended': return 'bg-red-900 text-red-300';
+      case 'deleted': return 'bg-gray-800 text-gray-400';
+      default: return 'bg-gray-800 text-gray-300';
+    }
+  };
+
+  const getUserTypeDisplay = (userType: string) => {
+    return userType ? userType.charAt(0).toUpperCase() + userType.slice(1) : 'Unknown';
+  };
+
   return (
-    <div className="overflow-x-auto border border-gray-700 rounded-lg">
+    <div className="overflow-x-auto border border-gray-700 rounded-lg relative">
       <table className="min-w-full divide-y divide-gray-700">
         <thead className="bg-gray-800">
           <tr>
@@ -62,13 +77,13 @@ export const UserTable: React.FC<UserTableProps> = ({
               User
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-              Role
+              Type
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
               Status
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-              Last Login
+              Phone
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
               Created
@@ -92,13 +107,17 @@ export const UserTable: React.FC<UserTableProps> = ({
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="flex items-center">
                   <div className="flex-shrink-0 h-10 w-10 bg-blue-900 rounded-full flex items-center justify-center">
-                    <span className="text-blue-300 font-semibold">
-                      {user.display_name.charAt(0).toUpperCase()}
-                    </span>
+                    {user.avatar ? (
+                      <img src={user.avatar} alt={user.full_name} className="h-10 w-10 rounded-full object-cover" />
+                    ) : (
+                      <span className="text-blue-300 font-semibold">
+                        {user.full_name?.charAt(0).toUpperCase() || 'U'}
+                      </span>
+                    )}
                   </div>
                   <div className="ml-4">
                     <div className="text-sm font-medium text-white">
-                      {user.display_name}
+                      {user.full_name || `${user.first_name} ${user.last_name}`.trim()}
                     </div>
                     <div className="text-sm text-gray-400">{user.email}</div>
                     <div className="text-xs text-gray-500">@{user.username}</div>
@@ -106,40 +125,17 @@ export const UserTable: React.FC<UserTableProps> = ({
                 </div>
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
-                <div className="flex flex-wrap gap-1">
-                  {user.roles?.map((role) => (
-                    <span
-                      key={role}
-                      className={`px-2 py-1 text-xs rounded-full ${
-                        role === 'admin'
-                          ? 'bg-purple-900 text-purple-300'
-                          : role === 'manager'
-                          ? 'bg-blue-900 text-blue-300'
-                          : 'bg-gray-800 text-gray-300'
-                      }`}
-                    >
-                      {role}
-                    </span>
-                  ))}
-                </div>
+                <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-800 text-gray-300`}>
+                  {getUserTypeDisplay(user.user_type)}
+                </span>
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
-                <span
-                  className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                    user.status === 'active'
-                      ? 'bg-green-900 text-green-300'
-                      : user.status === 'inactive'
-                      ? 'bg-gray-800 text-gray-300'
-                      : 'bg-red-900 text-red-300'
-                  }`}
-                >
-                  {user.status}
+                <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(user.status)}`}>
+                  {user.status_display || user.status}
                 </span>
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
-                {user.last_login
-                  ? new Date(user.last_login).toLocaleDateString()
-                  : 'Never'}
+                {user.phone_number || '—'}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
                 {new Date(user.created_at).toLocaleDateString()}
@@ -168,14 +164,14 @@ export const UserTable: React.FC<UserTableProps> = ({
                   <button
                     onClick={() => onToggleStatus(user)}
                     className={`transition-colors ${
-                      user.status === 'active'
+                      user.status === 'active' || user.status === 'restricted'
                         ? 'text-red-400 hover:text-red-300'
                         : 'text-green-400 hover:text-green-300'
                     }`}
-                    title={user.status === 'active' ? 'Deactivate' : 'Activate'}
+                    title={user.status === 'active' || user.status === 'restricted' ? 'Suspend' : 'Activate'}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      {user.status === 'active' ? (
+                      {user.status === 'active' || user.status === 'restricted' ? (
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                       ) : (
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />

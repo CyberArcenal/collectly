@@ -1,5 +1,3 @@
-// src/renderer/pages/payments/amortization/components/FrequencySelector.tsx
-
 import React from 'react';
 import type { PaymentFrequency } from '../types';
 
@@ -11,6 +9,7 @@ interface FrequencySelectorProps {
 
 const FrequencySelector: React.FC<FrequencySelectorProps> = ({ value, onChange, disabled = false }) => {
   const options: { label: string; value: PaymentFrequency }[] = [
+    { label: 'Weekly', value: 'weekly' },
     { label: 'Monthly', value: 'monthly' },
     { label: 'Quarterly', value: 'quarterly' },
     { label: 'Semi-Annual', value: 'semi-annual' },

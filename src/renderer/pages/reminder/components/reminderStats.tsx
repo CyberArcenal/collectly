@@ -39,7 +39,7 @@ export const NotificationStats: React.FC<NotificationStatsProps> = ({
     },
     {
       title: "Avg. Retries (Failed)",
-      value: stats.avgRetryFailed.toFixed(2),
+      value: stats.avgRetryFailed?.toFixed(2),
       icon: AlertCircle,
       color: "text-orange-400",
     },

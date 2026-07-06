@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, type ReactNode} from 'react';
-import type { User, UserFilters } from '../types/user.types';
+// src/renderer/pages/UserManagement/context/UserContext.tsx
+import React, { createContext, useContext, useState, type ReactNode } from 'react';
+import type { User, UserFilters } from '../../users/types/user.types';
 
 interface UserContextType {
   selectedUsers: number[];
@@ -14,19 +15,7 @@ interface UserContextType {
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
-export const useUserContext = () => {
-  const context = useContext(UserContext);
-  if (!context) {
-    throw new Error('useUserContext must be used within UserProvider');
-  }
-  return context;
-};
-
-interface UserProviderProps {
-  children: ReactNode;
-}
-
-export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
+export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [selectedUsers, setSelectedUsers] = useState<number[]>([]);
   const [filters, setFilters] = useState<UserFilters>({});
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -52,4 +41,12 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       {children}
     </UserContext.Provider>
   );
+};
+
+export const useUserContext = () => {
+  const context = useContext(UserContext);
+  if (!context) {
+    throw new Error('useUserContext must be used within a UserProvider');
+  }
+  return context;
 };
