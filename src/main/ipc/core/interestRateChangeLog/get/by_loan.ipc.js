@@ -12,11 +12,18 @@ module.exports = async (params) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.get(`/api/v1/interest-rate-logs/by-loan/${loanId}`, { params: { page, limit } });
+
+    // Endpoint: GET /api/v1/debts/interest-rate-changes/ with loan_id filter
+    const query = { loan_id: loanId };
+    if (page) query.page = page;
+    if (limit) query.page_size = limit;
+
+    const response = await onlineClient.get('/api/v1/debts/interest-rate-changes/', { params: query });
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
+
     const serverResult = await response.json();
     return transformPaginatedResult(serverResult);
   } else {

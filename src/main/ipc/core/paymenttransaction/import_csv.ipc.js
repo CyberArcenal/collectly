@@ -2,9 +2,8 @@
 const paymentTransactionService = require("../../../../services/PaymentTransaction");
 const onlineClient = require("../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../utils/system");
+const fs = require("fs").promises;
 const { extractData } = require("../../../../utils/responseTransformer");
-const FormData = require("form-data");
-const fs = require("fs");
 
 module.exports = async (params, queryRunner) => {
   const { filePath, user = "system" } = params;
@@ -14,11 +13,15 @@ module.exports = async (params, queryRunner) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const formData = new FormData();
-    formData.append("file", fs.createReadStream(filePath));
-    formData.append("user", user);
-    const response = await onlineClient.post("/api/v1/payment-transactions/import-csv", formData, {
-      headers: formData.getHeaders(),
+
+    // Read file content as string (per spec: fileContent and fileName)
+    const fileContent = await fs.readFile(filePath, 'utf-8');
+    const fileName = filePath.split(/[/\\]/).pop();
+
+    const response = await onlineClient.post('/api/v1/payments/import/', {
+      fileContent,
+      fileName,
+      user,
     });
     if (!response.ok) {
       const errorText = await response.text();

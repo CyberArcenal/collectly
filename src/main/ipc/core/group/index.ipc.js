@@ -16,6 +16,8 @@ class GroupHandler {
     this.getGroupById = this.importHandler("./get/by_id.ipc");
     this.getGroupMembers = this.importHandler("./get/members.ipc");
     this.getGroupsForDebtor = this.importHandler("./get/by_debtor.ipc");
+    this.getGroupStats = this.importHandler("./get/stats.ipc");
+    this.searchGroups = this.importHandler("./search.ipc");
 
     // ✏️ WRITE OPERATION HANDLERS
     this.createGroup = this.importHandler("./create.ipc");
@@ -32,7 +34,10 @@ class GroupHandler {
       const fullPath = require.resolve(`./${path}`, { paths: [__dirname] });
       return require(fullPath);
     } catch (error) {
-      console.warn(`[GroupHandler] Failed to load handler: ${path}`, error.message);
+      console.warn(
+        `[GroupHandler] Failed to load handler: ${path}`,
+        error.message,
+      );
       return async () => ({
         status: false,
         message: `Handler not implemented: ${path}`,
@@ -58,6 +63,10 @@ class GroupHandler {
           return await this.getGroupMembers(params);
         case "getGroupsForDebtor":
           return await this.getGroupsForDebtor(params);
+        case "getGroupStats":
+          return await this.getGroupStats(params);
+        case "searchGroups":
+          return await this.searchGroups(params);
 
         // ✏️ WRITE (with transaction)
         case "createGroup":
@@ -67,13 +76,25 @@ class GroupHandler {
         case "deleteGroup":
           return await this.handleWithTransaction(this.deleteGroup, params);
         case "assignDebtorToGroup":
-          return await this.handleWithTransaction(this.assignDebtorToGroup, params);
+          return await this.handleWithTransaction(
+            this.assignDebtorToGroup,
+            params,
+          );
         case "bulkAssignDebtors":
-          return await this.handleWithTransaction(this.bulkAssignDebtors, params);
+          return await this.handleWithTransaction(
+            this.bulkAssignDebtors,
+            params,
+          );
         case "removeDebtorFromGroup":
-          return await this.handleWithTransaction(this.removeDebtorFromGroup, params);
+          return await this.handleWithTransaction(
+            this.removeDebtorFromGroup,
+            params,
+          );
         case "clearGroupMembers":
-          return await this.handleWithTransaction(this.clearGroupMembers, params);
+          return await this.handleWithTransaction(
+            this.clearGroupMembers,
+            params,
+          );
 
         default:
           return {

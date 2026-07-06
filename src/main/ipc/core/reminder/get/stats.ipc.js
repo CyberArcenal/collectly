@@ -12,7 +12,13 @@ module.exports = async (params) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.get("/api/v1/reminders/stats", { params: { startDate, endDate } });
+
+    // Endpoint: GET /api/v1/notifications/notification-logs/stats/
+    const query = {};
+    if (startDate) query.start_date = startDate;
+    if (endDate) query.end_date = endDate;
+
+    const response = await onlineClient.get('/api/v1/notifications/notification-logs/stats/', { params: query });
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);

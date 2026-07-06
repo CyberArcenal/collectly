@@ -4,6 +4,26 @@ const onlineClient = require("../../../../../utils/onlineClient");
 const { serverUrl, syncMode } = require("../../../../../utils/system");
 const { transformPaginatedResult } = require("../../../../../utils/responseTransformer");
 
+/**
+ * Map frontend params to backend query params for /api/v1/debts/
+ */
+function mapDebtParams(params) {
+  const mapped = {};
+  if (params.page) mapped.page = params.page;
+  if (params.limit) mapped.page_size = params.limit;
+  if (params.search) mapped.search = params.search;
+  if (params.status) mapped.status = params.status;
+  if (params.borrowerId) mapped.borrower_id = params.borrowerId;
+  if (params.dueDateFrom) mapped.due_date_from = params.dueDateFrom;
+  if (params.dueDateTo) mapped.due_date_to = params.dueDateTo;
+  if (params.minTotalAmount !== undefined) mapped.min_total_amount = params.minTotalAmount;
+  if (params.maxTotalAmount !== undefined) mapped.max_total_amount = params.maxTotalAmount;
+  if (params.includeDeleted !== undefined) mapped.include_deleted = params.includeDeleted;
+  if (params.sortBy) mapped.sort_by = params.sortBy;
+  if (params.sortOrder) mapped.sort_order = params.sortOrder;
+  return mapped;
+}
+
 module.exports = async (params) => {
   const mode = await syncMode();
 
@@ -11,7 +31,9 @@ module.exports = async (params) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.get('/api/v1/debts', { params });
+
+    const query = mapDebtParams(params);
+    const response = await onlineClient.get('/api/v1/debts/', { params: query });
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);

@@ -11,7 +11,8 @@ module.exports = async () => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.get("/api/v1/payment-transactions/statistics");
+
+    const response = await onlineClient.get('/api/v1/payments/stats/');
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);

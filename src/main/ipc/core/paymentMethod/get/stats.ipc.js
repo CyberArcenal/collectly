@@ -12,7 +12,8 @@ module.exports = async (params) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.get(`/api/v1/payment-methods/${methodId}/stats`);
+
+    const response = await onlineClient.get(`/api/v1/payment_methods/${methodId}/stats/`);
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
@@ -21,7 +22,7 @@ module.exports = async (params) => {
     return {
       status: true,
       message: "Payment method stats retrieved from server",
-      data: extractData(serverResult), // { methodId, transactionCount, totalAmount }
+      data: extractData(serverResult), // { id, transaction_count, total_amount, average_transaction }
     };
   } else {
     const result = await paymentMethodService.getPaymentMethodStats(methodId);

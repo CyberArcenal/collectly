@@ -17,6 +17,7 @@ class CreditCheckHandler {
     // WRITE (with transaction)
     this.performCreditCheck = this.importHandler("./perform.ipc");
     this.deleteCreditCheckLog = this.importHandler("./delete_log.ipc");
+    this.getCreditCheckStats = this.importHandler("./get/stats.ipc");
   }
 
   importHandler(path) {
@@ -50,6 +51,8 @@ class CreditCheckHandler {
             this.performCreditCheck,
             params,
           );
+        case "getCreditCheckStats":
+          return await this.getCreditCheckStats(params);
         case "deleteCreditCheckLog":
           return await this.handleWithTransaction(
             this.deleteCreditCheckLog,

@@ -12,11 +12,14 @@ module.exports = async (params) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.get(`/api/v1/interest-rate-logs/${id}`);
+
+    // Endpoint: GET /api/v1/debts/interest-rate-changes/{id}/
+    const response = await onlineClient.get(`/api/v1/debts/interest-rate-changes/${id}/`);
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
+
     const serverResult = await response.json();
     return {
       status: true,

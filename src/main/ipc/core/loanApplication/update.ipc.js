@@ -4,6 +4,23 @@ const onlineClient = require("../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../utils/system");
 const { extractData } = require("../../../../utils/responseTransformer");
 
+/**
+ * Map frontend update data to backend format for PATCH /api/v1/loan_applications/{id}/
+ */
+function mapUpdateData(data) {
+  const mapped = {};
+  if (data.debtorId !== undefined) mapped.debtor = data.debtorId;
+  if (data.debtorName) mapped.debtor_name = data.debtorName;
+  if (data.debtorContact !== undefined) mapped.debtor_contact = data.debtorContact;
+  if (data.debtorEmail !== undefined) mapped.debtor_email = data.debtorEmail;
+  if (data.debtorAddress !== undefined) mapped.debtor_address = data.debtorAddress;
+  if (data.requestedAmount !== undefined) mapped.requested_amount = data.requestedAmount;
+  if (data.purpose) mapped.purpose = data.purpose;
+  if (data.proposedDueDate) mapped.proposed_due_date = data.proposedDueDate;
+  if (data.interestRate !== undefined) mapped.interest_rate = data.interestRate;
+  return mapped;
+}
+
 module.exports = async (params, queryRunner) => {
   const { id, data, user = "system" } = params;
   const mode = await syncMode();
@@ -12,7 +29,9 @@ module.exports = async (params, queryRunner) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.put(`/api/v1/loan-applications/${id}`, data);
+
+    const payload = mapUpdateData(data);
+    const response = await onlineClient.patch(`/api/v1/loan_applications/${id}/`, payload);
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);

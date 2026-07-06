@@ -2,7 +2,6 @@
 const paymentTransactionService = require("../../../../services/PaymentTransaction");
 const onlineClient = require("../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../utils/system");
-const { extractData } = require("../../../../utils/responseTransformer");
 
 module.exports = async (params, queryRunner) => {
   const { id, user = "system" } = params;
@@ -12,23 +11,17 @@ module.exports = async (params, queryRunner) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.delete(`/api/v1/payment-transactions/${id}`, { data: { user } });
+
+    const response = await onlineClient.delete(`/api/v1/payments/${id}/`);
     if (!response.ok && response.status !== 204) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    if (response.status === 204) {
-      return {
-        status: true,
-        message: "Payment soft deleted on server",
-        data: null,
-      };
-    }
-    const serverResult = await response.json();
+
     return {
       status: true,
       message: "Payment soft deleted on server",
-      data: extractData(serverResult),
+      data: null,
     };
   } else {
     const result = await paymentTransactionService.delete(id, user, queryRunner);

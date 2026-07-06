@@ -16,7 +16,7 @@ class PaymentMethodHandler {
     this.getPaymentMethodById = this.importHandler("./get/by_id.ipc");
     this.getPaymentMethodStats = this.importHandler("./get/stats.ipc");
     this.getDefaultPaymentMethod = this.importHandler("./get/default.ipc");
-
+    this.getAllPaymentMethodStats = this.importHandler("./get/all_stats.ipc");
     // WRITE
     this.createPaymentMethod = this.importHandler("./create.ipc");
     this.updatePaymentMethod = this.importHandler("./update.ipc");
@@ -51,6 +51,8 @@ class PaymentMethodHandler {
       logger?.info(`PaymentMethodHandler: ${method}`, { params });
 
       switch (method) {
+        case "getAllPaymentMethodStats":
+          return await this.getAllPaymentMethodStats(params);
         case "getAllPaymentMethods":
           return await this.getAllPaymentMethods(params);
         case "getPaymentMethodById":

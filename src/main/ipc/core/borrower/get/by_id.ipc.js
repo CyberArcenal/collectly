@@ -13,7 +13,10 @@ module.exports = async (params) => {
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
 
-    const response = await onlineClient.get(`/api/v1/borrowers/${id}?includeDeleted=${includeDeleted}`);
+    // Endpoint: GET /api/v1/borrowers/{id}/?include_deleted=<bool>
+    const response = await onlineClient.get(`/api/v1/borrowers/${id}/`, {
+      params: { include_deleted: includeDeleted }
+    });
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
@@ -23,7 +26,7 @@ module.exports = async (params) => {
     return {
       status: true,
       message: "Borrower fetched from server",
-      data: extractData(serverResult),  // extract the borrower object
+      data: extractData(serverResult),
     };
   } else {
     const borrower = await borrowerService.findById(id, includeDeleted);

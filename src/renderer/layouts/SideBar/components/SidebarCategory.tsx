@@ -30,24 +30,18 @@ const SidebarCategory: React.FC<SidebarCategoryProps> = ({
         {name}
       </h6>
       <ul className="space-y-1 mt-2">
-        {items.map((item) => {
-          const hasChildren = !!item.children?.length;
-          const isActive = hasChildren
-            ? isDropdownActive(item.children as unknown as MenuItem[])
-            : isActivePath(item.path);
-          const isOpen = openDropdowns[item.name];
-
-          return (
-            <SidebarMenuItem
-              key={item.path || item.name}
-              item={item}
-              isActive={isActive}
-              isOpen={isOpen}
-              onToggle={() => toggleDropdown(item.name)}
-              onNavigate={onNavigate}
-            />
-          );
-        })}
+        {items.map((item) => (
+          <SidebarMenuItem
+            key={item.path || item.name}
+            item={item}
+            depth={0}
+            isActivePath={isActivePath}
+            isDropdownActive={isDropdownActive}
+            open={openDropdowns[item.name]}
+            onToggle={() => toggleDropdown(item.name)}
+            onNavigate={onNavigate}
+          />
+        ))}
       </ul>
     </div>
   );

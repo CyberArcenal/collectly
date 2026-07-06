@@ -11,7 +11,7 @@ module.exports = async (params, queryRunner) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.delete(`/api/v1/debts/${id}/permanent`);
+    const response = await onlineClient.delete(`/api/v1/debts/${id}/permanent/`);
     if (!response.ok && response.status !== 204) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);

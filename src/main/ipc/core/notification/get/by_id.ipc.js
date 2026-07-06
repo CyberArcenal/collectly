@@ -12,7 +12,10 @@ module.exports = async (params) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.get(`/api/v1/notifications/${id}`, { params: { includeDeleted } });
+
+    const response = await onlineClient.get(`/api/v1/notifications/${id}/`, {
+      params: { include_deleted: includeDeleted }
+    });
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);

@@ -4,6 +4,19 @@ const onlineClient = require("../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../utils/system");
 const { extractData } = require("../../../../utils/responseTransformer");
 
+function mapBulkUpdateData(updatesArray) {
+  return updatesArray.map(item => ({
+    id: item.id,
+    ...(item.updates.debtId !== undefined && { debt: item.updates.debtId }),
+    ...(item.updates.methodId !== undefined && { method: item.updates.methodId }),
+    ...(item.updates.amount !== undefined && { amount: item.updates.amount }),
+    ...(item.updates.paymentDate && { payment_date: item.updates.paymentDate }),
+    ...(item.updates.reference !== undefined && { reference: item.updates.reference }),
+    ...(item.updates.notes !== undefined && { notes: item.updates.notes }),
+    ...(item.updates.recordedBy !== undefined && { recorded_by: item.updates.recordedBy }),
+  }));
+}
+
 module.exports = async (params, queryRunner) => {
   const { updatesArray, user = "system" } = params;
   const mode = await syncMode();
@@ -12,7 +25,9 @@ module.exports = async (params, queryRunner) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.put("/api/v1/payment-transactions/bulk-update", { updatesArray, user });
+
+    const payload = { updates: mapBulkUpdateData(updatesArray), user };
+    const response = await onlineClient.put('/api/v1/payments/bulkUpdate/', payload);
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);

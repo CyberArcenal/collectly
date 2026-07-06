@@ -12,11 +12,18 @@ module.exports = async (params, queryRunner) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.post(`/api/v1/groups/${groupId}/assign`, { debtorId, user });
+
+    // Endpoint: POST /api/v1/groups/group-members/
+    // Request body: { group_id, debtor_id }
+    const response = await onlineClient.post('/api/v1/groups/group-members/', {
+      group_id: groupId,
+      debtor_id: debtorId,
+    });
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
+
     const serverResult = await response.json();
     return {
       status: true,

@@ -41,6 +41,7 @@ const {
 } = require("../utils/agreementFileStorage.js");
 const PenaltyApplicationScheduler = require("../scheduler/penaltyApplicationScheduler.js");
 const ZeroBalanceFixerScheduler = require("../scheduler/zeroBalanceFixerScheduler.js");
+const { syncMode } = require("../utils/system.js");
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -914,11 +915,70 @@ function registerIpcHandlers() {
   }
 }
 
+async function runSchedulers() {
+  const auditCleaner = new AuditTrailCleanupScheduler();
+  auditCleaner.start();
+
+  const reminderScheduler = new OverdueReminderScheduler();
+  reminderScheduler.start().catch((err) => {
+    log(LogLevel.ERROR, "Failed to start Overdue Reminder Scheduler", err);
+  });
+
+  const overdueStatusUpdater = new OverdueStatusUpdater();
+  overdueStatusUpdater.start().catch((err) => {
+    logger.error(
+      LogLevel.ERROR,
+      "Failed to start Overdue Status Updater",
+      // @ts-ignore
+      err,
+    );
+  });
+  const statusCorrector = new OverdueStatusCorrector();
+  statusCorrector.start().catch((err) => {
+    logger.error(
+      LogLevel.ERROR,
+      "Failed to start Overdue Status Corrector",
+      // @ts-ignore
+      err,
+    );
+  });
+
+  const interestAccrualScheduler = new InterestAccrualScheduler();
+  interestAccrualScheduler.start().catch((err) => {
+    logger.error(
+      LogLevel.ERROR,
+      "Failed to start Interest Accrual Scheduler",
+      // @ts-ignore
+      err,
+    );
+  });
+
+  const penaltyScheduler = new PenaltyApplicationScheduler();
+  penaltyScheduler.start().catch((err) => {
+    console.error("Failed to start penalty scheduler", err);
+  });
+
+  ipcMain.handle("scheduler:penalty:force", async () => {
+    return await penaltyScheduler.forceRun();
+  });
+
+  const zeroBalanceFixer = new ZeroBalanceFixerScheduler();
+  zeroBalanceFixer.start().catch((err) => {
+    log(LogLevel.ERROR, "Failed to start Zero Balance Fixer Scheduler", err);
+  });
+
+  // Optional: expose force-run via IPC
+  ipcMain.handle("scheduler:zero-balance-fixer:force", async () => {
+    return await zeroBalanceFixer.forceRun();
+  });
+}
+
 // ===================== MAIN APPLICATION FLOW =====================
 /**
  * Main startup sequence
  */
 async function startupSequence() {
+  const mode = await syncMode();
   try {
     log(
       LogLevel.INFO,
@@ -969,69 +1029,16 @@ async function startupSequence() {
     // 4. Register IPC handlers
     registerIpcHandlers();
     registerFileStorage();
+    const mode = await syncMode();
+    if (mode === "offline") {
+      runSchedulers();
+    }
 
     // 5. Create main window
     log(LogLevel.INFO, "Creating main application window...");
     await createMainWindow();
 
     log(LogLevel.SUCCESS, `✅ ${APP_CONFIG.appName} started successfully!`);
-
-    const auditCleaner = new AuditTrailCleanupScheduler();
-    auditCleaner.start();
-
-    const reminderScheduler = new OverdueReminderScheduler();
-    reminderScheduler.start().catch((err) => {
-      log(LogLevel.ERROR, "Failed to start Overdue Reminder Scheduler", err);
-    });
-
-    const overdueStatusUpdater = new OverdueStatusUpdater();
-    overdueStatusUpdater.start().catch((err) => {
-      logger.error(
-        LogLevel.ERROR,
-        "Failed to start Overdue Status Updater",
-        // @ts-ignore
-        err,
-      );
-    });
-    const statusCorrector = new OverdueStatusCorrector();
-    statusCorrector.start().catch((err) => {
-      logger.error(
-        LogLevel.ERROR,
-        "Failed to start Overdue Status Corrector",
-        // @ts-ignore
-        err,
-      );
-    });
-
-    const interestAccrualScheduler = new InterestAccrualScheduler();
-    interestAccrualScheduler.start().catch((err) => {
-      logger.error(
-        LogLevel.ERROR,
-        "Failed to start Interest Accrual Scheduler",
-        // @ts-ignore
-        err,
-      );
-    });
-
-    const penaltyScheduler = new PenaltyApplicationScheduler();
-    penaltyScheduler.start().catch((err) => {
-      console.error("Failed to start penalty scheduler", err);
-    });
-
-    ipcMain.handle("scheduler:penalty:force", async () => {
-      return await penaltyScheduler.forceRun();
-    });
-
-    const zeroBalanceFixer = new ZeroBalanceFixerScheduler();
-    zeroBalanceFixer.start().catch((err) => {
-      log(LogLevel.ERROR, "Failed to start Zero Balance Fixer Scheduler", err);
-    });
-
-    // Optional: expose force-run via IPC
-    ipcMain.handle("scheduler:zero-balance-fixer:force", async () => {
-      return await zeroBalanceFixer.forceRun();
-    });
-    
   } catch (error) {
     log(LogLevel.ERROR, "Startup sequence failed:", error);
 

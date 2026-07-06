@@ -5,6 +5,24 @@ const { syncMode, serverUrl } = require("../../../../../utils/system");
 const onlineClient = require("../../../../../utils/onlineClient");
 const { transformAuditPaginated } = require("../../../../../utils/responseTransformer");
 
+/**
+ * Map frontend params to backend query params for /api/v1/audit/logs/
+ */
+function mapAuditLogsParams(params) {
+  const mapped = {};
+  if (params.page) mapped.page = params.page;
+  if (params.limit) mapped.page_size = params.limit;
+  if (params.searchTerm) mapped.q = params.searchTerm;
+  if (params.entity) mapped.model_name = params.entity;
+  if (params.user) mapped.user_id = params.user;
+  if (params.action) mapped.action_type = params.action;
+  if (params.startDate) mapped.start = params.startDate;
+  if (params.endDate) mapped.end = params.endDate;
+  if (params.suspicious !== undefined) mapped.suspicious = params.suspicious;
+  // includeDeleted is not used in audit logs
+  return mapped;
+}
+
 module.exports = async (params) => {
   const mode = await syncMode();
 
@@ -12,7 +30,8 @@ module.exports = async (params) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.get('/api/v1/audit/logs', { params });
+    const query = mapAuditLogsParams(params);
+    const response = await onlineClient.get('/api/v1/audit/logs/', { params: query });
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);

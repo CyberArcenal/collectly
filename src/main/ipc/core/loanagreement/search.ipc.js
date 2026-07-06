@@ -12,7 +12,14 @@ module.exports = async (params) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.get('/api/v1/loan-agreements/search', { params: { searchTerm, page, limit, debtId, lenderName } });
+
+    // Use the same GET /api/v1/loan_agreements/ with search param
+    const query = { search: searchTerm };
+    if (page) query.page = page;
+    if (limit) query.page_size = limit;
+    if (debtId) query.debt_id = debtId;
+    if (lenderName) query.lender_name = lenderName;
+    const response = await onlineClient.get('/api/v1/loan_agreements/', { params: query });
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);

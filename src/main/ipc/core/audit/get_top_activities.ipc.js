@@ -12,7 +12,11 @@ module.exports = async (params) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.get('/api/v1/audit/top-activities', { params });
+    const query = {};
+    if (params.limit) query.limit = params.limit;
+    if (params.startDate) query.startDate = params.startDate;
+    if (params.endDate) query.endDate = params.endDate;
+    const response = await onlineClient.get('/api/v1/audit/top-activities/', { params: query });
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);

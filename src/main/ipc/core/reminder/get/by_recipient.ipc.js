@@ -12,7 +12,13 @@ module.exports = async (params) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.get("/api/v1/reminders/by-recipient", { params: { recipient_email, page, limit } });
+
+    // Endpoint: GET /api/v1/notifications/notification-logs/by-recipient/
+    const query = { recipient_email };
+    if (page) query.page = page;
+    if (limit) query.page_size = limit;
+
+    const response = await onlineClient.get('/api/v1/notifications/notification-logs/by-recipient/', { params: query });
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
@@ -23,7 +29,7 @@ module.exports = async (params) => {
     const result = await reminderLogService.getRemindersByRecipient({ recipient_email, page, limit });
     return {
       status: true,
-      message: "Reminders by recipient retrieved locally",
+      message: "Notification logs by recipient retrieved locally",
       data: {
         data: result.data,
         pagination: result.pagination,

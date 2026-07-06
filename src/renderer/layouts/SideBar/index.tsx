@@ -1,4 +1,4 @@
-// src/renderer/layouts/Sidebar/Sidebar.tsx
+// src/renderer/layouts/Sidebar/index.tsx
 import React, { useCallback } from 'react';
 import SidebarHeader from './components/SidebarHeader';
 import SidebarNav from './components/SidebarNav';
@@ -20,7 +20,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const { stats, loading } = useSidebarStats();
 
   const handleNavigate = useCallback(() => {
-    // if (onClose) onClose();
+    // if (onClose) onClose(); // optionally close on mobile
   }, [onClose]);
 
   return (

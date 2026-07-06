@@ -12,9 +12,16 @@ module.exports = async (params) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.get("/api/v1/notifications/search", {
-      params: { searchTerm, page, limit, type, isRead, debtId },
-    });
+
+    // Use the list endpoint with search param
+    const query = { search: searchTerm };
+    if (page) query.page = page;
+    if (limit) query.page_size = limit;
+    if (type) query.type = type;
+    if (isRead !== undefined) query.is_read = isRead;
+    if (debtId) query.debt_id = debtId;
+
+    const response = await onlineClient.get('/api/v1/notifications/', { params: query });
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);

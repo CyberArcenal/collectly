@@ -12,11 +12,17 @@ module.exports = async (params) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.get(`/api/v1/groups/by-debtor/${debtorId}`, { params: { page, limit } });
+
+    // Endpoint: GET /api/v1/groups/by-debtor/{debtor_id}/
+    const query = {};
+    if (page) query.page = page;
+    if (limit) query.page_size = limit;
+    const response = await onlineClient.get(`/api/v1/groups/by-debtor/${debtorId}/`, { params: query });
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
+
     const serverResult = await response.json();
     return transformPaginatedResult(serverResult);
   } else {

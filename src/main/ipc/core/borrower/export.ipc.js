@@ -13,7 +13,8 @@ module.exports = async (params) => {
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
 
-    const response = await onlineClient.post('/api/v1/borrowers/export', { format, filters, user });
+    // Endpoint: POST /api/v1/borrowers/export/
+    const response = await onlineClient.post('/api/v1/borrowers/export/', { format, filters, user });
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
@@ -23,7 +24,7 @@ module.exports = async (params) => {
     return {
       status: true,
       message: "Export completed on server",
-      data: extractData(serverResult),  // { format, data, filename }
+      data: extractData(serverResult), // { format, data, filename }
     };
   } else {
     const exportData = await borrowerService.exportBorrowers(format, filters, user);

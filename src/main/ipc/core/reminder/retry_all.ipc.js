@@ -5,14 +5,19 @@ const { syncMode, serverUrl } = require("../../../../utils/system");
 const { extractData } = require("../../../../utils/responseTransformer");
 
 module.exports = async (params, queryRunner) => {
-  const { filters, user } = params;
+  const { filters, user = "system" } = params;
   const mode = await syncMode();
 
   if (mode === "online") {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.post("/api/v1/reminders/retry-all", { filters, user });
+
+    // Endpoint: POST /api/v1/notifications/notification-logs/retry-all/
+    const payload = { confirm: true };
+    if (filters) payload.filters = filters;
+
+    const response = await onlineClient.post('/api/v1/notifications/notification-logs/retry-all/', payload);
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);

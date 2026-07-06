@@ -19,6 +19,17 @@ export interface CreditCheckLog {
   createdAt: string;
 }
 
+export interface CreditCheckStats {
+  totalChecks: number;
+  averageScore: number;
+  riskLevelDistribution: {
+    Low: number;
+    Medium: number;
+    High: number;
+  };
+  lastCheckDate: string | null;
+}
+
 export interface PerformCreditCheckResponse {
   status: boolean;
   message: string;
@@ -29,6 +40,12 @@ export interface CreditCheckLogsResponse {
   status: boolean;
   message: string;
   data: PaginatedResult<CreditCheckLog>;
+}
+
+export interface CreditCheckStatsResponse {
+  status: boolean;
+  message: string;
+  data: CreditCheckStats;
 }
 
 class CreditCheckAPI {
@@ -89,6 +106,18 @@ class CreditCheckAPI {
     });
     if (response.status) return response;
     throw new Error(response.message || "Failed to delete credit check log");
+  }
+
+  async getStats(debtorId?: number): Promise<CreditCheckStatsResponse> {
+    if (!window.backendAPI?.creditCheck) {
+      throw new Error("Electron API (creditCheck) not available");
+    }
+    const response = await window.backendAPI.creditCheck({
+      method: "getCreditCheckStats",
+      params: { debtorId },
+    });
+    if (response.status) return response;
+    throw new Error(response.message || "Failed to fetch credit check stats");
   }
 
   async isAvailable(): Promise<boolean> {

@@ -12,7 +12,8 @@ module.exports = async (params, queryRunner) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.post('/api/v1/debts/bulk', { debtsArray, user });
+    // Endpoint: POST /api/v1/debts/bulkCreate/
+    const response = await onlineClient.post('/api/v1/debts/bulkCreate/', { debtsArray, user });
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);

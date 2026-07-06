@@ -15,7 +15,8 @@ module.exports = async (params, queryRunner) => {
     onlineClient.setBaseUrl(url);
 
     const fileContent = await fs.readFile(filePath, 'utf-8');
-    const response = await onlineClient.post('/api/v1/borrowers/import', {
+    // Endpoint: POST /api/v1/borrowers/import/
+    const response = await onlineClient.post('/api/v1/borrowers/import/', {
       fileContent,
       fileName: filePath.split(/[/\\]/).pop(),
       user,
@@ -29,7 +30,7 @@ module.exports = async (params, queryRunner) => {
     return {
       status: true,
       message: "CSV import completed on server",
-      data: extractData(serverResult),  // { imported, errors }
+      data: extractData(serverResult), // { imported, errors }
     };
   } else {
     const result = await borrowerService.importFromCSV(filePath, user, queryRunner);

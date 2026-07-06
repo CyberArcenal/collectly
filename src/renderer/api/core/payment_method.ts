@@ -42,6 +42,14 @@ export interface DefaultPaymentMethodResponse {
   data: PaymentMethod | null;
 }
 
+export interface PaymentMethodAllStats {
+  id: number;
+  methodName: string;
+  transactionCount: number;
+  totalAmount: number;
+  averageTransaction: number;
+}
+
 
 // ----------------------------------------------------------------------
 // 📨 Response Interfaces (mirror IPC response format)
@@ -57,6 +65,12 @@ export interface PaymentMethodsResponse {
   status: boolean;
   message: string;
   data: PaginatedResult<PaymentMethod>;
+}
+
+export interface PaymentMethodAllStatsResponse {
+  status: boolean;
+  message: string;
+  data: PaymentMethodAllStats[];
 }
 
 export interface PaymentMethodStatsResponse {
@@ -122,6 +136,18 @@ class PaymentMethodsAPI {
     });
     if (response.status) return response;
     throw new Error(response.message || "Failed to fetch payment method stats");
+  }
+
+   async getAllStats(): Promise<PaymentMethodAllStatsResponse> {
+    if (!window.backendAPI?.paymentMethod) {
+      throw new Error("Electron API (paymentMethod) not available");
+    }
+    const response = await window.backendAPI.paymentMethod({
+      method: "getAllPaymentMethodStats",
+      params: {},
+    });
+    if (response.status) return response;
+    throw new Error(response.message || "Failed to fetch all payment method stats");
   }
 
   // --------------------------------------------------------------------

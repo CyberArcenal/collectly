@@ -14,6 +14,7 @@ class LoanApplicationHandler {
     // 📋 READ-ONLY
     this.getAllApplications = this.importHandler("./get/all.ipc");
     this.getApplicationById = this.importHandler("./get/by_id.ipc");
+    this.getApplicationStatistics = this.importHandler("./get/statistics.ipc"); // NEW
 
     // ✏️ WRITE (with transaction)
     this.createApplication = this.importHandler("./create.ipc");
@@ -47,10 +48,15 @@ class LoanApplicationHandler {
       logger?.info(`LoanApplicationHandler: ${method}`, { params });
 
       switch (method) {
+        // 📋 READ-ONLY
         case "getAllApplications":
           return await this.getAllApplications(params);
         case "getApplicationById":
           return await this.getApplicationById(params);
+        case "getApplicationStatistics":
+          return await this.getApplicationStatistics(params);
+
+        // ✏️ WRITE (with transaction)
         case "createApplication":
           return await this.handleWithTransaction(this.createApplication, params);
         case "updateApplication":
@@ -65,6 +71,7 @@ class LoanApplicationHandler {
           return await this.handleWithTransaction(this.restoreApplication, params);
         case "permanentlyDeleteApplication":
           return await this.handleWithTransaction(this.permanentlyDeleteApplication, params);
+
         default:
           return { status: false, message: `Unknown method: ${method}`, data: null };
       }

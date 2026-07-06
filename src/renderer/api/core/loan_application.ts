@@ -27,6 +27,15 @@ export interface LoanApplication {
   deletedAt: string | null;
 }
 
+export interface LoanApplicationStatistics {
+  totalApplications: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+  totalRequestedAmount: number;
+  averageRequestedAmount: number;
+}
+
 export interface LoanApplicationCreateData {
   debtorId?: number | null;
   newDebtor?: {
@@ -36,6 +45,10 @@ export interface LoanApplicationCreateData {
     address?: string | null;
     notes?: string | null;
   };
+  debtorName?: string;
+  debtorContact?: string | null;
+  debtorEmail?: string | null;
+  debtorAddress?: string | null;
   requestedAmount: number;
   purpose: string;
   proposedDueDate: string;
@@ -43,6 +56,11 @@ export interface LoanApplicationCreateData {
 }
 
 export interface LoanApplicationUpdateData {
+  debtorId?: number | null;
+  debtorName?: string;
+  debtorContact?: string | null;
+  debtorEmail?: string | null;
+  debtorAddress?: string | null;
   requestedAmount?: number;
   purpose?: string;
   proposedDueDate?: string;
@@ -59,6 +77,7 @@ export interface LoanApplicationFilters {
   limit?: number;
   sortBy?: string;
   sortOrder?: "ASC" | "DESC";
+  includeDeleted?: boolean;
 }
 
 // ----------------------------------------------------------------------
@@ -71,11 +90,16 @@ export interface LoanApplicationResponse {
   data: LoanApplication;
 }
 
-// ✅ Changed: now uses PaginatedResult
 export interface LoanApplicationsResponse {
   status: boolean;
   message: string;
   data: PaginatedResult<LoanApplication>;
+}
+
+export interface LoanApplicationStatisticsResponse {
+  status: boolean;
+  message: string;
+  data: LoanApplicationStatistics;
 }
 
 export interface ApproveRejectResponse {
@@ -104,12 +128,7 @@ class LoanApplicationsAPI {
   // 🔎 READ-ONLY METHODS
   // --------------------------------------------------------------------
 
-  /**
-   * Get all loan applications with optional filters and pagination
-   */
-  async getAll(
-    filters?: LoanApplicationFilters,
-  ): Promise<LoanApplicationsResponse> {
+  async getAll(filters?: LoanApplicationFilters): Promise<LoanApplicationsResponse> {
     if (!window.backendAPI?.loanApplication) {
       throw new Error("Electron API (loanApplication) not available");
     }
@@ -121,29 +140,35 @@ class LoanApplicationsAPI {
     throw new Error(response.message || "Failed to fetch loan applications");
   }
 
-  /**
-   * Get a single application by ID
-   */
-  async getById(id: number): Promise<LoanApplicationResponse> {
+  async getById(id: number, includeDeleted = false): Promise<LoanApplicationResponse> {
     if (!window.backendAPI?.loanApplication) {
       throw new Error("Electron API (loanApplication) not available");
     }
     const response = await window.backendAPI.loanApplication({
       method: "getApplicationById",
-      params: { id },
+      params: { id, includeDeleted },
     });
     if (response.status) return response;
     throw new Error(response.message || "Failed to fetch loan application");
   }
 
+  async getStatistics(): Promise<LoanApplicationStatisticsResponse> {
+    if (!window.backendAPI?.loanApplication) {
+      throw new Error("Electron API (loanApplication) not available");
+    }
+    const response = await window.backendAPI.loanApplication({
+      method: "getApplicationStatistics",
+      params: {},
+    });
+    if (response.status) return response;
+    throw new Error(response.message || "Failed to fetch loan application statistics");
+  }
+
   // --------------------------------------------------------------------
-  // ✏️ WRITE OPERATIONS (unchanged)
+  // ✏️ WRITE OPERATIONS
   // --------------------------------------------------------------------
 
-  async create(
-    data: LoanApplicationCreateData,
-    user = "system",
-  ): Promise<LoanApplicationResponse> {
+  async create(data: LoanApplicationCreateData, user = "system"): Promise<LoanApplicationResponse> {
     if (!window.backendAPI?.loanApplication) {
       throw new Error("Electron API (loanApplication) not available");
     }
@@ -155,11 +180,7 @@ class LoanApplicationsAPI {
     throw new Error(response.message || "Failed to create loan application");
   }
 
-  async update(
-    id: number,
-    data: LoanApplicationUpdateData,
-    user = "system",
-  ): Promise<LoanApplicationResponse> {
+  async update(id: number, data: LoanApplicationUpdateData, user = "system"): Promise<LoanApplicationResponse> {
     if (!window.backendAPI?.loanApplication) {
       throw new Error("Electron API (loanApplication) not available");
     }
@@ -183,11 +204,7 @@ class LoanApplicationsAPI {
     throw new Error(response.message || "Failed to approve application");
   }
 
-  async reject(
-    id: number,
-    reason?: string,
-    user = "system",
-  ): Promise<ApproveRejectResponse> {
+  async reject(id: number, reason?: string, user = "system"): Promise<ApproveRejectResponse> {
     if (!window.backendAPI?.loanApplication) {
       throw new Error("Electron API (loanApplication) not available");
     }
@@ -223,10 +240,7 @@ class LoanApplicationsAPI {
     throw new Error(response.message || "Failed to restore loan application");
   }
 
-  async permanentlyDelete(
-    id: number,
-    user = "system",
-  ): Promise<DeleteResponse> {
+  async permanentlyDelete(id: number, user = "system"): Promise<DeleteResponse> {
     if (!window.backendAPI?.loanApplication) {
       throw new Error("Electron API (loanApplication) not available");
     }
@@ -235,9 +249,7 @@ class LoanApplicationsAPI {
       params: { id, user },
     });
     if (response.status) return response;
-    throw new Error(
-      response.message || "Failed to permanently delete loan application",
-    );
+    throw new Error(response.message || "Failed to permanently delete loan application");
   }
 
   // --------------------------------------------------------------------
@@ -251,7 +263,7 @@ class LoanApplicationsAPI {
         status: "pending",
         limit: 1,
       });
-      return response.data.data.length > 0; // ✅ access nested array
+      return response.data.data.length > 0;
     } catch (error) {
       console.error("Error checking pending application:", error);
       return false;

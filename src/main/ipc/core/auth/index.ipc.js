@@ -18,7 +18,6 @@ class AuthHandler {
         method: "POST",
         endpoint: "/login/",
         transform: (result) => {
-          // Store tokens in electron-store on successful login
           if (result.status && result.accessToken && result.refreshToken) {
             TokenStorage.setTokens(
               result.accessToken,
@@ -36,7 +35,6 @@ class AuthHandler {
         method: "POST",
         endpoint: "/logout/",
         transform: (result) => {
-          // Always clear tokens on logout
           TokenStorage.clearTokens();
           return result;
         },
@@ -49,22 +47,11 @@ class AuthHandler {
           return result;
         },
       },
+      // ----- FIX: Use onlineClient.refreshToken() instead of onlineClient.post -----
       refreshToken: {
-        method: "POST",
-        endpoint: "/refresh/",
-        transform: (result) => {
-          // Update tokens on refresh
-          if (result.status && result.data) {
-            const { access, refresh } = result.data;
-            if (access) {
-              TokenStorage.updateAccessToken(access);
-            }
-            if (refresh) {
-              TokenStorage.setRefreshToken(refresh);
-            }
-          }
-          return result;
-        },
+        method: "CUSTOM", // special handling below
+        endpoint: null,
+        transform: (result) => result, // not used
       },
       verify2FA: {
         method: "POST",
@@ -79,6 +66,18 @@ class AuthHandler {
             if (result.user) {
               TokenStorage.setUser(result.user);
             }
+          }
+          return result;
+        },
+      },
+      // ----- NEW: verifyToken handler -----
+      verifyToken: {
+        method: "POST",
+        endpoint: "/verify/",
+        transform: (result) => {
+          // If valid, optionally update user data from the response
+          if (result.status && result.data && result.data.user) {
+            TokenStorage.setUser(result.data.user);
           }
           return result;
         },
@@ -109,7 +108,6 @@ class AuthHandler {
         endpoint: (params) => `/api/v1/users/${params.id}`,
         transform: (result) => result,
       },
-
       // ========== SECURITY SETTINGS ==========
       getSecuritySettings: {
         method: "GET",
@@ -151,7 +149,6 @@ class AuthHandler {
         endpoint: "/api/v1/users/security/settings/test-alerts",
         transform: (result) => result,
       },
-
       // ========== SECURITY LOGS ==========
       getSecurityLogs: {
         method: "GET",
@@ -163,7 +160,6 @@ class AuthHandler {
         endpoint: (params) => `/api/v1/users/security/logs/${params.id}`,
         transform: (result) => result,
       },
-
       // ========== SESSIONS ==========
       getSessions: {
         method: "GET",
@@ -181,7 +177,6 @@ class AuthHandler {
         endpoint: "/api/v1/users/security/settings/sessions/terminate-all",
         transform: (result) => result,
       },
-
       // ========== OTP ==========
       sendEmailOTP: {
         method: "POST",
@@ -214,15 +209,14 @@ class AuthHandler {
         transform: (result) => result,
       },
       getCurrentUser: {
-        method: "LOCAL", // No HTTP call needed
+        method: "LOCAL",
         endpoint: null,
         transform: () => {
-          const store = new Store({ name: "auth" });
-          const user = store.get("user", null);
+          const user = TokenStorage.getUser();
           return {
             status: true,
             message: user ? "User retrieved from store" : "No user found",
-            data: user ? JSON.parse(user) : null,
+            data: user,
           };
         },
       },
@@ -238,17 +232,37 @@ class AuthHandler {
       throw new Error(`Unknown auth method: ${method}`);
     }
 
-    // Handle local-only methods (no server call)
+    // Handle local-only methods
     if (handler.method === "LOCAL" || !handler.endpoint) {
       const result = handler.transform();
       return result;
     }
 
+    // ----- SPECIAL: refreshToken uses onlineClient.refreshToken() -----
+    if (method === "refreshToken") {
+      const url = await serverUrl();
+      if (!url) {
+        throw new Error("Server URL not configured.");
+      }
+      onlineClient.setBaseUrl(url);
+      try {
+        const newAccessToken = await onlineClient.refreshToken();
+        // Optionally fetch user info with new token if needed
+        return {
+          status: true,
+          message: "Token refreshed successfully",
+          data: { access: newAccessToken },
+        };
+      } catch (err) {
+        // refreshToken() already clears tokens and sends 'auth:unauthorized'
+        throw new Error(`Token refresh failed: ${err.message}`);
+      }
+    }
+
+    // Normal HTTP request handling
     const url = await serverUrl();
     if (!url) {
-      throw new Error(
-        "Server URL not configured. Please set server URL in settings.",
-      );
+      throw new Error("Server URL not configured. Please set server URL in settings.");
     }
     onlineClient.setBaseUrl(url);
 
@@ -258,12 +272,12 @@ class AuthHandler {
     }
 
     let body = null;
-    if (
-      handler.method === "POST" ||
-      handler.method === "PUT" ||
-      handler.method === "PATCH"
-    ) {
+    if (handler.method === "POST" || handler.method === "PUT" || handler.method === "PATCH") {
       body = params.data || params;
+      // For verifyToken, the body should be { token: ... }
+      if (method === "verifyToken" && params.token) {
+        body = { token: params.token };
+      }
     }
 
     let queryParams = null;

@@ -10,20 +10,20 @@ class ReminderLogHandler {
   }
 
   initializeHandlers() {
-    // 📋 READ-ONLY HANDLERS (reminder-specific names)
-    this.getAllReminders = this.importHandler("./get/all.ipc");
-    this.getReminderById = this.importHandler("./get/by_id.ipc");
-    this.getRemindersByRecipient = this.importHandler("./get/by_recipient.ipc");
-    this.searchReminders = this.importHandler("./search.ipc");
-    this.getReminderStats = this.importHandler("./get/stats.ipc");
+    // 📋 READ-ONLY HANDLERS (using notification log names)
+    this.getAllLogs = this.importHandler("./get/all.ipc");
+    this.getLogById = this.importHandler("./get/by_id.ipc");
+    this.getLogsByRecipient = this.importHandler("./get/by_recipient.ipc");
+    this.searchLogs = this.importHandler("./search.ipc");
+    this.getLogStats = this.importHandler("./get/stats.ipc");
 
     // ✏️ WRITE OPERATION HANDLERS
-    this.createReminder = this.importHandler("./create.ipc");
-    this.updateReminderStatus = this.importHandler("./update_status.ipc");
-    this.deleteReminder = this.importHandler("./delete.ipc");
-    this.retryReminder = this.importHandler("./retry.ipc");
-    this.retryAllFailedReminders = this.importHandler("./retry_all.ipc");
-    this.resendReminder = this.importHandler("./resend.ipc");
+    this.createLog = this.importHandler("./create.ipc");
+    this.updateLogStatus = this.importHandler("./update_status.ipc");
+    this.deleteLog = this.importHandler("./delete.ipc");
+    this.retryLog = this.importHandler("./retry.ipc");
+    this.retryAllFailedLogs = this.importHandler("./retry_all.ipc");
+    this.resendLog = this.importHandler("./resend.ipc");
   }
 
   importHandler(path) {
@@ -31,10 +31,7 @@ class ReminderLogHandler {
       const fullPath = require.resolve(`./${path}`, { paths: [__dirname] });
       return require(fullPath);
     } catch (error) {
-      console.warn(
-        `[ReminderLogHandler] Failed to load handler: ${path}`,
-        error.message,
-      );
+      console.warn(`[ReminderLogHandler] Failed to load handler: ${path}`, error.message);
       return async () => ({
         status: false,
         message: `Handler not implemented: ${path}`,
@@ -52,51 +49,46 @@ class ReminderLogHandler {
 
       switch (method) {
         // 📋 READ-ONLY
+        case "getAllLogs":
         case "getAllReminders":
-          return await this.getAllReminders(params);
+          return await this.getAllLogs(params);
+        case "getLogById":
         case "getReminderById":
-          return await this.getReminderById(params);
+          return await this.getLogById(params);
+        case "getLogsByRecipient":
         case "getRemindersByRecipient":
-          return await this.getRemindersByRecipient(params);
+          return await this.getLogsByRecipient(params);
+        case "searchLogs":
         case "searchReminders":
-          return await this.searchReminders(params);
+          return await this.searchLogs(params);
+        case "getLogStats":
         case "getReminderStats":
-          return await this.getReminderStats(params);
+          return await this.getLogStats(params);
 
         // ✏️ WRITE (with transaction)
-        case "createReminder":
-          return await this.handleWithTransaction(this.createReminder, params);
-        case "updateReminderStatus":
-          return await this.handleWithTransaction(this.updateReminderStatus, params);
-        case "deleteReminder":
-          return await this.handleWithTransaction(this.deleteReminder, params);
-        case "retryReminder":
-          return await this.handleWithTransaction(this.retryReminder, params);
-        case "retryAllFailedReminders":
-          return await this.handleWithTransaction(this.retryAllFailedReminders, params);
-        case "resendReminder":
-          return await this.handleWithTransaction(this.resendReminder, params);
-
-        // ⚠️ Legacy method names for backward compatibility (optional)
-        case "getAllNotifications":
-        case "getNotificationById":
-        case "getNotificationsByRecipient":
-        case "searchNotifications":
-        case "getNotificationStats":
         case "createLog":
-        case "updateNotificationStatus":
-        case "deleteNotification":
-        case "retryFailedNotification":
-        case "retryAllFailed":
-        case "resendNotification":
-          console.warn(`⚠️ Using legacy method name: ${method}. Please update frontend to use reminder-specific names.`);
-          // Map to new methods
-          return await this._handleLegacy(method, params);
+        case "createReminder":
+          return await this.handleWithTransaction(this.createLog, params);
+        case "updateLogStatus":
+        case "updateReminderStatus":
+          return await this.handleWithTransaction(this.updateLogStatus, params);
+        case "deleteLog":
+        case "deleteReminder":
+          return await this.handleWithTransaction(this.deleteLog, params);
+        case "retryLog":
+        case "retryReminder":
+          return await this.handleWithTransaction(this.retryLog, params);
+        case "retryAllFailedLogs":
+        case "retryAllFailedReminders":
+          return await this.handleWithTransaction(this.retryAllFailedLogs, params);
+        case "resendLog":
+        case "resendReminder":
+          return await this.handleWithTransaction(this.resendLog, params);
 
         default:
           return {
             status: false,
-            message: `Unknown reminder log method: ${method}`,
+            message: `Unknown method: ${method}`,
             data: null,
           };
       }
@@ -109,26 +101,6 @@ class ReminderLogHandler {
         data: null,
       };
     }
-  }
-
-  async _handleLegacy(method, params) {
-    // Map legacy method names to new ones
-    const mapping = {
-      getAllNotifications: () => this.getAllReminders(params),
-      getNotificationById: () => this.getReminderById(params),
-      getNotificationsByRecipient: () => this.getRemindersByRecipient(params),
-      searchNotifications: () => this.searchReminders(params),
-      getNotificationStats: () => this.getReminderStats(params),
-      createLog: () => this.handleWithTransaction(this.createReminder, params),
-      updateNotificationStatus: () => this.handleWithTransaction(this.updateReminderStatus, params),
-      deleteNotification: () => this.handleWithTransaction(this.deleteReminder, params),
-      retryFailedNotification: () => this.handleWithTransaction(this.retryReminder, params),
-      retryAllFailed: () => this.handleWithTransaction(this.retryAllFailedReminders, params),
-      resendNotification: () => this.handleWithTransaction(this.resendReminder, params),
-    };
-    const handler = mapping[method];
-    if (handler) return await handler();
-    return { status: false, message: `Unsupported legacy method: ${method}`, data: null };
   }
 
   async handleWithTransaction(handler, params) {

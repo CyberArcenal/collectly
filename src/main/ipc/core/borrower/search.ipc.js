@@ -2,7 +2,7 @@
 const borrowerService = require("../../../../services/Borrower");
 const onlineClient = require("../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../utils/system");
-const { transformPaginated } = require("../../../../utils/responseTransformer");
+const { transformPaginatedResult } = require("../../../../utils/responseTransformer");
 
 module.exports = async (params) => {
   const { searchTerm, page, limit } = params;
@@ -13,14 +13,18 @@ module.exports = async (params) => {
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
 
-    const response = await onlineClient.get('/api/v1/borrowers', { params: { search: searchTerm, page, limit } });
+    // Endpoint: GET /api/v1/borrowers/ with search param
+    const query = { search: searchTerm };
+    if (page) query.page = page;
+    if (limit) query.page_size = limit;
+    const response = await onlineClient.get('/api/v1/borrowers/', { params: query });
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
 
     const serverResult = await response.json();
-    return transformPaginated(serverResult);
+    return transformPaginatedResult(serverResult);
   } else {
     const options = { search: searchTerm, page, limit };
     const result = await borrowerService.findAll(options);

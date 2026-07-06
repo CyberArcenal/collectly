@@ -11,11 +11,14 @@ module.exports = async (params, queryRunner) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.delete(`/api/v1/groups/${id}`);
+
+    // Endpoint: DELETE /api/v1/groups/{id}/
+    const response = await onlineClient.delete(`/api/v1/groups/${id}/`);
     if (!response.ok && response.status !== 204) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
+
     return {
       status: true,
       message: "Group deleted on server",

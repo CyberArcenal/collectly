@@ -12,7 +12,15 @@ module.exports = async (params) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.get("/api/v1/notifications/unread-count", { params: { debtId, type, includeDeleted } });
+
+    // Note: spec does not list query params for this endpoint,
+    // but we send them anyway; backend may ignore if not supported.
+    const query = {};
+    if (debtId) query.debt_id = debtId;
+    if (type) query.type = type;
+    if (includeDeleted !== undefined) query.include_deleted = includeDeleted;
+
+    const response = await onlineClient.get('/api/v1/notifications/unread-count/', { params: query });
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);

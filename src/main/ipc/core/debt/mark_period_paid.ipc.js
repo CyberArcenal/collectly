@@ -19,7 +19,8 @@ module.exports = async (params, queryRunner) => {
     const url = await serverUrl();
     if (!url) throw new Error('Server URL not configured');
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.post('/api/v1/debts/mark-period-paid', {
+    // Endpoint: POST /api/v1/debts/mark-period-paid/
+    const response = await onlineClient.post('/api/v1/debts/mark-period-paid/', {
       borrowerId,
       periodType,
       paymentDate,

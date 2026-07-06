@@ -13,7 +13,8 @@ module.exports = async (params, queryRunner) => {
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
 
-    const response = await onlineClient.post('/api/v1/borrowers/bulkCreate', { borrowersArray, user });
+    // Endpoint: POST /api/v1/borrowers/bulkCreate/
+    const response = await onlineClient.post('/api/v1/borrowers/bulkCreate/', { borrowersArray, user });
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
@@ -23,7 +24,7 @@ module.exports = async (params, queryRunner) => {
     return {
       status: true,
       message: "Bulk create completed on server",
-      data: extractData(serverResult),  // { created, errors }
+      data: extractData(serverResult), // { created, errors }
     };
   } else {
     const result = await borrowerService.bulkCreate(borrowersArray, user, queryRunner);

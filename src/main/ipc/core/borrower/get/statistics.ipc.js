@@ -12,7 +12,8 @@ module.exports = async () => {
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
 
-    const response = await onlineClient.get('/api/v1/borrowers/statistics');
+    // Endpoint: GET /api/v1/borrowers/statistics/
+    const response = await onlineClient.get('/api/v1/borrowers/statistics/');
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
@@ -22,7 +23,7 @@ module.exports = async () => {
     return {
       status: true,
       message: "Statistics retrieved from server",
-      data: extractData(serverResult),  // stats object
+      data: extractData(serverResult),
     };
   } else {
     const stats = await borrowerService.getStatistics();

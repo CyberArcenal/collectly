@@ -12,7 +12,10 @@ module.exports = async (params, queryRunner) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.post(`/api/v1/loan-applications/reject/${id}`, { reason, user });
+
+    const response = await onlineClient.post(`/api/v1/loan_applications/${id}/reject/`, {
+      rejection_reason: reason,
+    });
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
