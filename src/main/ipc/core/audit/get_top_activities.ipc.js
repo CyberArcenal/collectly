@@ -1,9 +1,10 @@
-// src/main/ipc/audit/get_top_activities.ipc.js
+// src/main/ipc/core/audit/get_top_activities.ipc.js
+//@ts-check
 const { AuditLog } = require("../../../../entities/AuditLog");
 const { AppDataSource } = require("../../../db/data-source");
 const { syncMode, serverUrl } = require("../../../../utils/system");
 const onlineClient = require("../../../../utils/onlineClient");
-const { extractData } = require("../../../../utils/responseTransformer");
+const { transformPaginatedResult, extractData } = require("../../../../utils/responseTransformer");
 
 module.exports = async (params) => {
   const mode = await syncMode();
@@ -25,7 +26,7 @@ module.exports = async (params) => {
     return {
       status: true,
       message: "Top activities retrieved from server",
-      data: extractData(serverResult), // { topActions, topEntities, topUsers }
+      data: extractData(serverResult),
     };
   } else {
     const { limit = 10, startDate, endDate } = params;

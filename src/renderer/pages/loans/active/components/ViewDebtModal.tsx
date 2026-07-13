@@ -9,10 +9,10 @@ import type { PenaltyTransaction } from "../../../../api/core/pernalty_transacti
 import paymentsAPI from "../../../../api/core/payment_transaction";
 import penaltiesAPI from "../../../../api/core/pernalty_transaction";
 
-// Extend Debt type para sa mga field na hindi pa kasama sa interface
+// Extend Debt type with optional fields
 interface ExtendedDebt extends Debt {
   lastInterestAccrualDate?: string | null;
-  interestCalculationPeriod: "per_annum" | "per_month"; // ✅ idinagdag
+  interestCalculationPeriod?: "per_annum" | "per_month";
   borrower?: {
     id: number;
     name: string;
@@ -39,7 +39,6 @@ const ViewDebtModal: React.FC<ViewDebtModalProps> = ({ isOpen, debt, onClose }) 
   const [penalties, setPenalties] = useState<PenaltyTransaction[]>([]);
   const [loadingPayments, setLoadingPayments] = useState(false);
   const [loadingPenalties, setLoadingPenalties] = useState(false);
-  
   const dataFetchedRef = useRef(false);
 
   useEffect(() => {
@@ -49,24 +48,26 @@ const ViewDebtModal: React.FC<ViewDebtModalProps> = ({ isOpen, debt, onClose }) 
       setPenalties([]);
       setLoadingPayments(true);
       setLoadingPenalties(true);
-      
+
       Promise.all([
-        paymentsAPI.getByDebtId(debt.id).catch(err => {
+        paymentsAPI.getByDebtId(debt.id).catch((err) => {
           console.error("Failed to fetch payments", err);
           return [];
         }),
-        penaltiesAPI.getByDebtId(debt.id).catch(err => {
+        penaltiesAPI.getByDebtId(debt.id).catch((err) => {
           console.error("Failed to fetch penalties", err);
           return [];
+        }),
+      ])
+        .then(([paymentsData, penaltiesData]) => {
+          setPayments(paymentsData);
+          setPenalties(penaltiesData);
+          dataFetchedRef.current = true;
         })
-      ]).then(([paymentsData, penaltiesData]) => {
-        setPayments(paymentsData);
-        setPenalties(penaltiesData);
-        dataFetchedRef.current = true;
-      }).finally(() => {
-        setLoadingPayments(false);
-        setLoadingPenalties(false);
-      });
+        .finally(() => {
+          setLoadingPayments(false);
+          setLoadingPenalties(false);
+        });
     } else if (!isOpen) {
       setActiveTab("details");
       setPayments([]);
@@ -77,24 +78,16 @@ const ViewDebtModal: React.FC<ViewDebtModalProps> = ({ isOpen, debt, onClose }) 
 
   if (!debt) return null;
 
-  // ✅ Gumamit ng direktang fields (hindi na umaasa sa stats)
-  const totalPaid = debt.paidAmount;
-  const remainingBalance = debt.remainingAmount;
-  
-  // ✅ Compute total penalty mula sa penalties list (kung na-load na)
+  // ✅ safe computed values
+  const totalPaid = debt.paidAmount ?? 0;
+  const remainingBalance = debt.remainingAmount ?? 0;
   const totalPenalty = penalties.reduce((sum, p) => sum + p.amount, 0);
-  
-  // ✅ Compute days overdue batay sa dueDate
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const dueDateObj = new Date(debt.dueDate);
-  dueDateObj.setHours(0, 0, 0, 0);
-  const daysOverdue = Math.max(0, Math.floor((today.getTime() - dueDateObj.getTime()) / (1000 * 60 * 60 * 24)));
-
-  // ✅ Accrued interest (interes + penalty na naipon)
+  const dueDateObj = debt.dueDate ? new Date(debt.dueDate) : null;
+  if (dueDateObj) dueDateObj.setHours(0, 0, 0, 0);
+  const daysOverdue = dueDateObj ? Math.max(0, Math.floor((today.getTime() - dueDateObj.getTime()) / (1000 * 60 * 60 * 24))) : 0;
   const accruedInterest = Math.max(0, remainingBalance - (debt.totalAmount - totalPaid));
-
-  console.groupEnd();
 
   const SkeletonTableRow = () => (
     <tr className="animate-pulse">
@@ -104,88 +97,90 @@ const ViewDebtModal: React.FC<ViewDebtModalProps> = ({ isOpen, debt, onClose }) 
     </tr>
   );
 
-  const renderDetailsTab = () => (
-    <div className="space-y-4">
-      {/* Debt Information */}
-      <div className="p-3 rounded-md bg-[var(--card-secondary-bg)]">
-        <h4 className="font-semibold mb-2 text-[var(--text-primary)]">📋 Debt Information</h4>
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <div><span className="text-[var(--text-secondary)]">Debt Name:</span> <div className="font-medium">{debt.name}</div></div>
-          <div><span className="text-[var(--text-secondary)]">Status:</span> 
-            <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-medium
-              ${debt.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : ''}
-              ${debt.status === 'overdue' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' : ''}
-              ${debt.status === 'paid' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : ''}
-              ${debt.status === 'defaulted' ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' : ''}
-            `}>{debt.status}</span>
-          </div>
-          <div><span className="text-[var(--text-secondary)]">Total Amount:</span> <div>{formatCurrency(debt.totalAmount)}</div></div>
-          <div><span className="text-[var(--text-secondary)]">Paid Amount:</span> <div>{formatCurrency(totalPaid)}</div></div>
-          <div><span className="text-[var(--text-secondary)]">Remaining Balance:</span> <div className="font-bold text-[var(--debt-high)]">{formatCurrency(remainingBalance)}</div></div>
-          <div><span className="text-[var(--text-secondary)]">Due Date:</span> <div>{formatDate(debt.dueDate)}</div></div>
-        </div>
-      </div>
-
-      {/* Borrower Information */}
-      {debt.borrower && (
+  const renderDetailsTab = () => {
+    const borrower = debt.borrower;
+    return (
+      <div className="space-y-4">
+        {/* Debt Information */}
         <div className="p-3 rounded-md bg-[var(--card-secondary-bg)]">
-          <h4 className="font-semibold mb-2 text-[var(--text-primary)]">👤 Borrower Information</h4>
+          <h4 className="font-semibold mb-2 text-[var(--text-primary)]">📋 Debt Information</h4>
           <div className="grid grid-cols-2 gap-3 text-sm">
-            <div><span className="text-[var(--text-secondary)]">Name:</span> <div>{debt.borrower.name}</div></div>
-            <div><span className="text-[var(--text-secondary)]">Contact:</span> <div>{debt.borrower.contact || "—"}</div></div>
-            <div><span className="text-[var(--text-secondary)]">Email:</span> <div>{debt.borrower.email || "—"}</div></div>
-            <div><span className="text-[var(--text-secondary)]">Address:</span> <div>{debt.borrower.address || "—"}</div></div>
-            {debt.borrower.notes && <div className="col-span-2"><span className="text-[var(--text-secondary)]">Notes:</span> <div>{debt.borrower.notes}</div></div>}
+            <div><span className="text-[var(--text-secondary)]">Debt Name:</span> <div className="font-medium">{debt.name ?? "—"}</div></div>
+            <div><span className="text-[var(--text-secondary)]">Status:</span> 
+              <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-medium
+                ${debt.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : ''}
+                ${debt.status === 'overdue' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' : ''}
+                ${debt.status === 'paid' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : ''}
+                ${debt.status === 'defaulted' ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' : ''}
+              `}>{debt.status ?? "—"}</span>
+            </div>
+            <div><span className="text-[var(--text-secondary)]">Total Amount:</span> <div>{formatCurrency(debt.totalAmount ?? 0)}</div></div>
+            <div><span className="text-[var(--text-secondary)]">Paid Amount:</span> <div>{formatCurrency(totalPaid)}</div></div>
+            <div><span className="text-[var(--text-secondary)]">Remaining Balance:</span> <div className="font-bold text-[var(--debt-high)]">{formatCurrency(remainingBalance)}</div></div>
+            <div><span className="text-[var(--text-secondary)]">Due Date:</span> <div>{debt.dueDate ? formatDate(debt.dueDate) : "—"}</div></div>
           </div>
         </div>
-      )}
 
-      {/* Financial Summary */}
-      <div className="p-3 rounded-md bg-[var(--card-secondary-bg)]">
-        <h4 className="font-semibold mb-2 text-[var(--text-primary)]">💰 Financial Summary</h4>
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <div><span className="text-[var(--text-secondary)]">Total Penalty:</span> <div>{formatCurrency(totalPenalty)}</div></div>
-          <div><span className="text-[var(--text-secondary)]">Accrued Interest + Penalty:</span> <div className="text-amber-600 dark:text-amber-400">{formatCurrency(accruedInterest)}</div></div>
-          {daysOverdue > 0 && (
-            <div><span className="text-[var(--text-secondary)]">Days Overdue:</span> <div className="text-red-500 font-semibold">{daysOverdue} days</div></div>
-          )}
+        {/* Borrower Information */}
+        {borrower && (
+          <div className="p-3 rounded-md bg-[var(--card-secondary-bg)]">
+            <h4 className="font-semibold mb-2 text-[var(--text-primary)]">👤 Borrower Information</h4>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div><span className="text-[var(--text-secondary)]">Name:</span> <div>{borrower.name ?? "—"}</div></div>
+              <div><span className="text-[var(--text-secondary)]">Contact:</span> <div>{borrower.contact || "—"}</div></div>
+              <div><span className="text-[var(--text-secondary)]">Email:</span> <div>{borrower.email || "—"}</div></div>
+              <div><span className="text-[var(--text-secondary)]">Address:</span> <div>{borrower.address || "—"}</div></div>
+              {borrower.notes && <div className="col-span-2"><span className="text-[var(--text-secondary)]">Notes:</span> <div>{borrower.notes}</div></div>}
+            </div>
+          </div>
+        )}
+
+        {/* Financial Summary */}
+        <div className="p-3 rounded-md bg-[var(--card-secondary-bg)]">
+          <h4 className="font-semibold mb-2 text-[var(--text-primary)]">💰 Financial Summary</h4>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div><span className="text-[var(--text-secondary)]">Total Penalty:</span> <div>{formatCurrency(totalPenalty)}</div></div>
+            <div><span className="text-[var(--text-secondary)]">Accrued Interest + Penalty:</span> <div className="text-amber-600 dark:text-amber-400">{formatCurrency(accruedInterest)}</div></div>
+            {daysOverdue > 0 && (
+              <div><span className="text-[var(--text-secondary)]">Days Overdue:</span> <div className="text-red-500 font-semibold">{daysOverdue} days</div></div>
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* Interest & Penalty Rates */}
-      <div className="p-3 rounded-md bg-[var(--card-secondary-bg)]">
-        <h4 className="font-semibold mb-2 text-[var(--text-primary)]">📈 Interest & Penalty Rates</h4>
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <div><span className="text-[var(--text-secondary)]">Interest Rate:</span> <div>{debt.interestRate ? `${debt.interestRate}%` : "—"}</div></div>
-          <div><span className="text-[var(--text-secondary)]">Penalty Rate:</span> <div>{debt.penaltyRate ? `${debt.penaltyRate}%` : "—"}</div></div>
-          {/* ✅ Idinagdag: Interest Calculation Period */}
-          <div className="col-span-2">
-            <span className="text-[var(--text-secondary)]">Interest Calculation Period:</span> 
-            <div className="font-medium">
-              {debt.interestCalculationPeriod === "per_annum" ? "Per Annum (yearly)" : 
-               debt.interestCalculationPeriod === "per_month" ? "Per Month (monthly)" : 
-               "—"}
+        {/* Interest & Penalty Rates */}
+        <div className="p-3 rounded-md bg-[var(--card-secondary-bg)]">
+          <h4 className="font-semibold mb-2 text-[var(--text-primary)]">📈 Interest & Penalty Rates</h4>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div><span className="text-[var(--text-secondary)]">Interest Rate:</span> <div>{debt.interestRate != null ? `${debt.interestRate}%` : "—"}</div></div>
+            <div><span className="text-[var(--text-secondary)]">Penalty Rate:</span> <div>{debt.penaltyRate != null ? `${debt.penaltyRate}%` : "—"}</div></div>
+            <div className="col-span-2">
+              <span className="text-[var(--text-secondary)]">Interest Calculation Period:</span> 
+              <div className="font-medium">
+                {debt.interestCalculationPeriod === "per_annum" ? "Per Annum (yearly)" : 
+                 debt.interestCalculationPeriod === "per_month" ? "Per Month (monthly)" : 
+                 "—"}
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Dates */}
-      <div className="p-3 rounded-md bg-[var(--card-secondary-bg)]">
-        <h4 className="font-semibold mb-2 text-[var(--text-primary)]">📅 Important Dates</h4>
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <div><span className="text-[var(--text-secondary)]">Created At:</span> <div>{formatDate(debt.createdAt)}</div></div>
-          <div><span className="text-[var(--text-secondary)]">Last Updated:</span> <div>{formatDate(debt.updatedAt)}</div></div>
-          {debt.lastInterestAccrualDate && (
-            <div className="col-span-2"><span className="text-[var(--text-secondary)]">Last Interest Accrual:</span> <div>{formatDate(debt.lastInterestAccrualDate)}</div></div>
-          )}
-          {debt.deletedAt && (
-            <div className="col-span-2"><span className="text-red-500">Deleted At:</span> <div>{formatDate(debt.deletedAt)}</div></div>
-          )}
+        {/* Dates */}
+        <div className="p-3 rounded-md bg-[var(--card-secondary-bg)]">
+          <h4 className="font-semibold mb-2 text-[var(--text-primary)]">📅 Important Dates</h4>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div><span className="text-[var(--text-secondary)]">Created At:</span> <div>{debt.createdAt ? formatDate(debt.createdAt) : "—"}</div></div>
+            <div><span className="text-[var(--text-secondary)]">Last Updated:</span> <div>{debt.updatedAt ? formatDate(debt.updatedAt) : "—"}</div></div>
+            {debt.lastInterestAccrualDate && (
+              <div className="col-span-2"><span className="text-[var(--text-secondary)]">Last Interest Accrual:</span> <div>{formatDate(debt.lastInterestAccrualDate)}</div></div>
+            )}
+            {debt.deletedAt && (
+              <div className="col-span-2"><span className="text-red-500">Deleted At:</span> <div>{formatDate(debt.deletedAt)}</div></div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderPaymentsTab = () => (
     <>
@@ -209,8 +204,8 @@ const ViewDebtModal: React.FC<ViewDebtModalProps> = ({ isOpen, debt, onClose }) 
             <tbody>
               {payments.map(p => (
                 <tr key={p.id} className="border-b border-[var(--border-color)]">
-                  <td className="px-3 py-1">{formatDate(p.paymentDate)}</td>
-                  <td className="px-3 py-1 text-right">{formatCurrency(p.amount)}</td>
+                  <td className="px-3 py-1">{p.paymentDate ? formatDate(p.paymentDate) : "—"}</td>
+                  <td className="px-3 py-1 text-right">{formatCurrency(p.amount ?? 0)}</td>
                   <td className="px-3 py-1">{p.reference || "—"}</td>
                 </tr>
               ))}
@@ -243,8 +238,8 @@ const ViewDebtModal: React.FC<ViewDebtModalProps> = ({ isOpen, debt, onClose }) 
             <tbody>
               {penalties.map(p => (
                 <tr key={p.id} className="border-b border-[var(--border-color)]">
-                  <td className="px-3 py-1">{formatDate(p.penaltyDate)}</td>
-                  <td className="px-3 py-1 text-right">{formatCurrency(p.amount)}</td>
+                  <td className="px-3 py-1">{p.penaltyDate ? formatDate(p.penaltyDate) : "—"}</td>
+                  <td className="px-3 py-1 text-right">{formatCurrency(p.amount ?? 0)}</td>
                   <td className="px-3 py-1">{p.reason || "—"}</td>
                 </tr>
               ))}
@@ -256,7 +251,7 @@ const ViewDebtModal: React.FC<ViewDebtModalProps> = ({ isOpen, debt, onClose }) 
   );
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`Debt Details: ${debt.name}`} size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} title={`Debt Details: ${debt.name ?? "Unnamed"}`} size="lg">
       <div className="space-y-4">
         <div className="flex border-b" style={{ borderColor: "var(--border-color)" }}>
           <button onClick={() => setActiveTab("details")} className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === "details" ? "text-[var(--primary-color)] border-b-2 border-[var(--primary-color)]" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"}`}>Details</button>

@@ -1,12 +1,13 @@
-// src/main/ipc/audit/export_csv.ipc.js
-const { AuditLog } = require("../../../../entities/AuditLog");
-const { AppDataSource } = require("../../../db/data-source");
+// src/main/ipc/core/audit/export_csv.ipc.js
+//@ts-check
 const fs = require("fs").promises;
 const path = require("path");
 const os = require("os");
+const { AuditLog } = require("../../../../entities/AuditLog");
+const { AppDataSource } = require("../../../db/data-source");
 const { syncMode, serverUrl } = require("../../../../utils/system");
 const onlineClient = require("../../../../utils/onlineClient");
-const { extractData } = require("../../../../utils/responseTransformer");
+const { transformPaginatedResult, extractData } = require("../../../../utils/responseTransformer");
 
 module.exports = async (params) => {
   const mode = await syncMode();
@@ -15,7 +16,6 @@ module.exports = async (params) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    // Endpoint: POST /api/v1/audit/export/
     const response = await onlineClient.post('/api/v1/audit/export/', params);
     if (!response.ok) {
       const errorText = await response.text();
@@ -25,7 +25,7 @@ module.exports = async (params) => {
     return {
       status: true,
       message: "CSV exported from server",
-      data: extractData(serverResult), // { filePath, filename }
+      data: extractData(serverResult),
     };
   } else {
     const { searchTerm, entity, user, action, startDate, endDate, limit = 5000 } = params;
@@ -44,7 +44,6 @@ module.exports = async (params) => {
       qb = qb.andWhere("log.timestamp BETWEEN :start AND :end", { start: new Date(startDate), end: new Date(endDate) });
     }
     const items = await qb.orderBy("log.timestamp", "DESC").take(Math.min(limit, 10000)).getMany();
-    // Prepare CSV
     const headers = ["ID", "Action", "Entity", "EntityId", "User", "Timestamp", "OldData", "NewData"];
     const rows = items.map(log => [
       log.id,

@@ -1,9 +1,9 @@
 // src/renderer/pages/payments/schedule/hooks/usePaymentSchedule.ts
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import debtsAPI from "../../../../api/core/debt";
-import type { ScheduledPayment, PaymentScheduleFilters } from "../types";
 import paymentsAPI from "../../../../api/core/payment_transaction";
+import type { ScheduledPayment, PaymentScheduleFilters } from "../types";
 
 interface UsePaymentScheduleReturn {
   payments: ScheduledPayment[];
@@ -13,7 +13,6 @@ interface UsePaymentScheduleReturn {
   setFilters: React.Dispatch<React.SetStateAction<PaymentScheduleFilters>>;
   refresh: () => void;
   markAsPaid: (debtId: number, amount: number, paymentDate: string, methodId: number) => Promise<void>;
-  // Pagination
   page: number;
   setPage: (page: number) => void;
   limit: number;
@@ -53,23 +52,40 @@ const usePaymentSchedule = (): UsePaymentScheduleReturn => {
         sortBy: "dueDate",
         sortOrder: "ASC",
       });
-      if (!response.status) throw new Error(response.message);
 
-      const debts = response.data.data; // array of debts
-      const scheduled: ScheduledPayment[] = debts.map(debt => ({
-        debtId: debt.id,
-        debtName: debt.name,
-        borrowerId: debt.borrower?.id ?? 0,
-        borrowerName: debt.borrower?.name || "Unknown",
-        dueDate: debt.dueDate,
-        amountDue: debt.remainingAmount,
-        contact: debt.borrower?.contact || null,
-        email: debt.borrower?.email || null,
-      }));
+      if (!response.status) throw new Error(response.message || "Failed to fetch debts");
+
+      // Access the data array and pagination
+      const debts = response.data.data || [];
+      const pagination = response.data.pagination || { total: 0 };
+
+      // Map to ScheduledPayment, safely extracting borrower info
+      const scheduled: ScheduledPayment[] = debts.map((debt: any) => {
+        // Try to get borrower name from different possible fields
+        const borrowerName =
+          debt.borrower?.name ||
+          debt.borrower_name ||
+          debt.borrowerName ||
+          "Unknown";
+
+        const borrowerId = debt.borrower?.id ?? debt.borrower_id ?? 0;
+
+        return {
+          debtId: debt.id,
+          debtName: debt.name || "Unnamed Debt",
+          borrowerId,
+          borrowerName,
+          dueDate: debt.dueDate || new Date().toISOString().split('T')[0],
+          amountDue: debt.remainingAmount ?? debt.remaining_amount ?? 0,
+          contact: debt.borrower?.contact || debt.contact || null,
+          email: debt.borrower?.email || debt.email || null,
+        };
+      });
+
       setPayments(scheduled);
-      setTotalItems(response.data.pagination?.total || 0);
+      setTotalItems(pagination.total || 0);
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || "An error occurred while fetching payment schedule.");
     } finally {
       setLoading(false);
     }
@@ -89,9 +105,10 @@ const usePaymentSchedule = (): UsePaymentScheduleReturn => {
         debtId,
         methodId,
       });
+      // Refresh the list after marking paid
       await fetchUpcomingPayments();
     } catch (err: any) {
-      throw new Error(err.message);
+      throw new Error(err.message || "Failed to record payment");
     }
   };
 

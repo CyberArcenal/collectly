@@ -1,9 +1,10 @@
 // src/main/ipc/audit/get/by_user.ipc.js
+//@ts-check
 const { AuditLog } = require("../../../../../entities/AuditLog");
 const { AppDataSource } = require("../../../../db/data-source");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
 const onlineClient = require("../../../../../utils/onlineClient");
-const { transformAuditPaginated } = require("../../../../../utils/responseTransformer");
+const { transformPaginatedResult } = require("../../../../../utils/responseTransformer");
 
 module.exports = async (params) => {
   const mode = await syncMode();
@@ -21,7 +22,7 @@ module.exports = async (params) => {
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
     const serverResult = await response.json();
-    return transformAuditPaginated(serverResult);
+    return transformPaginatedResult(serverResult);
   } else {
     const { user, page = 1, limit = 50 } = params;
     const repo = AppDataSource.getRepository(AuditLog);

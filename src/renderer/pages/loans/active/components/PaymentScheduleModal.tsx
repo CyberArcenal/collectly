@@ -27,8 +27,8 @@ const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({ isOpen, deb
         setLoading(true);
         try {
           const [paymentsRes, penaltiesRes] = await Promise.all([
-            paymentsAPI.getByDebtId(debt.id),
-            penaltiesAPI.getByDebtId(debt.id),
+            paymentsAPI.getByDebtId(debt.id).catch(() => []),
+            penaltiesAPI.getByDebtId(debt.id).catch(() => []),
           ]);
           setPayments(paymentsRes);
           setPenalties(penaltiesRes);
@@ -44,21 +44,19 @@ const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({ isOpen, deb
 
   if (!debt) return null;
 
-  const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
-  const totalPenalty = penalties.reduce((sum, p) => sum + p.amount, 0);
+  const totalPaid = payments.reduce((sum, p) => sum + (p.amount ?? 0), 0);
+  const totalPenalty = penalties.reduce((sum, p) => sum + (p.amount ?? 0), 0);
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`Payment Schedule - ${debt.name}`} size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} title={`Payment Schedule - ${debt.name ?? "Debt"}`} size="lg">
       <div className="space-y-4">
-        {/* Summary */}
         <div className="grid grid-cols-2 gap-4 p-3 rounded-md bg-[var(--card-secondary-bg)]">
           <div><span className="text-sm text-[var(--text-secondary)]">Total Paid:</span> <div className="font-semibold text-green-600">{formatCurrency(totalPaid)}</div></div>
           <div><span className="text-sm text-[var(--text-secondary)]">Total Penalties:</span> <div className="font-semibold text-red-500">{formatCurrency(totalPenalty)}</div></div>
-          <div><span className="text-sm text-[var(--text-secondary)]">Remaining Balance:</span> <div className="font-semibold text-[var(--debt-high)]">{formatCurrency(debt.remainingAmount)}</div></div>
-          <div><span className="text-sm text-[var(--text-secondary)]">Due Date:</span> <div>{formatDate(debt.dueDate)}</div></div>
+          <div><span className="text-sm text-[var(--text-secondary)]">Remaining Balance:</span> <div className="font-semibold text-[var(--debt-high)]">{formatCurrency(debt.remainingAmount ?? 0)}</div></div>
+          <div><span className="text-sm text-[var(--text-secondary)]">Due Date:</span> <div>{debt.dueDate ? formatDate(debt.dueDate) : "—"}</div></div>
         </div>
 
-        {/* Tabs */}
         <div className="flex border-b" style={{ borderColor: "var(--border-color)" }}>
           <button
             onClick={() => setActiveTab("payments")}
@@ -82,7 +80,6 @@ const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({ isOpen, deb
           </button>
         </div>
 
-        {/* Content */}
         <div className="max-h-96 overflow-y-auto">
           {loading ? (
             <div className="text-center py-4 text-[var(--text-tertiary)]">Loading...</div>
@@ -102,8 +99,8 @@ const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({ isOpen, deb
                 <tbody>
                   {payments.map(p => (
                     <tr key={p.id} className="border-b border-[var(--border-color)]">
-                      <td className="px-3 py-2">{formatDate(p.paymentDate)}</td>
-                      <td className="px-3 py-2 text-right">{formatCurrency(p.amount)}</td>
+                      <td className="px-3 py-2">{p.paymentDate ? formatDate(p.paymentDate) : "—"}</td>
+                      <td className="px-3 py-2 text-right">{formatCurrency(p.amount ?? 0)}</td>
                       <td className="px-3 py-2">{p.reference || "—"}</td>
                       <td className="px-3 py-2">{p.notes || "—"}</td>
                     </tr>
@@ -126,8 +123,8 @@ const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({ isOpen, deb
                 <tbody>
                   {penalties.map(p => (
                     <tr key={p.id} className="border-b border-[var(--border-color)]">
-                      <td className="px-3 py-2">{formatDate(p.penaltyDate)}</td>
-                      <td className="px-3 py-2 text-right">{formatCurrency(p.amount)}</td>
+                      <td className="px-3 py-2">{p.penaltyDate ? formatDate(p.penaltyDate) : "—"}</td>
+                      <td className="px-3 py-2 text-right">{formatCurrency(p.amount ?? 0)}</td>
                       <td className="px-3 py-2">{p.reason || "—"}</td>
                     </tr>
                   ))}

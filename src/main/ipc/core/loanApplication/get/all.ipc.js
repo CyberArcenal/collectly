@@ -4,9 +4,6 @@ const onlineClient = require("../../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
 const { transformPaginatedResult } = require("../../../../../utils/responseTransformer");
 
-/**
- * Map frontend params to backend query params for /api/v1/loan_applications/
- */
 function mapApplicationParams(params) {
   const mapped = {};
   if (params.page) mapped.page = params.page;
@@ -30,7 +27,7 @@ module.exports = async (params) => {
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
 
-    const query = mapApplicationParams(params);
+    const query = mapApplicationParams(params); // ✅ Only map for online
     const response = await onlineClient.get('/api/v1/loan_applications/', { params: query });
     if (!response.ok) {
       const errorText = await response.text();
@@ -39,6 +36,7 @@ module.exports = async (params) => {
     const serverResult = await response.json();
     return transformPaginatedResult(serverResult);
   } else {
+    // ✅ Offline passes original camelCase params
     const result = await loanApplicationService.getAllApplications(params);
     return {
       status: true,

@@ -22,7 +22,6 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({ isOpen, loan, o
   const [methodId, setMethodId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Reset form when modal opens
   useEffect(() => {
     if (isOpen) {
       setAmount(0);
@@ -31,18 +30,21 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({ isOpen, loan, o
       setNotes("");
       setMethodId(null);
     }
-  }, [isOpen, loan]);
+  }, [isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!loan) return;
-
+    if (!loan) {
+      dialogs.error("No loan selected");
+      return;
+    }
     if (amount <= 0) {
       dialogs.error("Amount must be greater than zero");
       return;
     }
-    if (amount > loan.remainingAmount) {
-      dialogs.error(`Amount cannot exceed remaining balance (${loan.remainingAmount})`);
+    const remaining = Number(loan.remainingAmount) || 0;
+    if (amount > remaining) {
+      dialogs.error(`Amount cannot exceed remaining balance (${remaining.toFixed(2)})`);
       return;
     }
     if (!methodId) {
@@ -70,14 +72,17 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({ isOpen, loan, o
     }
   };
 
+  // Ensure numeric values
+  const remainingBalance = Number(loan?.remainingAmount) || 0;
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Record Payment" size="md">
-      {loan && (
+      {loan ? (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="p-3 rounded-md" style={{ backgroundColor: "var(--card-secondary-bg)", border: `1px solid var(--border-color)` }}>
-            <p><strong style={{ color: "var(--text-primary)" }}>Debt:</strong> <span style={{ color: "var(--text-primary)" }}>{loan.name}</span></p>
-            <p><strong style={{ color: "var(--text-primary)" }}>Borrower:</strong> <span style={{ color: "var(--text-primary)" }}>{loan.borrower?.name}</span></p>
-            <p><strong style={{ color: "var(--text-primary)" }}>Remaining Balance:</strong> <span className="font-bold" style={{ color: "var(--debt-high)" }}>{loan.remainingAmount.toFixed(2)}</span></p>
+            <p><strong style={{ color: "var(--text-primary)" }}>Debt:</strong> <span style={{ color: "var(--text-primary)" }}>{loan.name ?? "Unnamed"}</span></p>
+            <p><strong style={{ color: "var(--text-primary)" }}>Borrower:</strong> <span style={{ color: "var(--text-primary)" }}>{loan.borrower?.name ?? "—"}</span></p>
+            <p><strong style={{ color: "var(--text-primary)" }}>Remaining Balance:</strong> <span className="font-bold" style={{ color: "var(--debt-high)" }}>{remainingBalance.toFixed(2)}</span></p>
           </div>
 
           <div>
@@ -86,7 +91,7 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({ isOpen, loan, o
               type="number"
               step="0.01"
               min="0"
-              max={loan.remainingAmount}
+              max={remainingBalance}
               required
               value={amount}
               onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
@@ -146,6 +151,8 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({ isOpen, loan, o
             </Button>
           </div>
         </form>
+      ) : (
+        <div className="text-center text-[var(--text-tertiary)] py-4">No loan data available</div>
       )}
     </Modal>
   );

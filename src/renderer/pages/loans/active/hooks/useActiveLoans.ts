@@ -33,8 +33,10 @@ interface UseActiveLoansReturn {
   handleSort: (key: string) => void;
 }
 
+const DEFAULT_LOANS: Debt[] = [];
+
 const useActiveLoans = (): UseActiveLoansReturn => {
-  const [loans, setLoans] = useState<Debt[]>([]);
+  const [loans, setLoans] = useState<Debt[]>(DEFAULT_LOANS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedLoans, setSelectedLoans] = useState<number[]>([]);
@@ -81,28 +83,30 @@ const useActiveLoans = (): UseActiveLoansReturn => {
         dueDateFrom: filters.dueDateFrom || undefined,
         dueDateTo: filters.dueDateTo || undefined,
       });
-      if (!response.status)
+      if (!response.status) {
         throw new Error(response.message || "Failed to fetch active loans");
+      }
       if (mountedRef.current) {
-        let data = response.data.data;
+        let data = response.data.data || []; // ✅ ensure array
+        // Client-side filtering for minRemainingAmount (if server can't do it)
         if (filters.minRemainingAmount > 0) {
           data = data.filter(
-            (loan) => loan.remainingAmount >= filters.minRemainingAmount,
+            (loan) => (loan.remainingAmount ?? 0) >= filters.minRemainingAmount,
           );
         }
         setLoans(data);
         setPaginationMeta({
-          page: response.data.pagination.page,
-          totalPages: response.data.pagination.pages,
-          totalItems: response.data.pagination.total,
-          limit: response.data.pagination.limit,
+          page: response.data.pagination?.page ?? 1,
+          totalPages: response.data.pagination?.pages ?? 1,
+          totalItems: response.data.pagination?.total ?? data.length,
+          limit: response.data.pagination?.limit ?? limit,
         });
-        setError(null);
       }
     } catch (err: any) {
       if (mountedRef.current) {
         setError(err.message || "Failed to load active loans");
-        console.error(err);
+        console.error("useActiveLoans error:", err);
+        setLoans(DEFAULT_LOANS); // ✅ reset on error
       }
     } finally {
       if (mountedRef.current) setLoading(false);

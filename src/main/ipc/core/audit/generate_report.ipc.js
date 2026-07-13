@@ -1,12 +1,13 @@
-// src/main/ipc/audit/generate_report.ipc.js
-const { AuditLog } = require("../../../../entities/AuditLog");
-const { AppDataSource } = require("../../../db/data-source");
+// src/main/ipc/core/audit/generate_report.ipc.js
+//@ts-check
 const fs = require("fs").promises;
 const path = require("path");
 const os = require("os");
+const { AuditLog } = require("../../../../entities/AuditLog");
+const { AppDataSource } = require("../../../db/data-source");
 const { syncMode, serverUrl } = require("../../../../utils/system");
 const onlineClient = require("../../../../utils/onlineClient");
-const { extractData } = require("../../../../utils/responseTransformer");
+const { transformPaginatedResult, extractData } = require("../../../../utils/responseTransformer");
 
 module.exports = async (params) => {
   const mode = await syncMode();
@@ -15,7 +16,6 @@ module.exports = async (params) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    // Endpoint: POST /api/v1/audit/report/
     const response = await onlineClient.post('/api/v1/audit/report/', params);
     if (!response.ok) {
       const errorText = await response.text();
@@ -25,7 +25,7 @@ module.exports = async (params) => {
     return {
       status: true,
       message: "Report generated on server",
-      data: extractData(serverResult), // { filePath, format, entryCount }
+      data: extractData(serverResult),
     };
   } else {
     const { startDate, endDate, format = "json" } = params;

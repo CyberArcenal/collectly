@@ -4,9 +4,6 @@ const onlineClient = require("../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../utils/system");
 const { extractData } = require("../../../../utils/responseTransformer");
 
-/**
- * Map frontend update data to backend format for PATCH /api/v1/loan_applications/{id}/
- */
 function mapUpdateData(data) {
   const mapped = {};
   if (data.debtorId !== undefined) mapped.debtor = data.debtorId;
@@ -30,7 +27,7 @@ module.exports = async (params, queryRunner) => {
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
 
-    const payload = mapUpdateData(data);
+    const payload = mapUpdateData(data); // ✅ Only map for online
     const response = await onlineClient.patch(`/api/v1/loan_applications/${id}/`, payload);
     if (!response.ok) {
       const errorText = await response.text();
@@ -43,6 +40,7 @@ module.exports = async (params, queryRunner) => {
       data: extractData(serverResult),
     };
   } else {
+    // ✅ Offline stays as‑is (camelCase)
     const result = await loanApplicationService.updateApplication(id, data, user, queryRunner);
     return {
       status: true,

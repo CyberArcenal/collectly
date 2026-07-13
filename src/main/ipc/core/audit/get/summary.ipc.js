@@ -1,4 +1,5 @@
-// src/main/ipc/audit/get/summary.ipc.js
+// src/main/ipc/core/audit/get/summary.ipc.js
+//@ts-check
 const { AuditLog } = require("../../../../../entities/AuditLog");
 const onlineClient = require("../../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
@@ -24,7 +25,7 @@ module.exports = async (params) => {
     return {
       status: true,
       message: "Audit summary retrieved from server",
-      data: extractData(serverResult), // { byAction, byEntity, byUser }
+      data: extractData(serverResult),
     };
   } else {
     const { startDate, endDate } = params;

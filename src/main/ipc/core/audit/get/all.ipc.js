@@ -1,13 +1,10 @@
-// src/main/ipc/audit/get/all.ipc.js
+// src/main/ipc/core/audit/get/all.ipc.js
 const { AuditLog } = require("../../../../../entities/AuditLog");
-const { AppDataSource } = require("../../../../db/data-source");
-const { syncMode, serverUrl } = require("../../../../../utils/system");
 const onlineClient = require("../../../../../utils/onlineClient");
-const { transformAuditPaginated } = require("../../../../../utils/responseTransformer");
+const { syncMode, serverUrl } = require("../../../../../utils/system");
+const { AppDataSource } = require("../../../../db/data-source");
+const { extractData, transformSingle, transformPaginatedResult } = require("../../../../../utils/responseTransformer");
 
-/**
- * Map frontend params to backend query params for /api/v1/audit/logs/
- */
 function mapAuditLogsParams(params) {
   const mapped = {};
   if (params.page) mapped.page = params.page;
@@ -19,7 +16,6 @@ function mapAuditLogsParams(params) {
   if (params.startDate) mapped.start = params.startDate;
   if (params.endDate) mapped.end = params.endDate;
   if (params.suspicious !== undefined) mapped.suspicious = params.suspicious;
-  // includeDeleted is not used in audit logs
   return mapped;
 }
 
@@ -37,7 +33,7 @@ module.exports = async (params) => {
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
     const serverResult = await response.json();
-    return transformAuditPaginated(serverResult);
+    return transformPaginatedResult(serverResult);
   } else {
     const { page = 1, limit = 50 } = params;
     const repo = AppDataSource.getRepository(AuditLog);

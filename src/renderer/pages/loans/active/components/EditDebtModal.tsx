@@ -27,7 +27,6 @@ const EditDebtModal: React.FC<EditDebtModalProps> = ({ isOpen, debt, onClose, on
 
   useEffect(() => {
     if (debt) {
-      // Safely convert dueDate to YYYY-MM-DD format
       let dueDateStr = "";
       if (debt.dueDate) {
         const date = new Date(debt.dueDate);
@@ -36,8 +35,8 @@ const EditDebtModal: React.FC<EditDebtModalProps> = ({ isOpen, debt, onClose, on
         }
       }
       reset({
-        name: debt.name,
-        totalAmount: debt.totalAmount,
+        name: debt.name ?? "",
+        totalAmount: debt.totalAmount ?? 0,
         dueDate: dueDateStr,
         interestRate: debt.interestRate ?? null,
         penaltyRate: debt.penaltyRate ?? null,
@@ -46,7 +45,10 @@ const EditDebtModal: React.FC<EditDebtModalProps> = ({ isOpen, debt, onClose, on
   }, [debt, reset]);
 
   const onSubmit = async (data: FormData) => {
-    if (!debt) return;
+    if (!debt) {
+      dialogs.error("No debt selected");
+      return;
+    }
     try {
       await debtsAPI.update(debt.id, data as DebtUpdateData);
       dialogs.success("Debt updated successfully");
@@ -59,32 +61,36 @@ const EditDebtModal: React.FC<EditDebtModalProps> = ({ isOpen, debt, onClose, on
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Edit Debt" size="md">
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium mb-1">Debt Name *</label>
-          <input {...register("name", { required: true })} className="w-full px-3 py-2 border rounded-md" style={{ backgroundColor: "var(--input-bg)", borderColor: "var(--border-color)" }} />
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Total Amount *</label>
-          <input type="number" step="0.01" {...register("totalAmount", { required: true, valueAsNumber: true })} className="w-full px-3 py-2 border rounded-md" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Due Date *</label>
-          <input type="date" {...register("dueDate", { required: true })} className="w-full px-3 py-2 border rounded-md" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Interest Rate (%)</label>
-          <input type="number" step="0.01" {...register("interestRate", { valueAsNumber: true })} className="w-full px-3 py-2 border rounded-md" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Penalty Rate (%)</label>
-          <input type="number" step="0.01" {...register("penaltyRate", { valueAsNumber: true })} className="w-full px-3 py-2 border rounded-md" />
-        </div>
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button type="submit" variant="success" disabled={isSubmitting}>Save Changes</Button>
-        </div>
-      </form>
+      {debt ? (
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Debt Name *</label>
+            <input {...register("name", { required: true })} className="w-full px-3 py-2 border rounded-md" style={{ backgroundColor: "var(--input-bg)", borderColor: "var(--border-color)" }} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Total Amount *</label>
+            <input type="number" step="0.01" {...register("totalAmount", { required: true, valueAsNumber: true })} className="w-full px-3 py-2 border rounded-md" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Due Date *</label>
+            <input type="date" {...register("dueDate", { required: true })} className="w-full px-3 py-2 border rounded-md" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Interest Rate (%)</label>
+            <input type="number" step="0.01" {...register("interestRate", { valueAsNumber: true })} className="w-full px-3 py-2 border rounded-md" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Penalty Rate (%)</label>
+            <input type="number" step="0.01" {...register("penaltyRate", { valueAsNumber: true })} className="w-full px-3 py-2 border rounded-md" />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
+            <Button type="submit" variant="success" disabled={isSubmitting}>Save Changes</Button>
+          </div>
+        </form>
+      ) : (
+        <div className="text-center text-[var(--text-tertiary)] py-4">No debt data to edit</div>
+      )}
     </Modal>
   );
 };

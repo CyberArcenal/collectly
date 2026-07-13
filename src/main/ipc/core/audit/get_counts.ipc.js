@@ -1,10 +1,9 @@
-// src/main/ipc/audit/get_counts.ipc.js
+// src/main/ipc/core/audit/get_counts.ipc.js
 const { AuditLog } = require("../../../../entities/AuditLog");
 const { AppDataSource } = require("../../../db/data-source");
 const { syncMode, serverUrl } = require("../../../../utils/system");
 const onlineClient = require("../../../../utils/onlineClient");
-const { extractData } = require("../../../../utils/responseTransformer");
-
+const { transformPaginatedResult, extractData } = require("../../../../utils/responseTransformer");
 module.exports = async (params) => {
   const mode = await syncMode();
 
@@ -12,7 +11,6 @@ module.exports = async (params) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    // counts endpoint expects startDate, endDate (optional)
     const query = {};
     if (params.startDate) query.startDate = params.startDate;
     if (params.endDate) query.endDate = params.endDate;
@@ -25,7 +23,7 @@ module.exports = async (params) => {
     return {
       status: true,
       message: "Counts retrieved from server",
-      data: extractData(serverResult), // { byAction, byEntity, byUser }
+      data: extractData(serverResult),
     };
   } else {
     const { startDate, endDate } = params;

@@ -43,16 +43,12 @@ const ActiveLoansTable: React.FC<ActiveLoansTableProps> = ({
     return "text-green-600";
   };
 
-  // Helper to compute accrued interest
   const computeAccruedInterest = (loan: Debt): number => {
-    // accruedInterest = remainingAmount - (totalAmount - paidAmount)
-    const total = loan.totalAmount;
-    const paid = loan.paidAmount;
-    const remaining = loan.remainingAmount;
+    const total = loan.totalAmount ?? 0;
+    const paid = loan.paidAmount ?? 0;
+    const remaining = loan.remainingAmount ?? 0;
     return Math.max(0, remaining - (total - paid));
   };
-
-  // console.log(loans)
 
   return (
     <div className="overflow-x-auto rounded-md border" style={{ borderColor: "var(--border-color)" }}>
@@ -80,7 +76,6 @@ const ActiveLoansTable: React.FC<ActiveLoansTableProps> = ({
             <th className="px-4 py-3 text-left text-xs font-medium uppercase cursor-pointer" onClick={() => onSort("remainingAmount")}>
               <div className="flex items-center gap-1">Remaining Balance {getSortIcon("remainingAmount")}</div>
             </th>
-            {/* 🆕 Accrued Interest Column - not sortable by default (can add later) */}
             <th className="px-4 py-3 text-left text-xs font-medium uppercase">
               <div className="flex items-center gap-1">Accrued Interest</div>
             </th>
@@ -93,7 +88,10 @@ const ActiveLoansTable: React.FC<ActiveLoansTableProps> = ({
         </thead>
         <tbody>
           {loans.map((loan) => {
-            const daysLeft = daysUntil(loan.dueDate);
+            // ✅ safe default values
+            const borrowerName = loan.borrower?.name ?? "—";
+            const dueDate = loan.dueDate ?? "";
+            const daysLeft = dueDate ? daysUntil(dueDate) : 0;
             const accruedInterest = computeAccruedInterest(loan);
             return (
               <tr key={loan.id} className="hover:bg-[var(--card-hover-bg)] transition-colors border-b" style={{ borderColor: "var(--border-color)" }}>
@@ -106,14 +104,15 @@ const ActiveLoansTable: React.FC<ActiveLoansTableProps> = ({
                     style={{ accentColor: "var(--primary-color)" }}
                   />
                 </td>
-                <td className="px-4 py-3 font-medium">{loan.name}</td>
-                <td className="px-4 py-3">{loan.borrower?.name || "—"}</td>
-                <td className="px-4 py-3">{formatCurrency(loan.totalAmount)}</td>
-                <td className="px-4 py-3 font-semibold" style={{ color: "var(--debt-high)" }}>{formatCurrency(loan.remainingAmount)}</td>
-                {/* 🆕 Show accrued interest */}
+                <td className="px-4 py-3 font-medium">{loan.name ?? "Unnamed Debt"}</td>
+                <td className="px-4 py-3">{borrowerName}</td>
+                <td className="px-4 py-3">{formatCurrency(loan.totalAmount ?? 0)}</td>
+                <td className="px-4 py-3 font-semibold" style={{ color: "var(--debt-high)" }}>{formatCurrency(loan.remainingAmount ?? 0)}</td>
                 <td className="px-4 py-3 text-amber-600 font-medium">{formatCurrency(accruedInterest)}</td>
-                <td className="px-4 py-3">{formatDate(loan.dueDate)}</td>
-                <td className={`px-4 py-3 ${getDaysLeftClass(daysLeft)}`}>{daysLeft < 0 ? `Overdue by ${-daysLeft} days` : `${daysLeft} days`}</td>
+                <td className="px-4 py-3">{dueDate ? formatDate(dueDate) : "—"}</td>
+                <td className={`px-4 py-3 ${getDaysLeftClass(daysLeft)}`}>
+                  {daysLeft < 0 ? `Overdue by ${-daysLeft} days` : `${daysLeft} days`}
+                </td>
                 <td className="px-4 py-3 text-right">
                   <ActiveLoanActionsDropdown
                     loan={loan}

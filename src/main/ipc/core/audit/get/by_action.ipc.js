@@ -1,9 +1,9 @@
-// src/main/ipc/audit/get/by_action.ipc.js
+// src/main/ipc/core/audit/get/by_action.ipc.js
 const { AuditLog } = require("../../../../../entities/AuditLog");
-const { AppDataSource } = require("../../../../db/data-source");
-const { syncMode, serverUrl } = require("../../../../../utils/system");
 const onlineClient = require("../../../../../utils/onlineClient");
-const { transformAuditPaginated } = require("../../../../../utils/responseTransformer");
+const { syncMode, serverUrl } = require("../../../../../utils/system");
+const { AppDataSource } = require("../../../../db/data-source");
+const { extractData, transformSingle, transformPaginatedResult } = require("../../../../../utils/responseTransformer");
 
 module.exports = async (params) => {
   const mode = await syncMode();
@@ -12,7 +12,6 @@ module.exports = async (params) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    // Build query with mapping: limit → page_size
     const query = { action: params.action };
     if (params.page) query.page = params.page;
     if (params.limit) query.page_size = params.limit;
@@ -22,7 +21,7 @@ module.exports = async (params) => {
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
     const serverResult = await response.json();
-    return transformAuditPaginated(serverResult);
+    return transformPaginatedResult(serverResult);
   } else {
     const { action, page = 1, limit = 50 } = params;
     const repo = AppDataSource.getRepository(AuditLog);

@@ -1,9 +1,10 @@
-// src/main/ipc/audit/get/by_id.ipc.js
+// src/main/ipc/core/audit/get/by_id.ipc.js
+//@ts-check
 const { AuditLog } = require("../../../../../entities/AuditLog");
-const { AppDataSource } = require("../../../../db/data-source");
-const { syncMode, serverUrl } = require("../../../../../utils/system");
 const onlineClient = require("../../../../../utils/onlineClient");
-const { transformSingle } = require("../../../../../utils/responseTransformer");
+const { syncMode, serverUrl } = require("../../../../../utils/system");
+const { AppDataSource } = require("../../../../db/data-source");
+const { extractData, transformSingle } = require("../../../../../utils/responseTransformer");
 
 module.exports = async (params) => {
   const mode = await syncMode();
@@ -12,7 +13,6 @@ module.exports = async (params) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    // Endpoint: /api/v1/audit/logs/{id}/ (GET)
     const response = await onlineClient.get(`/api/v1/audit/logs/${params.id}/`);
     if (!response.ok) {
       const errorText = await response.text();
