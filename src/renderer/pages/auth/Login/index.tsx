@@ -140,7 +140,7 @@ const LoginPage: React.FC = () => {
               </label>
               <Link
                 to="/forgot-password"
-                className="text-[var(--primary-color)] hover:underline transition-colors"
+                className="text-[var(--primary-color)] hover:underline transition-colors hidden"
               >
                 Forgot password?
               </Link>

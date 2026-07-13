@@ -27,6 +27,7 @@ export interface PenaltyTransaction {
 }
 
 export interface PenaltyStatistics {
+  total_penalty_amount: number;
   totalPenalties: number;
   totalPenaltyAmount: number;
   averagePenaltyAmount: number;

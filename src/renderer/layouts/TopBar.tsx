@@ -10,6 +10,7 @@ import UpdateNotifier from "../components/Shared/UpdateNotifier";
 import StatusIndicators from "../components/Shared/StatusIndicators";
 import { NotificationDropdown } from "../components/Shared/NotificationDrawer";
 import InterestPeriodIndicator from "../components/Shared/InterestPeriodIndicator";
+import UserProfileDropdown from "../components/Shared/UserProfileDropdown";
 
 interface TopBarProps {
   toggleSidebar: () => void;
@@ -54,6 +55,7 @@ const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
         <ThemeToggle />
         <InterestPeriodIndicator />
         <NotificationDropdown />
+        <UserProfileDropdown />
         <button
           onClick={() => navigate("/loans/applications")}
           className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--primary-color)] hover:bg-[var(--primary-hover)] text-white text-sm font-medium transition-all duration-200 shadow-md"

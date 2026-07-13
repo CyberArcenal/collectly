@@ -36,7 +36,7 @@ module.exports = async (params) => {
     return {
       status: true,
       message: "Audit logs by user retrieved locally",
-      data: { items, total, page, limit, totalPages: Math.ceil(total / limit) },
+      data: { data: items, total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
 };

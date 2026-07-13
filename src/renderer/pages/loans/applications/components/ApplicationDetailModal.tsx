@@ -47,7 +47,7 @@ const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
             setDebt(response.data);
           } else {
             const debtsRes = await debtsAPI.getAll({
-              borrowerId: application.debtorId,
+              borrowerId: application.debtorId as number | undefined,
               limit: 1,
               sortBy: "createdAt",
               sortOrder: "DESC",
@@ -102,7 +102,7 @@ const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
             <div className="col-span-2 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <User className="w-4 h-4 text-[var(--text-tertiary)]" />
-                <span className="font-medium text-[var(--text-primary)]">{application.debtorName}</span>
+                <span className="font-medium text-[var(--text-primary)]">{application.debtorName || application.debtor_name}</span>
               </div>
               <span className={`px-2 py-0.5 text-xs rounded-full ${statusBadge.bg} ${statusBadge.text}`}>
                 {application.status}

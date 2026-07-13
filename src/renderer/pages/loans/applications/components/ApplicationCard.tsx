@@ -55,6 +55,8 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
 }) => {
   const status = getStatusBadge(application.status);
 
+  console.log("ApplicationCard rendered for application:", application);
+
   return (
     <div
       className="bg-[var(--card-bg)] rounded-xl border border-[var(--border-color)] p-4 hover:shadow-md transition-all cursor-pointer group"
@@ -64,11 +66,11 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--primary-color)] to-[var(--primary-hover)] flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
-            {getInitials(application.debtorName)}
+            {getInitials(application.debtorName || application.debtor_name)}
           </div>
           <div className="min-w-0">
             <div className="font-medium text-sm text-[var(--text-primary)] truncate">
-              {application.debtorName}
+              {application.debtorName || application.debtor_name}
             </div>
             <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-tertiary)]">
               <User className="w-3 h-3" />

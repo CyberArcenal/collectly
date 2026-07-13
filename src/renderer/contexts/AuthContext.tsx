@@ -25,6 +25,7 @@ export interface AuthContextType {
   login: (email: string, password: string) => Promise<LoginResult>;
   logout: () => Promise<void>;
   refreshToken: () => Promise<boolean>;
+  refreshUser: () => Promise<void>;  // ✅ Added
   hasRole: (roles: UserRole | UserRole[]) => boolean;
   hasPermission: (permission: Permission) => boolean;
   isAdmin: boolean;
@@ -58,7 +59,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (response.status && response.data.valid) {
         setUser(response.data.user);
         setIsAuthenticated(true);
-        // Save user in tokenStorage as well
         await tokenStorage.setUser(response.data.user);
         return true;
       }
@@ -68,6 +68,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     }
   }, []);
+
+  // ------------------------------------------------------------
+  // Refresh User (re‑load current user from token)
+  // ------------------------------------------------------------
+  const refreshUser = useCallback(async (): Promise<void> => {
+    const token = await tokenStorage.getAccessToken();
+    if (token) {
+      await loadUserFromToken(token);
+    } else {
+      // No token, clear user state
+      setUser(null);
+      setIsAuthenticated(false);
+    }
+  }, [loadUserFromToken]);
 
   // ------------------------------------------------------------
   // Init: Check for existing token on mount
@@ -80,7 +94,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (accessToken) {
           const valid = await loadUserFromToken(accessToken);
           if (!valid) {
-            // Token invalid or expired – try refresh
             const refreshed = await refreshToken();
             if (!refreshed) {
               await tokenStorage.clearTokens();
@@ -89,7 +102,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
         } else {
-          // No access token, check for refresh token
           const refresh = await tokenStorage.getRefreshToken();
           if (refresh) {
             const refreshed = await refreshToken();
@@ -122,11 +134,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password: string): Promise<LoginResult> => {
     const response = await authAPI.login({ email, password });
     if (response.status) {
-      // If 2FA required, we don't set tokens yet – just return the response
       if ('requires_2fa' in response && response.requires_2fa) {
-        return response; // Caller will handle 2FA flow
+        return response;
       }
-      // Direct login success
       const loginResponse = response as {
         accessToken: string;
         refreshToken: string;
@@ -175,9 +185,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const response = await authAPI.refreshToken(refresh);
       if (response.status) {
         const { access, refresh: newRefresh } = response.data;
-        // Update both tokens
         await tokenStorage.setTokens(access, newRefresh);
-        // Re-verify the new access token to get user data
         const verified = await loadUserFromToken(access);
         return verified;
       }
@@ -203,7 +211,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const hasPermission = useCallback(
     (permission: Permission): boolean => {
       if (!user) return false;
-      // Define permission -> role mapping
       const permissions: Record<Permission, UserRole[]> = {
         manage_users: ['admin'],
         manage_settings: ['admin', 'manager'],
@@ -218,7 +225,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [user, hasRole]
   );
 
-  // Convenience booleans
   const isAdmin = hasRole('admin');
   const isManager = hasRole('manager');
   const isCollector = hasRole('collector');
@@ -235,6 +241,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     login,
     logout,
     refreshToken,
+    refreshUser, // ✅ Added
     hasRole,
     hasPermission,
     isAdmin,

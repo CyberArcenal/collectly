@@ -44,10 +44,10 @@ const AuditTrailPage: React.FC = () => {
   const paginatedLogs = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
     const end = start + pageSize;
-    return logs.slice(start, end);
+    return logs?.slice(start, end);
   }, [logs, currentPage, pageSize]);
 
-  const totalItems = logs.length;
+  const totalItems = logs?.length || 0;
   const totalPages = Math.ceil(totalItems / pageSize);
 
   // Handlers
@@ -165,7 +165,7 @@ const AuditTrailPage: React.FC = () => {
             size="sm"
             icon={Download}
             onClick={handleExport}
-            disabled={exporting || logs.length === 0}
+            disabled={exporting || logs?.length === 0}
           >
             {exporting ? "Exporting..." : "Export"}
           </Button>

@@ -1,9 +1,11 @@
 // src/subscribers/SystemSettingSubscriber.js
+//@ts-check
 const { SystemSetting } = require("../entities/systemSettings");
 const { logger } = require("../utils/logger");
 const {
   SystemSettingStateTransitionService,
 } = require("../StateTransitionServices/systemSettings");
+const { BrowserWindow } = require("electron");
 
 console.log("[Subscriber] Loading SystemSettingSubscriber");
 
@@ -93,6 +95,35 @@ class SystemSettingSubscriber {
           new: entity.value,
         });
       }
+
+
+      // ✅ NEW: Detect online/offline status change and notify UI
+      // ================================================================
+      const statusKeys = ["sync_mode"]; // adjust to your actual key
+      if (
+        statusKeys.includes(entity.key) &&
+        entity.value !== databaseEntity.value
+      ) {
+        logger.info("[SystemSettingSubscriber] Online status changed", {
+          key: entity.key,
+          old: databaseEntity.value,
+          new: entity.value,
+        });
+
+        // Send IPC event to all renderer windows to reload
+        const windows = BrowserWindow.getAllWindows();
+        windows.forEach((win) => {
+          if (!win.isDestroyed()) {
+            win.webContents.send("system:statusChanged", {
+              key: entity.key,
+              newValue: entity.value,
+              oldValue: databaseEntity.value,
+            });
+          }
+        });
+      }
+
+
     } catch (err) {
       logger.error("[SystemSettingSubscriber] afterUpdate error", err);
       throw err;

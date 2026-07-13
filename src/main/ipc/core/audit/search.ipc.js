@@ -69,7 +69,7 @@ module.exports = async (params) => {
     return {
       status: true,
       message: "Search completed locally",
-      data: { items, total, page, limit, totalPages: Math.ceil(total / limit) },
+      data: { data: items, total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
 };

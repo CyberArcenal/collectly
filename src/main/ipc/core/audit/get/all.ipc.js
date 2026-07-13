@@ -45,7 +45,7 @@ module.exports = async (params) => {
     return {
       status: true,
       message: "Audit logs retrieved locally",
-      data: { items, total, page, limit: Number(limit), totalPages: Math.ceil(total / limit) },
+      data: { data: items, total, page, limit: Number(limit), totalPages: Math.ceil(total / limit) },
     };
   }
 };

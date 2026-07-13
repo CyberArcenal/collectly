@@ -1,5 +1,6 @@
 // src/renderer/pages/loans/applications/types.ts
 export interface LoanApplication {
+  debtor_name: string;
   id: number;
   debtorId: number | null; // can be null if new debtor is being created
   debtorName: string;

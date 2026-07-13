@@ -84,10 +84,10 @@ const useActiveLoans = (): UseActiveLoansReturn => {
       if (response.status) {
         const data = response.data;
         setStats({
-          totalActive: data.totalActive || 0,
-          totalAmountOwed: data.totalAmountOwed || 0,
-          totalRemainingBalance: data.totalRemainingBalance || 0,
-          totalOverdue: data.totalOverdue || 0,
+          totalActive: data.totalActive || data.total_active || 0,
+          totalAmountOwed: data.totalAmountOwed || data.total_amount_owed || 0,
+          totalRemainingBalance: data.totalRemainingBalance || data.total_remaining_balance || 0,
+          totalOverdue: data.totalOverdue || data.total_overdue || 0,
         });
       }
     } catch (err) {

@@ -18,6 +18,8 @@ export interface DebtStats {
 }
 
 export interface Debt {
+  borrowerName: string | undefined;
+  borrower_name: string | undefined;
   id: number;
   name: string;
   totalAmount: number;
@@ -50,6 +52,10 @@ export interface BorrowerFilters {
 }
 
 export interface DebtStatistics {
+  total_active: number;
+  total_amount_owed: number;
+  total_remaining_balance: number;
+  total_overdue: number;
   totalDebts: number;
   totalActive: number;
   totalPaid: number;
@@ -186,9 +192,6 @@ export interface RecalculateRemainingResponse {
 // ----------------------------------------------------------------------
 
 class DebtsAPI {
-  getByApplicationId(id: number) {
-    throw new Error("Method not implemented.");
-  }
   // --------------------------------------------------------------------
   // 🔎 READ-ONLY METHODS
   // --------------------------------------------------------------------
@@ -217,12 +220,12 @@ class DebtsAPI {
   async getAll(params?: {
     page?: number;
     limit?: number;
+    borrowerId?: number;
     search?: string;
     sortBy?: string;
     sortOrder?: "ASC" | "DESC";
     includeDeleted?: boolean;
     status?: "active" | "paid" | "overdue" | "defaulted";
-    borrowerId?: number;
     dueDateFrom?: string;
     dueDateTo?: string;
     minTotalAmount?: number;

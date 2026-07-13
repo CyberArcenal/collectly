@@ -32,6 +32,9 @@ import type { UserRole } from '../../../contexts/AuthContext';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useSettings } from '../../../contexts/SettingsContext';
 
+// Define which menu items should be hidden in offline mode
+const OFFLINE_HIDDEN_PATHS = ['/users', '/sync']; // User Management and Sync are not available offline
+
 const MENU_ITEMS: MenuItem[] = [
   {
     path: '/dashboard',
@@ -225,9 +228,35 @@ export const useMenuItems = () => {
   const { isOfflineMode } = useSettings();
 
   const filteredMenuItems = useMemo(() => {
-    // If offline mode, show all items (no role filtering)
+    // If offline mode, show all items EXCEPT those that are explicitly hidden offline
     if (isOfflineMode()) {
-      return MENU_ITEMS;
+      // Filter out items that are marked as hidden offline
+      const filterOfflineHidden = (items: MenuItem[]): MenuItem[] => {
+        return items
+          .map((item) => {
+            // Check if this item or any of its children should be hidden
+            if (OFFLINE_HIDDEN_PATHS.includes(item.path)) {
+              return null;
+            }
+
+            // Filter children recursively
+            let filteredChildren: MenuItem[] | undefined;
+            if (item.children) {
+              filteredChildren = filterOfflineHidden(item.children);
+              if (filteredChildren.length === 0) {
+                return null;
+              }
+            }
+
+            return {
+              ...item,
+              children: filteredChildren,
+            };
+          })
+          .filter(Boolean) as MenuItem[];
+      };
+
+      return filterOfflineHidden(MENU_ITEMS);
     }
 
     // If online mode, filter by role

@@ -7,6 +7,7 @@ import type { PaginatedResult } from "./common";
 // ----------------------------------------------------------------------
 
 export interface LoanAgreement {
+  principal_amount: number;
   id: number;
   status: "draft" | "signed";
   signedAt: string | null;

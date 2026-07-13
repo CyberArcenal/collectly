@@ -1,5 +1,6 @@
 // src/renderer/api/core/loanApplication.ts
 
+import type { Borrower } from "./borrower";
 import type { PaginatedResult } from "./common";
 
 // ----------------------------------------------------------------------
@@ -22,6 +23,7 @@ export interface LoanApplication {
   rejectedAt: string | null;
   approvedBy: string | null;
   rejectionReason: string | null;
+  debtor?: Borrower | null; // Optional, can be null if debtor is not linked
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;

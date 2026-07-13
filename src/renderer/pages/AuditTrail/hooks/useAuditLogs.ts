@@ -165,6 +165,7 @@ export const useAuditLogs = (initialFilters: AuditFilters) => {
       if (!response.status) throw new Error(response.message || "Failed to fetch audit logs");
 
       const items = response.data?.data;
+      console.log("Fetched audit logs:", response);
       setLogs(items);
       computeSummary(items);
       await fetchStats();

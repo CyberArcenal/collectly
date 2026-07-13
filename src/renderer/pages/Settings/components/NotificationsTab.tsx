@@ -2,7 +2,6 @@
 import React, { useState } from "react";
 import type { NotificationsSettings } from "../../../api/utils/system_config";
 import Switch from "../../../components/UI/Switch";
-import Button from "../../../components/UI/Button";
 import Select from "../../../components/UI/Select";
 
 const FREQUENCY_OPTIONS = [
@@ -13,409 +12,139 @@ const FREQUENCY_OPTIONS = [
 interface Props {
   settings: NotificationsSettings;
   onUpdate: (field: keyof NotificationsSettings, value: any) => void;
+  onTestSmtp: () => Promise<void>;
+  onTestSms: () => Promise<void>;
 }
 
-const NotificationsTab: React.FC<Props> = ({ settings, onUpdate }) => {
-  // Modal state (unchanged)
-  const [modal, setModal] = useState<{
-    visible: boolean;
-    type: "smtp" | "sms";
-    loading: boolean;
-    result: { success: boolean; message: string } | null;
-  }>({
-    visible: false,
-    type: "smtp",
-    loading: false,
-    result: null,
-  });
-
-  const closeModal = () => {
-    setModal({ visible: false, type: "smtp", loading: false, result: null });
+const NotificationsTab: React.FC<Props> = ({ settings, onUpdate, onTestSmtp, onTestSms }) => {
+  const [testing, setTesting] = useState<"smtp" | "sms" | null>(null);
+  const inputStyle = {
+    backgroundColor: "var(--input-bg)",
+    borderColor: "var(--input-border)",
+    color: "var(--text-primary)",
   };
 
-  const testSMTP = async () => {
-    setModal({
-      visible: true,
-      type: "smtp",
-      loading: true,
-      result: null,
-    });
+  const handleTest = async (type: "smtp" | "sms") => {
+    setTesting(type);
     try {
-      if (!window.backendAPI?.systemConfig)
-        throw new Error("Electron API not available");
-      const response = await window.backendAPI.systemConfig({
-        method: "testSmtpConnection",
-        params: { settings },
-      });
-      setModal((prev) => ({
-        ...prev,
-        loading: false,
-        result: {
-          success: response.status,
-          message: response.message || (response.status ? "SMTP connection successful" : "SMTP connection failed"),
-        },
-      }));
-    } catch (err: any) {
-      setModal((prev) => ({
-        ...prev,
-        loading: false,
-        result: {
-          success: false,
-          message: err.message || "Failed to test SMTP connection",
-        },
-      }));
-    }
-  };
-
-  const testSMS = async () => {
-    setModal({
-      visible: true,
-      type: "sms",
-      loading: true,
-      result: null,
-    });
-    try {
-      if (!window.backendAPI?.systemConfig)
-        throw new Error("Electron API not available");
-      const response = await window.backendAPI.systemConfig({
-        method: "testSmsConnection",
-        params: { settings },
-      });
-      setModal((prev) => ({
-        ...prev,
-        loading: false,
-        result: {
-          success: response.status,
-          message: response.message || (response.status ? "SMS connection successful" : "SMS connection failed"),
-        },
-      }));
-    } catch (err: any) {
-      setModal((prev) => ({
-        ...prev,
-        loading: false,
-        result: {
-          success: false,
-          message: err.message || "Failed to test SMS connection",
-        },
-      }));
-    }
+      if (type === "smtp") await onTestSmtp();
+      else await onTestSms();
+    } finally { setTesting(null); }
   };
 
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold text-[var(--text-primary)]">Notification Settings</h3>
-        <p className="text-sm text-[var(--text-secondary)]">Email, SMS, and reminder preferences</p>
+        <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>Notification Settings</h3>
+        <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Email, SMS, and reminder preferences</p>
       </div>
 
-      {/* General toggles */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="flex items-center justify-between">
           <div>
-            <label htmlFor="email_enabled" className="text-sm font-medium text-[var(--text-primary)]">
-              Enable Email Notifications
-            </label>
-            <p className="text-xs text-[var(--text-tertiary)]">Send email alerts for events</p>
+            <label className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>Enable Email Notifications</label>
+            <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>Send email alerts for events</p>
           </div>
-          <Switch
-            checked={settings.email_enabled || false}
-            onChange={(checked) => onUpdate("email_enabled", checked)}
-          />
+          <Switch checked={settings.email_enabled || false} onChange={(checked) => onUpdate("email_enabled", checked)} />
         </div>
-
         <div className="flex items-center justify-between">
           <div>
-            <label htmlFor="sms_enabled" className="text-sm font-medium text-[var(--text-primary)]">
-              Enable SMS Notifications
-            </label>
-            <p className="text-xs text-[var(--text-tertiary)]">Send SMS alerts for events</p>
+            <label className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>Enable SMS Notifications</label>
+            <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>Send SMS alerts for events</p>
           </div>
-          <Switch
-            checked={settings.sms_enabled || false}
-            onChange={(checked) => onUpdate("sms_enabled", checked)}
-          />
+          <Switch checked={settings.sms_enabled || false} onChange={(checked) => onUpdate("sms_enabled", checked)} />
         </div>
-
         <div className="flex items-center justify-between">
           <div>
-            <label htmlFor="notify_on_payment" className="text-sm font-medium text-[var(--text-primary)]">
-              Notify debtor on payment received
-            </label>
+            <label className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>Notify debtor on payment received</label>
           </div>
-          <Switch
-            checked={settings.notify_on_payment || false}
-            onChange={(checked) => onUpdate("notify_on_payment", checked)}
-          />
+          <Switch checked={settings.notify_on_payment || false} onChange={(checked) => onUpdate("notify_on_payment", checked)} />
         </div>
-
         <div className="flex items-center justify-between">
           <div>
-            <label htmlFor="notify_on_penalty" className="text-sm font-medium text-[var(--text-primary)]">
-              Notify debtor when penalty is applied
-            </label>
+            <label className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>Notify debtor when penalty is applied</label>
           </div>
-          <Switch
-            checked={settings.notify_on_penalty || false}
-            onChange={(checked) => onUpdate("notify_on_penalty", checked)}
-          />
+          <Switch checked={settings.notify_on_penalty || false} onChange={(checked) => onUpdate("notify_on_penalty", checked)} />
         </div>
-
         <div className="flex items-center justify-between">
           <div>
-            <label htmlFor="send_reminders" className="text-sm font-medium text-[var(--text-primary)]">
-              Send overdue reminders
-            </label>
+            <label className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>Send overdue reminders</label>
           </div>
-          <Switch
-            checked={(settings.reminder_days_before_due?.length ?? 0) > 0}
-            onChange={(checked) => {
-              if (checked) onUpdate("reminder_days_before_due", [7, 3, 1]);
-              else onUpdate("reminder_days_before_due", []);
-            }}
-          />
+          <Switch checked={(settings.reminder_days_before_due?.length ?? 0) > 0} onChange={(checked) => { if (checked) onUpdate("reminder_days_before_due", [7, 3, 1]); else onUpdate("reminder_days_before_due", []); }} />
         </div>
-
         <div>
-          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-            Reminder Days Before Due (comma separated)
-          </label>
-          <input
-            type="text"
-            value={
-              Array.isArray(settings.reminder_days_before_due)
-                ? settings.reminder_days_before_due.join(", ")
-                : ""
-            }
-            onChange={(e) => {
-              const days = e.target.value
-                .split(",")
-                .map((d) => parseInt(d.trim(), 10))
-                .filter((d) => !isNaN(d));
-              onUpdate("reminder_days_before_due", days);
-            }}
-            className="windows-input w-full"
-            placeholder="e.g., 7, 3, 1"
-          />
+          <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Reminder Days Before Due</label>
+          <input type="text" value={Array.isArray(settings.reminder_days_before_due) ? settings.reminder_days_before_due.join(", ") : ""} onChange={(e) => { const days = e.target.value.split(",").map((d) => parseInt(d.trim(), 10)).filter((d) => !isNaN(d)); onUpdate("reminder_days_before_due", days); }} className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]" style={inputStyle} placeholder="e.g., 7, 3, 1" />
         </div>
-
         <div>
-          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-            Overdue Notification Frequency
-          </label>
-          <Select
-            value={settings.overdue_notification_frequency || "daily"}
-            onChange={(val) => onUpdate("overdue_notification_frequency", val)}
-            options={FREQUENCY_OPTIONS}
-            placeholder="Select frequency"
-          />
+          <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Overdue Notification Frequency</label>
+          <Select value={settings.overdue_notification_frequency || "daily"} onChange={(val) => onUpdate("overdue_notification_frequency", val)} options={FREQUENCY_OPTIONS} placeholder="Select frequency" />
         </div>
       </div>
 
-      {/* Email SMTP Settings (unchanged except using Select for port? But port is number input, keep as is) */}
-      <div className="border-t border-[var(--border-color)] pt-5">
-        <h4 className="text-md font-medium text-[var(--text-primary)] mb-3">Email (SMTP) Settings</h4>
+      {/* SMTP Settings */}
+      <div className="border-t pt-5" style={{ borderColor: "var(--border-color)" }}>
+        <h4 className="text-md font-medium mb-3" style={{ color: "var(--text-primary)" }}>Email (SMTP) Settings</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-              SMTP Host
-            </label>
-            <input
-              type="text"
-              value={settings.email_smtp_host || ""}
-              onChange={(e) => onUpdate("email_smtp_host", e.target.value)}
-              className="windows-input w-full"
-              placeholder="smtp.gmail.com"
-            />
+            <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>SMTP Host</label>
+            <input type="text" value={settings.email_smtp_host || ""} onChange={(e) => onUpdate("email_smtp_host", e.target.value)} className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]" style={inputStyle} placeholder="smtp.gmail.com" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-              SMTP Port
-            </label>
-            <input
-              type="number"
-              value={settings.email_smtp_port || 587}
-              onChange={(e) =>
-                onUpdate("email_smtp_port", parseInt(e.target.value, 10) || 0)
-              }
-              className="windows-input w-full"
-              placeholder="587"
-            />
+            <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>SMTP Port</label>
+            <input type="number" value={settings.email_smtp_port || 587} onChange={(e) => onUpdate("email_smtp_port", parseInt(e.target.value, 10) || 0)} className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]" style={inputStyle} placeholder="587" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-              From Address
-            </label>
-            <input
-              type="email"
-              value={settings.email_from_address || ""}
-              onChange={(e) => onUpdate("email_from_address", e.target.value)}
-              className="windows-input w-full"
-              placeholder="noreply@example.com"
-            />
+            <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>From Address</label>
+            <input type="email" value={settings.email_from_address || ""} onChange={(e) => onUpdate("email_from_address", e.target.value)} className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]" style={inputStyle} placeholder="noreply@example.com" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-              SMTP Username
-            </label>
-            <input
-              type="text"
-              value={settings.email_smtp_username || ""}
-              onChange={(e) => onUpdate("email_smtp_username", e.target.value)}
-              className="windows-input w-full"
-              placeholder="user@example.com"
-            />
+            <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>SMTP Username</label>
+            <input type="text" value={settings.email_smtp_username || ""} onChange={(e) => onUpdate("email_smtp_username", e.target.value)} className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]" style={inputStyle} placeholder="user@example.com" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-              SMTP Password
-            </label>
-            <input
-              type="password"
-              value={settings.email_smtp_password || ""}
-              onChange={(e) => onUpdate("email_smtp_password", e.target.value)}
-              className="windows-input w-full"
-              placeholder="••••••••"
-            />
+            <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>SMTP Password</label>
+            <input type="password" value={settings.email_smtp_password || ""} onChange={(e) => onUpdate("email_smtp_password", e.target.value)} className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]" style={inputStyle} placeholder="••••••••" />
           </div>
-          <div className="md:col-span-2 flex justify-end">
-            <Button variant="secondary" size="sm" onClick={testSMTP}>
-              Test SMTP Connection
-            </Button>
+          <div className="flex justify-end items-center">
+            <button onClick={() => handleTest("smtp")} disabled={testing === "smtp"} className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5" style={{ backgroundColor: "var(--btn-secondary-bg)", color: "var(--btn-secondary-text)", border: "1px solid var(--btn-secondary-border)" }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--btn-secondary-hover)"} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "var(--btn-secondary-bg)"}>
+              {testing === "smtp" ? ( <><span className="animate-spin h-3 w-3 border-2 border-[var(--text-secondary)] border-t-transparent rounded-full" /> Testing...</> ) : ( "Test SMTP" )}
+            </button>
           </div>
         </div>
       </div>
 
-      {/* SMS (Twilio) Settings (unchanged) */}
-      <div className="border-t border-[var(--border-color)] pt-5">
-        <h4 className="text-md font-medium text-[var(--text-primary)] mb-3">SMS (Twilio) Settings</h4>
+      {/* SMS Settings */}
+      <div className="border-t pt-5" style={{ borderColor: "var(--border-color)" }}>
+        <h4 className="text-md font-medium mb-3" style={{ color: "var(--text-primary)" }}>SMS (Twilio) Settings</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-              SMS Provider
-            </label>
-            <input
-              type="text"
-              value={settings.sms_provider || "twilio"}
-              onChange={(e) => onUpdate("sms_provider", e.target.value)}
-              className="windows-input w-full"
-              placeholder="twilio"
-            />
+            <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>SMS Provider</label>
+            <input type="text" value={settings.sms_provider || "twilio"} onChange={(e) => onUpdate("sms_provider", e.target.value)} className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]" style={inputStyle} placeholder="twilio" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-              Account SID
-            </label>
-            <input
-              type="text"
-              value={settings.twilio_account_sid || ""}
-              onChange={(e) => onUpdate("twilio_account_sid", e.target.value)}
-              className="windows-input w-full"
-            />
+            <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Account SID</label>
+            <input type="text" value={settings.twilio_account_sid || ""} onChange={(e) => onUpdate("twilio_account_sid", e.target.value)} className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]" style={inputStyle} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-              Auth Token
-            </label>
-            <input
-              type="password"
-              value={settings.twilio_auth_token || ""}
-              onChange={(e) => onUpdate("twilio_auth_token", e.target.value)}
-              className="windows-input w-full"
-            />
+            <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Auth Token</label>
+            <input type="password" value={settings.twilio_auth_token || ""} onChange={(e) => onUpdate("twilio_auth_token", e.target.value)} className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]" style={inputStyle} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-              Phone Number
-            </label>
-            <input
-              type="text"
-              value={settings.twilio_phone_number || ""}
-              onChange={(e) => onUpdate("twilio_phone_number", e.target.value)}
-              className="windows-input w-full"
-              placeholder="+1234567890"
-            />
+            <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Phone Number</label>
+            <input type="text" value={settings.twilio_phone_number || ""} onChange={(e) => onUpdate("twilio_phone_number", e.target.value)} className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]" style={inputStyle} placeholder="+1234567890" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-              Messaging Service SID
-            </label>
-            <input
-              type="text"
-              value={settings.twilio_messaging_service_sid || ""}
-              onChange={(e) =>
-                onUpdate("twilio_messaging_service_sid", e.target.value)
-              }
-              className="windows-input w-full"
-            />
+            <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Messaging Service SID</label>
+            <input type="text" value={settings.twilio_messaging_service_sid || ""} onChange={(e) => onUpdate("twilio_messaging_service_sid", e.target.value)} className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]" style={inputStyle} />
           </div>
-          <div className="md:col-span-2 flex justify-end">
-            <Button variant="secondary" size="sm" onClick={testSMS}>
-              Test SMS Connection
-            </Button>
+          <div className="flex justify-end items-center">
+            <button onClick={() => handleTest("sms")} disabled={testing === "sms"} className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5" style={{ backgroundColor: "var(--btn-secondary-bg)", color: "var(--btn-secondary-text)", border: "1px solid var(--btn-secondary-border)" }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--btn-secondary-hover)"} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "var(--btn-secondary-bg)"}>
+              {testing === "sms" ? ( <><span className="animate-spin h-3 w-3 border-2 border-[var(--text-secondary)] border-t-transparent rounded-full" /> Testing...</> ) : ( "Test SMS" )}
+            </button>
           </div>
         </div>
       </div>
-
-      {/* Modal for test results (unchanged) */}
-      {modal.visible && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-          onClick={closeModal}
-        >
-          <div
-            className="bg-[var(--card-bg)] rounded-xl shadow-2xl max-w-md w-full mx-4 p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-semibold text-[var(--text-primary)]">
-                Testing {modal.type === "smtp" ? "SMTP" : "SMS"} Connection
-              </h3>
-              <button
-                onClick={closeModal}
-                className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="flex flex-col items-center justify-center py-6">
-              {modal.loading ? (
-                <>
-                  <div className="w-12 h-12 border-4 border-[var(--primary-color)] border-t-transparent rounded-full animate-spin mb-4"></div>
-                  <p className="text-[var(--text-secondary)]">Testing connection, please wait...</p>
-                </>
-              ) : modal.result ? (
-                <>
-                  <div
-                    className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 ${
-                      modal.result.success
-                        ? "bg-green-500/20 text-green-500"
-                        : "bg-red-500/20 text-red-500"
-                    }`}
-                  >
-                    {modal.result.success ? (
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    ) : (
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    )}
-                  </div>
-                  <p className={`text-center ${modal.result.success ? "text-green-500" : "text-red-500"}`}>
-                    {modal.result.message}
-                  </p>
-                </>
-              ) : null}
-            </div>
-            <div className="flex justify-end mt-4">
-              <Button variant="secondary" onClick={closeModal}>
-                Close
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

@@ -1,5 +1,5 @@
 // src/renderer/routes/App.tsx
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import Layout from "../layouts/Layout";
 import AuditTrailPage from "../pages/AuditTrail";
 import SettingsPage from "../pages/Settings";
@@ -34,16 +34,32 @@ import Verify2FAPage from "../pages/auth/Verify2FA";
 import { useAuth } from "../contexts/AuthContext";
 import { ProtectedRoute } from "../components/Shared/ProtectedRoute";
 import UserManagement from "../pages/users";
+import ProfilePage from "../pages/profile";
 
 function App() {
   const [licenseAccepted, setLicenseAccepted] = useState(false);
   const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
 
   // Unauthorized listener (existing)
   useEffect(() => {
     if (window.backendAPI?.notifyAppReady) {
       window.backendAPI.notifyAppReady();
     }
+  }, []);
+
+  useEffect(() => {
+    const handleStatusChange = (event: any, data: any) => {
+      console.log("System status changed:", data);
+      // Reload the entire app
+      window.location.reload();
+    };
+
+    window.backendAPI.on("system:statusChanged", handleStatusChange);
+
+    return () => {
+      window.backendAPI.off("system:statusChanged", handleStatusChange);
+    };
   }, []);
 
   // ✅ Listen for auth:unauthorized event
@@ -53,7 +69,7 @@ function App() {
       // or use a ref to navigate. For simplicity, we'll reload to login.
       // In a more complex app, you'd use useNavigate, but since this is a top-level component,
       // we can use window.location.
-      window.location.href = "/login";
+      navigate("/login");
     });
 
     return () => {
@@ -302,6 +318,7 @@ function App() {
         />
 
         <Route path="/users" element={<UserManagement />} />
+        <Route path="/profile" element={<ProfilePage />} />
 
         {/* 404 Page */}
         <Route path="*" element={<div>Not found page</div>} />

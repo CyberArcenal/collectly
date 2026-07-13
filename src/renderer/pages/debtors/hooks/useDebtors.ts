@@ -80,14 +80,15 @@ const useDebtors = (initialFilters?: Partial<DebtorFilters>): UseDebtorsReturn =
   const fetchStats = useCallback(async () => {
     try {
       const response = await borrowersAPI.getStatistics();
+      console.log(response)
       if (response.status) {
         const data = response.data;
         setStats({
           total: data.total || 0,
           active: data.total - (data.deleted || 0),
           deleted: data.deleted || 0,
-          withEmail: data.totalWithEmail || 0,
-          withContact: data.totalWithContact || 0,
+          withEmail: data.totalWithEmail || data.with_email || 0,
+          withContact: data.totalWithContact || data.with_contact || 0,
         });
       }
     } catch (err) {

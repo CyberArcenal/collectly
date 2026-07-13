@@ -20,7 +20,7 @@ const formatAction = (action: string) => {
 };
 
 export const AuditTable: React.FC<AuditTableProps> = ({ logs, onView, loading }) => {
-  if (logs.length === 0) {
+  if (logs?.length === 0) {
     return (
       <div className="text-center py-8 text-[var(--text-tertiary)] border border-[var(--border-color)] rounded-xl bg-[var(--card-bg)] text-sm">
         <FileText className="w-8 h-8 mx-auto mb-2 text-[var(--text-tertiary)]" />
@@ -55,7 +55,7 @@ export const AuditTable: React.FC<AuditTableProps> = ({ logs, onView, loading })
           </tr>
         </thead>
         <tbody>
-          {logs.map((log) => (
+          {logs?.map((log) => (
             <tr
               key={log.id}
               className="border-b border-[var(--border-color)] hover:bg-[var(--card-hover-bg)] transition-colors cursor-pointer"
