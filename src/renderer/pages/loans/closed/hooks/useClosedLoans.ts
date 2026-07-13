@@ -1,8 +1,8 @@
 // src/renderer/pages/loans/closed/hooks/useClosedLoans.ts
 import { useState, useEffect, useCallback, useRef } from "react";
+import type { Debt } from "../../../../api/core/debt";
 import debtsAPI from "../../../../api/core/debt";
 import paymentsAPI from "../../../../api/core/payment_transaction";
-import type { Debt } from "../../../../api/core/debt";
 
 export interface ClosedLoanFilters {
   search: string;
@@ -42,7 +42,10 @@ const useClosedLoans = (): UseClosedLoansReturn => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedLoans, setSelectedLoans] = useState<number[]>([]);
-  const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" }>({
+  const [sortConfig, setSortConfig] = useState<{
+    key: string;
+    direction: "asc" | "desc";
+  }>({
     key: "closedAt",
     direction: "desc",
   });
@@ -58,7 +61,9 @@ const useClosedLoans = (): UseClosedLoansReturn => {
 
   useEffect(() => {
     mountedRef.current = true;
-    return () => { mountedRef.current = false; };
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   const fetchClosedLoans = useCallback(async () => {
@@ -128,7 +133,7 @@ const useClosedLoans = (): UseClosedLoansReturn => {
   }, [fetchClosedLoans]);
 
   const handleFilterChange = (key: keyof ClosedLoanFilters, value: string) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+    setFilters((prev) => ({ ...prev, [key]: value }));
     setCurrentPage(1);
   };
 
@@ -138,19 +143,19 @@ const useClosedLoans = (): UseClosedLoansReturn => {
   };
 
   const toggleLoanSelection = (id: number) => {
-    setSelectedLoans(prev =>
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    setSelectedLoans((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
     );
   };
 
   const toggleSelectAll = () => {
-    setSelectedLoans(prev =>
-      prev.length === loans.length ? [] : loans.map(l => l.id)
+    setSelectedLoans((prev) =>
+      prev.length === loans.length ? [] : loans.map((l) => l.id)
     );
   };
 
   const handleSort = (key: string) => {
-    setSortConfig(prev => ({
+    setSortConfig((prev) => ({
       key,
       direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
     }));

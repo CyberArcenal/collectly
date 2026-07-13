@@ -6,7 +6,7 @@ import loanApplicationsAPI from "../../../../api/core/loan_application";
 interface UseLoanApplicationsReturn {
   applications: LoanApplication[];
   loading: boolean;
-  totalItems: number;  // renamed from pagination
+  totalItems: number;
   currentPage: number;
   setCurrentPage: (page: number) => void;
   pageSize: number;
@@ -17,6 +17,14 @@ interface UseLoanApplicationsReturn {
   approve: (id: number) => Promise<void>;
   reject: (id: number, reason?: string) => Promise<void>;
   remove: (id: number) => Promise<void>;
+  stats: {
+    totalApplications: number;
+    pending: number;
+    approved: number;
+    rejected: number;
+    totalRequestedAmount: number;
+  } | null;
+  fetchStats: () => Promise<void>;
 }
 
 const useLoanApplications = (initialPageSize = 9): UseLoanApplicationsReturn => {
@@ -26,6 +34,18 @@ const useLoanApplications = (initialPageSize = 9): UseLoanApplicationsReturn => 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [totalItems, setTotalItems] = useState(0);
+  const [stats, setStats] = useState<UseLoanApplicationsReturn["stats"]>(null);
+
+  const fetchStats = useCallback(async () => {
+    try {
+      const response = await loanApplicationsAPI.getStatistics();
+      if (response.status) {
+        setStats(response.data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch application stats:", err);
+    }
+  }, []);
 
   const loadApplications = useCallback(async () => {
     setLoading(true);
@@ -56,11 +76,17 @@ const useLoanApplications = (initialPageSize = 9): UseLoanApplicationsReturn => 
     loadApplications();
   }, [loadApplications]);
 
+  // Fetch stats on mount
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
   const approve = async (id: number) => {
     try {
       const response = await loanApplicationsAPI.approve(id);
       if (response.status) {
         await loadApplications();
+        await fetchStats();
       } else {
         throw new Error(response.message);
       }
@@ -75,6 +101,7 @@ const useLoanApplications = (initialPageSize = 9): UseLoanApplicationsReturn => 
       const response = await loanApplicationsAPI.reject(id, reason);
       if (response.status) {
         await loadApplications();
+        await fetchStats();
       } else {
         throw new Error(response.message);
       }
@@ -89,6 +116,7 @@ const useLoanApplications = (initialPageSize = 9): UseLoanApplicationsReturn => 
       const response = await loanApplicationsAPI.delete(id);
       if (response.status) {
         await loadApplications();
+        await fetchStats();
       } else {
         throw new Error(response.message);
       }
@@ -100,6 +128,7 @@ const useLoanApplications = (initialPageSize = 9): UseLoanApplicationsReturn => 
 
   const refresh = async () => {
     await loadApplications();
+    await fetchStats();
   };
 
   return {
@@ -116,6 +145,8 @@ const useLoanApplications = (initialPageSize = 9): UseLoanApplicationsReturn => 
     approve,
     reject,
     remove,
+    stats,
+    fetchStats,
   };
 };
 

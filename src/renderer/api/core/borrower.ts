@@ -20,6 +20,7 @@ export interface Borrower {
 }
 
 export interface BorrowerStatistics {
+  deleted: number;
   total: number;
   totalWithEmail: number;
   totalWithContact: number;

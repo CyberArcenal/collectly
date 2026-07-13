@@ -1,8 +1,9 @@
 // src/renderer/pages/loans/overdue/hooks/useOverdueLoans.ts
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import debtsAPI from "../../../../api/core/debt";
 import type { Debt } from "../../../../api/core/debt";
+import debtsAPI from "../../../../api/core/debt";
+import penaltiesAPI from "../../../../api/core/pernalty_transaction";
 
 export interface OverdueFilter {
   search: string;
@@ -11,6 +12,13 @@ export interface OverdueFilter {
 
 export interface OverdueLoan extends Debt {
   stats: NonNullable<Debt["stats"]>;
+}
+
+export interface OverdueStats {
+  total: number;
+  totalAmount: number;
+  averageDaysOverdue: number;
+  totalPenalties: number;
 }
 
 interface UseOverdueLoansReturn {
@@ -28,11 +36,13 @@ interface UseOverdueLoansReturn {
   currentPage: number;
   setCurrentPage: (page: number) => void;
   reload: () => void;
+  fetchStats: () => Promise<void>;
   handleFilterChange: (key: keyof OverdueFilter, value: string) => void;
   resetFilters: () => void;
   toggleLoanSelection: (id: number) => void;
   toggleSelectAll: () => void;
   handleSort: (key: string) => void;
+  stats: OverdueStats | null;
 }
 
 const useOverdueLoans = (): UseOverdueLoansReturn => {
@@ -40,6 +50,7 @@ const useOverdueLoans = (): UseOverdueLoansReturn => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedLoans, setSelectedLoans] = useState<number[]>([]);
+  const [stats, setStats] = useState<OverdueStats | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" }>({
     key: "daysOverdue",
     direction: "desc",
@@ -52,10 +63,11 @@ const useOverdueLoans = (): UseOverdueLoansReturn => {
 
   useEffect(() => {
     mountedRef.current = true;
-    return () => { mountedRef.current = false; };
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
-  // Compute daysOverdue for a debt
   const computeDaysOverdue = (debt: Debt): number => {
     if (debt.stats?.daysOverdue !== undefined) return debt.stats.daysOverdue;
     const dueDate = new Date(debt.dueDate);
@@ -66,18 +78,48 @@ const useOverdueLoans = (): UseOverdueLoansReturn => {
     return Math.max(0, diff);
   };
 
+  const fetchStats = useCallback(async () => {
+    try {
+      const [debtsRes, penaltiesRes] = await Promise.all([
+        debtsAPI.getAll({ status: "overdue", includeDeleted: false, limit: 1000 }),
+        penaltiesAPI.getStatistics(),
+      ]);
+
+      let totalAmount = 0;
+      let totalDays = 0;
+      let count = 0;
+
+      if (debtsRes.status) {
+        const overdueDebts = debtsRes.data.data.filter(
+          (d) => d.status === "overdue" || d.status === "active"
+        );
+        count = overdueDebts.length;
+        totalAmount = overdueDebts.reduce((sum, d) => sum + d.remainingAmount, 0);
+        totalDays = overdueDebts.reduce((sum, d) => sum + computeDaysOverdue(d), 0);
+      }
+
+      setStats({
+        total: count,
+        totalAmount,
+        averageDaysOverdue: count > 0 ? Math.round(totalDays / count) : 0,
+        totalPenalties: penaltiesRes.status ? penaltiesRes.data.totalPenaltyAmount : 0,
+      });
+    } catch (err) {
+      console.error("Failed to fetch overdue stats:", err);
+    }
+  }, []);
+
   const fetchOverdueLoans = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const todayStr = today.toISOString().split('T')[0];
+      const todayStr = today.toISOString().split("T")[0];
 
-      // Fetch all debts with dueDate <= today (overdue by date)
       const response = await debtsAPI.getAll({
         includeDeleted: false,
-        limit: 1000, // fetch all for now; we'll do frontend pagination
+        limit: 1000,
         dueDateTo: todayStr,
         sortBy: "dueDate",
         sortOrder: "ASC",
@@ -85,15 +127,13 @@ const useOverdueLoans = (): UseOverdueLoansReturn => {
 
       if (!response.status) throw new Error(response.message || "Failed to fetch overdue loans");
 
-      // Filter: only active or overdue, and not paid/defaulted, and remaining > 0
-      let filtered = response.data.data.filter(debt => {
+      let filtered = response.data.data.filter((debt) => {
         const isActiveOrOverdue = debt.status === "active" || debt.status === "overdue";
         const hasRemaining = debt.remainingAmount > 0.01;
         return isActiveOrOverdue && hasRemaining;
       });
 
-      // Ensure stats exist
-      const withStats: OverdueLoan[] = filtered.map(debt => ({
+      const withStats: OverdueLoan[] = filtered.map((debt) => ({
         ...debt,
         stats: debt.stats || {
           totalPaid: debt.paidAmount,
@@ -123,24 +163,22 @@ const useOverdueLoans = (): UseOverdueLoansReturn => {
   const filteredAndSortedLoans = useMemo(() => {
     let result = [...allLoans];
 
-    // Search filter
     if (filters.search.trim()) {
       const search = filters.search.toLowerCase();
-      result = result.filter(loan =>
-        loan.name.toLowerCase().includes(search) ||
-        loan.borrower?.name?.toLowerCase().includes(search) ||
-        loan.borrower?.contact?.toLowerCase().includes(search) ||
-        loan.borrower?.email?.toLowerCase().includes(search)
+      result = result.filter(
+        (loan) =>
+          loan.name.toLowerCase().includes(search) ||
+          loan.borrower?.name?.toLowerCase().includes(search) ||
+          loan.borrower?.contact?.toLowerCase().includes(search) ||
+          loan.borrower?.email?.toLowerCase().includes(search)
       );
     }
 
-    // Days overdue filter
     if (filters.daysOverdue !== "all") {
       const minDays = parseInt(filters.daysOverdue);
-      result = result.filter(loan => loan.stats.daysOverdue >= minDays);
+      result = result.filter((loan) => loan.stats.daysOverdue >= minDays);
     }
 
-    // Sorting
     const key = sortConfig.key;
     const direction = sortConfig.direction;
     result.sort((a, b) => {
@@ -173,7 +211,6 @@ const useOverdueLoans = (): UseOverdueLoansReturn => {
     return result;
   }, [allLoans, filters, sortConfig]);
 
-  // Paginate
   const paginatedLoans = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
     const end = start + pageSize;
@@ -183,7 +220,6 @@ const useOverdueLoans = (): UseOverdueLoansReturn => {
   const totalItems = filteredAndSortedLoans.length;
   const totalPages = Math.ceil(totalItems / pageSize) || 1;
 
-  // Ensure currentPage is within bounds
   useEffect(() => {
     if (currentPage > totalPages && totalPages > 0) {
       setCurrentPage(totalPages);
@@ -191,7 +227,7 @@ const useOverdueLoans = (): UseOverdueLoansReturn => {
   }, [totalPages, currentPage]);
 
   const handleFilterChange = (key: keyof OverdueFilter, value: string) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+    setFilters((prev) => ({ ...prev, [key]: value }));
     setCurrentPage(1);
   };
 
@@ -201,19 +237,19 @@ const useOverdueLoans = (): UseOverdueLoansReturn => {
   };
 
   const toggleLoanSelection = (id: number) => {
-    setSelectedLoans(prev =>
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    setSelectedLoans((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
     );
   };
 
   const toggleSelectAll = () => {
-    setSelectedLoans(prev =>
-      prev.length === paginatedLoans.length ? [] : paginatedLoans.map(l => l.id)
+    setSelectedLoans((prev) =>
+      prev.length === paginatedLoans.length ? [] : paginatedLoans.map((l) => l.id)
     );
   };
 
   const handleSort = (key: string) => {
-    setSortConfig(prev => ({
+    setSortConfig((prev) => ({
       key,
       direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
     }));
@@ -249,11 +285,13 @@ const useOverdueLoans = (): UseOverdueLoansReturn => {
     currentPage,
     setCurrentPage,
     reload,
+    fetchStats,
     handleFilterChange,
     resetFilters,
     toggleLoanSelection,
     toggleSelectAll,
     handleSort,
+    stats,
   };
 };
 

@@ -15,9 +15,9 @@ const generateReportFromScore = (debtor: Borrower, score: CreditScore): CreditRe
     overdueDebts: 0,
     recommendations:
       score.score >= 700
-        ? "Low risk – eligible for loan."
+        ? "Low risk – eligible for loan without collateral."
         : score.score >= 500
-        ? "Medium risk – may require collateral."
+        ? "Medium risk – may require collateral or guarantor."
         : "High risk – improve credit history before applying.",
   };
 };
@@ -30,58 +30,53 @@ const useCreditCheck = () => {
   const [previousChecks, setPreviousChecks] = useState<CreditCheckLog[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [hasMoreLogs, setHasMoreLogs] = useState(false);
-  
+
   const currentPageRef = useRef(1);
   const logsLimit = 10;
 
   // Helper to load logs for a specific page
-  const loadLogsPage = useCallback(async (
-    debtorId: number, 
-    debtorName: string, 
-    page: number, 
-    resetList: boolean
-  ) => {
-    setLoadingLogs(true);
-    try {
-      const response = await creditCheckAPI.getHistory(debtorId, page, logsLimit);
-      // console.log("[CreditCheck] History response:", response);
-      
-      if (response.status && response.data) {
-        // response.data is PaginatedResult<CreditCheckLog>
-        const items = response.data.data || [];
-        const pagination = response.data.pagination;
-        // console.log(`[CreditCheck] Got ${items.length} logs, total ${pagination?.total || 0}`);
-        
-        const mappedLogs: CreditCheckLog[] = items.map((log: any) => ({
-          id: log.id,
-          debtorId: log.debtorId,
-          debtorName: debtorName,
-          score: log.score ?? log.creditScore ?? 0,
-          riskLevel: log.riskLevel ?? "Unknown",
-          remarks: log.remarks ?? "",
-          dateChecked: log.dateChecked || log.createdAt,
-          createdAt: log.createdAt,
-        }));
+  const loadLogsPage = useCallback(
+    async (debtorId: number, debtorName: string, page: number, resetList: boolean) => {
+      setLoadingLogs(true);
+      try {
+        const response = await creditCheckAPI.getHistory(debtorId, page, logsLimit);
 
-        if (resetList) {
-          setPreviousChecks(mappedLogs);
+        if (response.status && response.data) {
+          const items = response.data.data || [];
+          const pagination = response.data.pagination;
+
+          const mappedLogs: CreditCheckLog[] = items.map((log: any) => ({
+            id: log.id,
+            debtorId: log.debtorId,
+            debtorName: debtorName,
+            score: log.score ?? log.creditScore ?? 0,
+            riskLevel: log.riskLevel ?? "Unknown",
+            remarks: log.remarks ?? "",
+            dateChecked: log.dateChecked || log.createdAt,
+            createdAt: log.createdAt,
+          }));
+
+          if (resetList) {
+            setPreviousChecks(mappedLogs);
+          } else {
+            setPreviousChecks((prev) => [...prev, ...mappedLogs]);
+          }
+          setHasMoreLogs(page < (pagination?.total || 1));
+          currentPageRef.current = page;
         } else {
-          setPreviousChecks(prev => [...prev, ...mappedLogs]);
+          console.error("[CreditCheck] API error:", response.message);
+          if (resetList) setPreviousChecks([]);
+          setHasMoreLogs(false);
         }
-        setHasMoreLogs(page < (pagination?.total || 1));
-        currentPageRef.current = page;
-      } else {
-        console.error("[CreditCheck] API error:", response.message);
+      } catch (err) {
+        console.error("[CreditCheck] Failed to load history:", err);
         if (resetList) setPreviousChecks([]);
-        setHasMoreLogs(false);
+      } finally {
+        setLoadingLogs(false);
       }
-    } catch (err) {
-      console.error("[CreditCheck] Failed to load history:", err);
-      if (resetList) setPreviousChecks([]);
-    } finally {
-      setLoadingLogs(false);
-    }
-  }, []);
+    },
+    []
+  );
 
   // Load first page when debtor changes
   useEffect(() => {
@@ -99,32 +94,46 @@ const useCreditCheck = () => {
     loadLogsPage(selectedDebtor.id, selectedDebtor.name, nextPage, false);
   }, [selectedDebtor, loadingLogs, hasMoreLogs, loadLogsPage]);
 
-  const performCheck = useCallback(async (debtor: Borrower) => {
-    setCheckingCredit(true);
-    setCreditScore(null);
-    setReport(null);
-    try {
-      const response = await creditCheckAPI.performCheck(debtor.id);
-      if (response.status) {
-        const score = response.data;
-        setCreditScore(score);
-        // Reload logs from first page to include the new check
-        await loadLogsPage(debtor.id, debtor.name, 1, true);
-        const newReport = generateReportFromScore(debtor, score);
-        setReport(newReport);
-      } else {
-        throw new Error(response.message);
+  const performCheck = useCallback(
+    async (debtor: Borrower) => {
+      setCheckingCredit(true);
+      setCreditScore(null);
+      setReport(null);
+      try {
+        const response = await creditCheckAPI.performCheck(debtor.id);
+        if (response.status) {
+          const score = response.data;
+          setCreditScore(score);
+          // Reload logs from first page to include the new check
+          await loadLogsPage(debtor.id, debtor.name, 1, true);
+          const newReport = generateReportFromScore(debtor, score);
+          setReport(newReport);
+        } else {
+          throw new Error(response.message);
+        }
+      } catch (err: any) {
+        dialogs.error(err.message || "Credit check failed");
+      } finally {
+        setCheckingCredit(false);
       }
-    } catch (err: any) {
-      dialogs.error(err.message || "Credit check failed");
-    } finally {
-      setCheckingCredit(false);
-    }
-  }, [loadLogsPage]);
+    },
+    [loadLogsPage]
+  );
 
   const downloadReport = useCallback(() => {
     if (!report) return;
-    const content = `...`; // unchanged
+    const content = `
+Credit Report
+=============
+Debtor: ${report.debtorName}
+Score: ${report.score.score} (${report.score.riskLevel} Risk)
+Remarks: ${report.score.remarks}
+Checked: ${new Date(report.score.dateChecked).toLocaleString()}
+Payment History: ${report.paymentHistory || "N/A"}
+Outstanding Debts: ₱${report.outstandingDebts?.toLocaleString() || "0"}
+Overdue Debts: ${report.overdueDebts || 0}
+Recommendations: ${report.recommendations}
+    `;
     const blob = new Blob([content], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");

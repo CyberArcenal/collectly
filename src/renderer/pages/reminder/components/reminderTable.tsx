@@ -1,3 +1,4 @@
+// src/renderer/pages/notification/components/reminderTable.tsx
 import React from "react";
 import {
   Eye,
@@ -10,6 +11,7 @@ import {
   RotateCw,
   Mail,
   Loader2,
+  User,
 } from "lucide-react";
 import { formatDate } from "../../../utils/formatters";
 import type { NotificationLogEntry } from "../../../api/core/reminder_log";
@@ -24,6 +26,36 @@ interface NotificationTableProps {
   sendingIds?: Set<number>;
 }
 
+const getInitials = (email: string) => {
+  const name = email.split('@')[0];
+  return name.slice(0, 2).toUpperCase();
+};
+
+const getStatusBadge = (status: string) => {
+  switch (status) {
+    case "sent":
+      return { bg: "bg-[var(--status-success-bg)]", text: "text-[var(--status-success-text)]" };
+    case "queued":
+      return { bg: "bg-[var(--status-pending-bg)]", text: "text-[var(--status-pending-text)]" };
+    case "failed":
+      return { bg: "bg-[var(--status-overdue-bg)]", text: "text-[var(--status-overdue-text)]" };
+    case "resend":
+      return { bg: "bg-[var(--status-partial-bg)]", text: "text-[var(--status-partial-text)]" };
+    default:
+      return { bg: "bg-[var(--status-inactive-bg)]", text: "text-[var(--status-inactive-text)]" };
+  }
+};
+
+const getStatusIcon = (status: string) => {
+  switch (status) {
+    case "sent": return <CheckCircle className="w-3 h-3" />;
+    case "queued": return <Clock className="w-3 h-3" />;
+    case "failed": return <XCircle className="w-3 h-3" />;
+    case "resend": return <RotateCw className="w-3 h-3" />;
+    default: return <Mail className="w-3 h-3" />;
+  }
+};
+
 export const NotificationTable: React.FC<NotificationTableProps> = ({
   logs,
   onView,
@@ -33,128 +65,138 @@ export const NotificationTable: React.FC<NotificationTableProps> = ({
   isLoading,
   sendingIds = new Set(),
 }) => {
-  console.log(logs)
-  const getStatusBadge = (status: string) => {
-    const baseClasses =
-      "px-2 py-1 text-xs font-medium rounded-full inline-flex items-center gap-1";
-    switch (status) {
-      case "sent":
-        return `${baseClasses} bg-green-500/20 text-green-400 border border-green-500/30`;
-      case "queued":
-        return `${baseClasses} bg-yellow-500/20 text-yellow-400 border border-yellow-500/30`;
-      case "failed":
-        return `${baseClasses} bg-red-500/20 text-red-400 border border-red-500/30`;
-      case "resend":
-        return `${baseClasses} bg-blue-500/20 text-blue-400 border border-blue-500/30`;
-      default:
-        return `${baseClasses} bg-gray-500/20 text-gray-400 border border-gray-500/30`;
-    }
-  };
-
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center py-20">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[var(--primary-color)]"></div>
+      <div className="flex justify-center py-12">
+        <div className="animate-spin h-8 w-8 border-2 border-[var(--primary-color)] border-t-transparent rounded-full" />
       </div>
     );
   }
 
-  if (logs?.length === 0) {
+  if (logs.length === 0) {
     return (
-      <div className="text-center py-16 bg-[var(--card-bg)] rounded-xl border border-[var(--border-color)]/20">
-        <Mail className="w-16 h-16 mx-auto text-[var(--text-tertiary)] mb-4" />
-        <h3 className="text-xl font-medium mb-2 text-[var(--text-primary)]">
-          No email records found
-        </h3>
-        <p className="text-[var(--text-secondary)]">
-          Try adjusting your filters or check back later.
-        </p>
+      <div className="text-center py-8 text-[var(--text-tertiary)] border border-[var(--border-color)] rounded-xl bg-[var(--card-bg)] text-sm">
+        <Mail className="w-8 h-8 mx-auto mb-2 text-[var(--text-tertiary)]" />
+        <p>No email records found</p>
+        <p className="text-xs text-[var(--text-tertiary)] mt-1">Try adjusting your filters</p>
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto bg-[var(--card-bg)] rounded-lg border border-[var(--border-color)]/20">
+    <div className="overflow-x-auto rounded-xl border border-[var(--border-color)] bg-[var(--card-bg)]">
       <table className="w-full text-sm">
-        <thead className="bg-[var(--card-secondary-bg)] border-b border-[var(--border-color)]/20">
+        <thead className="bg-[var(--card-secondary-bg)] border-b border-[var(--border-color)]">
           <tr>
-            <th className="px-4 py-3 text-left text-xs font-medium text-[var(--text-tertiary)] uppercase tracking-wider">ID</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-[var(--text-tertiary)] uppercase tracking-wider">Recipient</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-[var(--text-tertiary)] uppercase tracking-wider">Subject</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-[var(--text-tertiary)] uppercase tracking-wider">Status</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-[var(--text-tertiary)] uppercase tracking-wider">Retries/Resends</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-[var(--text-tertiary)] uppercase tracking-wider">Sent At</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-[var(--text-tertiary)] uppercase tracking-wider">Created</th>
-            <th className="px-4 py-3 text-right text-xs font-medium text-[var(--text-tertiary)] uppercase tracking-wider">Actions</th>
+            <th className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
+              Recipient
+            </th>
+            <th className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
+              Subject
+            </th>
+            <th className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
+              Status
+            </th>
+            <th className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
+              Retries/Resends
+            </th>
+            <th className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
+              Sent At
+            </th>
+            <th className="text-center py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
+              Actions
+            </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-[var(--border-color)]/10">
-          {logs?.map((log) => {
+        <tbody>
+          {logs.map((log) => {
             const isSending = sendingIds.has(log.id);
+            const statusBadge = getStatusBadge(log.status);
+
             return (
               <tr
                 key={log.id}
-                onClick={(e)=> {e.stopPropagation(); onView(log)}}
-                className={`hover:bg-[var(--card-hover-bg)]/20 transition-colors ${isSending ? "sending-row" : ""}`}
+                className="border-b border-[var(--border-color)] hover:bg-[var(--card-hover-bg)] transition-colors cursor-pointer"
+                onClick={() => onView(log)}
               >
-                <td className="px-4 py-3 text-[var(--text-primary)] whitespace-nowrap">#{log.id}</td>
-                <td className="px-4 py-3 text-[var(--text-primary)] whitespace-nowrap">{log.recipient_email}</td>
-                <td className="px-4 py-3 text-[var(--text-secondary)] max-w-[200px] truncate">{log.subject || "—"}</td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <span className={getStatusBadge(log.status)}>
-                    {log.status === "resend" && <RotateCw className="w-3 h-3" />}
-                    {log.status === "sent" && <CheckCircle className="w-3 h-3" />}
-                    {log.status === "queued" && <Clock className="w-3 h-3" />}
-                    {log.status === "failed" && <XCircle className="w-3 h-3" />}
+                <td className="py-2.5 px-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[var(--primary-color)] to-[var(--primary-hover)] flex items-center justify-center text-white text-[10px] font-medium flex-shrink-0">
+                      {getInitials(log.recipient_email)}
+                    </div>
+                    <div>
+                      <div className="text-[var(--text-primary)] text-sm truncate max-w-[150px]">
+                        {log.recipient_email}
+                      </div>
+                    </div>
+                  </div>
+                </td>
+                <td className="py-2.5 px-3">
+                  <span className="text-[var(--text-secondary)] text-sm truncate max-w-[200px] block">
+                    {log.subject || "—"}
+                  </span>
+                </td>
+                <td className="py-2.5 px-3">
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full ${statusBadge.bg} ${statusBadge.text}`}>
+                    {getStatusIcon(log.status)}
                     {log.status}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-[var(--text-secondary)] whitespace-nowrap">
-                  {log.retry_count} / {log.resend_count}
+                <td className="py-2.5 px-3">
+                  <span className="text-[var(--text-secondary)] text-sm">
+                    {log.retry_count} / {log.resend_count}
+                  </span>
                 </td>
-                <td className="px-4 py-3 text-[var(--text-secondary)] whitespace-nowrap">
-                  {log.sent_at ? formatDate(log.sent_at) : "—"}
+                <td className="py-2.5 px-3">
+                  <span className="text-[var(--text-secondary)] text-sm">
+                    {log.sent_at ? formatDate(log.sent_at) : "—"}
+                  </span>
                 </td>
-                <td className="px-4 py-3 text-[var(--text-secondary)] whitespace-nowrap">
-                  {formatDate(log.created_at)}
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap text-right">
-                  <div className="flex items-center justify-end gap-2">
+                <td className="py-2.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex justify-center gap-1">
                     <button
-                      onClick={(e) =>{e.stopPropagation(); onView(log)}}
+                      onClick={() => onView(log)}
                       disabled={isSending}
-                      className="p-1.5 rounded-md hover:bg-[var(--card-hover-bg)] text-[var(--text-tertiary)] hover:text-[var(--primary-color)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors disabled:opacity-50"
                       title="View details"
                     >
-                      <Eye className="w-4 h-4" />
+                      <Eye className="w-4 h-4 text-[var(--accent-blue)]" />
                     </button>
                     {log.status === "failed" && (
                       <button
-                        onClick={(e) =>{e.stopPropagation(); onRetry(log.id)}}
+                        onClick={() => onRetry(log.id)}
                         disabled={isSending}
-                        className="p-1.5 rounded-md hover:bg-[var(--card-hover-bg)] text-[var(--text-tertiary)] hover:text-[var(--primary-color)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors disabled:opacity-50"
                         title="Retry failed email"
                       >
-                        {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                        {isSending ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-[var(--primary-color)]" />
+                        ) : (
+                          <RefreshCw className="w-4 h-4 text-[var(--warning-color)]" />
+                        )}
                       </button>
                     )}
                     {(log.status === "sent" || log.status === "resend") && (
                       <button
-                        onClick={(e) =>{e.stopPropagation(); onResend(log.id)}}
+                        onClick={() => onResend(log.id)}
                         disabled={isSending}
-                        className="p-1.5 rounded-md hover:bg-[var(--card-hover-bg)] text-[var(--text-tertiary)] hover:text-[var(--primary-color)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors disabled:opacity-50"
                         title="Resend email"
                       >
-                        {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                        {isSending ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-[var(--primary-color)]" />
+                        ) : (
+                          <Send className="w-4 h-4 text-[var(--success-color)]" />
+                        )}
                       </button>
                     )}
                     <button
-                      onClick={(e) =>{e.stopPropagation(); onDelete(log.id)}}
+                      onClick={() => onDelete(log.id)}
                       disabled={isSending}
-                      className="p-1.5 rounded-md hover:bg-red-500/10 text-[var(--text-tertiary)] hover:text-red-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors disabled:opacity-50"
                       title="Delete log"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-4 h-4 text-[var(--danger-color)]" />
                     </button>
                   </div>
                 </td>

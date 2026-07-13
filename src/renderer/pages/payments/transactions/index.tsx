@@ -1,6 +1,6 @@
 // src/renderer/pages/payments/transactions/index.tsx
 import React, { useState, useCallback, useRef, useEffect } from "react";
-import { Receipt, RefreshCw, Filter, Download } from "lucide-react";
+import { Receipt, RefreshCw, Filter, Download, Eye, EyeOff, X } from "lucide-react";
 import useTransactions from "./hooks/useTransactions";
 import FilterBar from "./components/FilterBar";
 import TransactionsTable from "./components/TransactionsTable";
@@ -11,6 +11,9 @@ import { dialogs } from "../../../utils/dialogs";
 import paymentsAPI from "../../../api/core/payment_transaction";
 import PaymentViewDialog from "./components/PaymentViewDialog";
 import { usePagination } from "../../../contexts/PaginationContext";
+import LoadingSpinner from "../../../components/Shared/LoadingSpinner";
+import Button from "../../../components/UI/Button";
+import TransactionSummaryCards from "./components/TransactionSummaryCards";
 
 const IS_ADMIN = true;
 
@@ -33,9 +36,12 @@ const TransactionsPage: React.FC = () => {
     totalAmount,
     updateTransaction,
     deleteTransaction,
+    stats,
+    fetchStats,
   } = useTransactions();
 
   const [showFilters, setShowFilters] = useState(false);
+  const [showStats, setShowStats] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [editingTx, setEditingTx] = useState<any>(null);
   const [deletingTx, setDeletingTx] = useState<any>(null);
@@ -44,6 +50,16 @@ const TransactionsPage: React.FC = () => {
   const [viewOpen, setViewOpen] = useState(false);
 
   const { setPagination, clearPagination } = usePagination();
+
+  const hasFilters = !!(
+    filters.search ||
+    filters.dateFrom ||
+    filters.dateTo ||
+    filters.debtorId ||
+    filters.debtId ||
+    filters.minAmount > 0 ||
+    filters.maxAmount > 0
+  );
 
   const handlePageChange = useCallback(
     (newPage: number) => setCurrentPage(newPage),
@@ -92,6 +108,11 @@ const TransactionsPage: React.FC = () => {
     return () => clearPagination();
   }, [clearPagination]);
 
+  // Fetch stats on mount
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
   const handleExport = async () => {
     setExporting(true);
     try {
@@ -131,6 +152,7 @@ const TransactionsPage: React.FC = () => {
       await deleteTransaction(deletingTx.id);
       dialogs.success("Transaction deleted");
       setDeletingTx(null);
+      fetchStats();
     } catch (err: any) {
       dialogs.error(err.message);
     } finally {
@@ -144,57 +166,184 @@ const TransactionsPage: React.FC = () => {
   };
 
   return (
-    <div className="m-1" style={{ backgroundColor: "var(--background-color)" }}>
-      <div className="rounded-md shadow-md border p-4" style={{ backgroundColor: "var(--card-bg)", borderColor: "var(--border-color)" }}>
-        <div className="flex justify-between items-center mb-4">
-          <div className="flex items-center gap-2">
-            <Receipt className="w-6 h-6" style={{ color: "var(--primary-color)" }} />
-            <h1 className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>Transaction Log</h1>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={() => setShowFilters(!showFilters)} className="px-3 py-2 rounded-md flex items-center gap-1 border" style={{ borderColor: "var(--border-color)", backgroundColor: "var(--card-secondary-bg)", color: "var(--text-primary)" }}>
-              <Filter className="w-4 h-4" /> Filters
-            </button>
-            <button onClick={reload} disabled={loading} className="px-3 py-2 rounded-md flex items-center gap-1 border" style={{ borderColor: "var(--border-color)", backgroundColor: "var(--card-secondary-bg)", color: "var(--text-primary)" }}>
-              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} /> Refresh
-            </button>
-            <button onClick={handleExport} disabled={exporting || totalItems === 0} className="px-3 py-2 rounded-md flex items-center gap-1" style={{ backgroundColor: "var(--success-color)", color: "white" }}>
-              <Download className="w-4 h-4" /> Export CSV
-            </button>
-          </div>
+    <div className="p-4 space-y-4">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-xl font-bold text-[var(--text-primary)] flex items-center gap-2">
+            <Receipt className="w-5 h-5 text-[var(--primary-color)]" />
+            Transaction Log
+          </h1>
+          <p className="text-sm text-[var(--text-secondary)] mt-0.5">
+            View and manage all payment transactions
+          </p>
         </div>
-
-        {showFilters && <FilterBar filters={filters} onFilterChange={handleFilterChange} onReset={resetFilters} />}
-
-        <div className="mb-3 flex flex-wrap justify-between items-center gap-2">
-          <div className="text-sm" style={{ color: "var(--text-primary)" }}>Total Amount (current page): <span className="font-bold" style={{ color: "var(--success-color)" }}>{formatCurrency(totalAmount)}</span></div>
-          {/* Removed "Show:" dropdown and showing info – global pagination handles it */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowStats(!showStats)}
+            className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors"
+            title={showStats ? "Hide summary" : "Show summary"}
+          >
+            {showStats ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors"
+            title={showFilters ? "Hide filters" : "Show filters"}
+          >
+            <Filter className="w-4 h-4" />
+          </button>
+          <button
+            onClick={reload}
+            disabled={loading}
+            className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors disabled:opacity-50"
+            title="Refresh"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+          </button>
+          <button
+            onClick={handleExport}
+            disabled={exporting || totalItems === 0}
+            className="px-3 py-1.5 rounded-lg text-sm font-medium text-white transition-colors flex items-center gap-1.5 disabled:opacity-50"
+            style={{ backgroundColor: "var(--success-color)" }}
+            onMouseEnter={(e) => {
+              if (!e.currentTarget.disabled) {
+                e.currentTarget.style.backgroundColor = "var(--btn-success-hover)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "var(--success-color)";
+            }}
+          >
+            <Download className="w-4 h-4" />
+            {exporting ? "Exporting..." : "Export CSV"}
+          </button>
         </div>
-
-        {loading && <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: "var(--primary-color)" }}></div></div>}
-        {error && <div className="text-center py-4" style={{ color: "var(--danger-color)" }}>Error: {error}</div>}
-
-        {!loading && !error && (
-          <>
-            <TransactionsTable
-              transactions={transactions}
-              onSort={handleSort}
-              sortConfig={sortConfig}
-              isAdmin={IS_ADMIN}
-              onEdit={(tx) => setEditingTx(tx)}
-              onDelete={(tx) => setDeletingTx(tx)}
-              onView={handleView}
-            />
-            {transactions.length === 0 && (
-              <div className="text-center py-8" style={{ color: "var(--text-secondary)" }}>No transactions found.</div>
-            )}
-          </>
-        )}
       </div>
 
-      <EditTransactionModal isOpen={!!editingTx} transaction={editingTx} onClose={() => setEditingTx(null)} onSave={updateTransaction} />
-      <DeleteConfirmationModal isOpen={!!deletingTx} transaction={deletingTx} onClose={() => setDeletingTx(null)} onConfirm={handleDeleteConfirm} loading={deleteLoading} />
-      <PaymentViewDialog transaction={viewingTx} isOpen={viewOpen} onClose={() => setViewOpen(false)} />
+      {/* Summary Cards */}
+      {showStats && stats && (
+        <TransactionSummaryCards
+          totalTransactions={stats.total}
+          totalAmount={stats.totalAmount}
+          averageAmount={stats.averageAmount}
+          uniqueDebtors={stats.uniqueDebtors}
+        />
+      )}
+
+      {/* Filters Bar */}
+      {showFilters && (
+        <div className="bg-[var(--card-bg)] rounded-xl p-4 border border-[var(--border-color)] space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-[var(--text-secondary)] flex items-center gap-2">
+              <Filter className="w-4 h-4" /> Filters
+            </span>
+            {hasFilters && (
+              <button
+                onClick={resetFilters}
+                className="text-xs text-[var(--primary-color)] hover:underline flex items-center gap-1"
+              >
+                <X className="w-3 h-3" /> Clear all
+              </button>
+            )}
+          </div>
+          <FilterBar
+            filters={filters}
+            onFilterChange={handleFilterChange}
+            onReset={resetFilters}
+          />
+        </div>
+      )}
+
+      {/* Page info and pagination controls */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-[var(--text-secondary)]">Show:</label>
+          <select
+            value={pageSize}
+            onChange={(e) => setPageSize(Number(e.target.value))}
+            className="px-2 py-1 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]"
+            style={{
+              backgroundColor: "var(--input-bg)",
+              borderColor: "var(--input-border)",
+              color: "var(--text-primary)",
+            }}
+          >
+            {[10, 25, 50, 100].map((size) => (
+              <option key={size} value={size}>{size}</option>
+            ))}
+          </select>
+        </div>
+        <div className="text-sm text-[var(--text-secondary)]">
+          {totalItems > 0
+            ? `Showing ${(currentPage - 1) * pageSize + 1} to ${Math.min(currentPage * pageSize, totalItems)} of ${totalItems} transactions`
+            : "No transactions"}
+        </div>
+      </div>
+
+      {/* Loading / Error */}
+      {loading && (
+        <div className="flex justify-center py-12">
+          <LoadingSpinner size="medium" />
+        </div>
+      )}
+
+      {error && !loading && (
+        <div className="text-center py-8 text-[var(--danger-color)] border border-[var(--border-color)] rounded-xl bg-[var(--card-bg)]">
+          <p className="text-sm">Error: {error}</p>
+          <button
+            onClick={reload}
+            className="mt-3 px-4 py-1.5 rounded-lg text-sm font-medium text-white"
+            style={{ backgroundColor: "var(--primary-color)" }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* Content */}
+      {!loading && !error && (
+        <>
+          <TransactionsTable
+            transactions={transactions}
+            onSort={handleSort}
+            sortConfig={sortConfig}
+            isAdmin={IS_ADMIN}
+            onEdit={(tx) => setEditingTx(tx)}
+            onDelete={(tx) => setDeletingTx(tx)}
+            onView={handleView}
+          />
+          {transactions.length === 0 && (
+            <div className="text-center py-8 text-[var(--text-tertiary)] border border-[var(--border-color)] rounded-xl bg-[var(--card-bg)] text-sm">
+              <Receipt className="w-8 h-8 mx-auto mb-2 text-[var(--text-tertiary)]" />
+              <p>No transactions found</p>
+              <p className="text-xs text-[var(--text-tertiary)] mt-1">
+                {hasFilters ? "Try adjusting your filters" : "Payments will appear here when recorded"}
+              </p>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Modals */}
+      <EditTransactionModal
+        isOpen={!!editingTx}
+        transaction={editingTx}
+        onClose={() => setEditingTx(null)}
+        onSave={updateTransaction}
+      />
+      <DeleteConfirmationModal
+        isOpen={!!deletingTx}
+        transaction={deletingTx}
+        onClose={() => setDeletingTx(null)}
+        onConfirm={handleDeleteConfirm}
+        loading={deleteLoading}
+      />
+      <PaymentViewDialog
+        transaction={viewingTx}
+        isOpen={viewOpen}
+        onClose={() => setViewOpen(false)}
+      />
     </div>
   );
 };

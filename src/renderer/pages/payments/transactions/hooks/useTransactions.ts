@@ -1,7 +1,7 @@
+// src/renderer/pages/payments/transactions/hooks/useTransactions.ts
 import { useState, useEffect, useCallback, useMemo } from "react";
 import type { PaymentTransaction } from "../../../../api/core/payment_transaction";
 import paymentsAPI from "../../../../api/core/payment_transaction";
-
 export interface TransactionFilters {
   search: string;
   dateFrom: string;
@@ -10,6 +10,13 @@ export interface TransactionFilters {
   debtId: number | "";
   minAmount: number;
   maxAmount: number;
+}
+
+interface Stats {
+  total: number;
+  totalAmount: number;
+  averageAmount: number;
+  uniqueDebtors: number;
 }
 
 interface UseTransactionsReturn {
@@ -23,11 +30,13 @@ interface UseTransactionsReturn {
   currentPage: number;
   setCurrentPage: (page: number) => void;
   reload: () => void;
+  fetchStats: () => Promise<void>;
   handleFilterChange: (key: keyof TransactionFilters, value: string | number) => void;
   resetFilters: () => void;
   handleSort: (key: string) => void;
   sortConfig: { key: string; direction: "asc" | "desc" };
   totalAmount: number;
+  stats: Stats | null;
   updateTransaction: (id: number, data: any) => Promise<void>;
   deleteTransaction: (id: number) => Promise<void>;
 }
@@ -43,6 +52,7 @@ const useTransactions = (): UseTransactionsReturn => {
   const [filters, setFilters] = useState<TransactionFilters>({
     search: "", dateFrom: "", dateTo: "", debtorId: "", debtId: "", minAmount: 0, maxAmount: 0,
   });
+  const [stats, setStats] = useState<Stats | null>(null);
 
   const buildApiParams = useCallback(() => {
     const params: any = {
@@ -60,6 +70,22 @@ const useTransactions = (): UseTransactionsReturn => {
     if (filters.maxAmount > 0) params.maxAmount = filters.maxAmount;
     return params;
   }, [currentPage, pageSize, sortConfig, filters]);
+
+  const fetchStats = useCallback(async () => {
+    try {
+      const response = await paymentsAPI.getStatistics();
+      if (response.status) {
+        setStats({
+          total: response.data.totalPayments || 0,
+          totalAmount: response.data.totalAmountCollected || 0,
+          averageAmount: response.data.averagePaymentAmount || 0,
+          uniqueDebtors: response.data.debtsWithPayments || 0,
+        });
+      }
+    } catch (err) {
+      console.error("Failed to fetch transaction stats:", err);
+    }
+  }, []);
 
   const fetchTransactions = useCallback(async () => {
     setLoading(true);
@@ -81,6 +107,11 @@ const useTransactions = (): UseTransactionsReturn => {
   useEffect(() => {
     fetchTransactions();
   }, [fetchTransactions]);
+
+  // Fetch stats on mount
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
 
   const totalAmount = useMemo(() => {
     return transactions.reduce((sum, t) => sum + t.amount, 0);
@@ -104,16 +135,21 @@ const useTransactions = (): UseTransactionsReturn => {
     setCurrentPage(1);
   };
 
-  const reload = () => fetchTransactions();
+  const reload = () => {
+    fetchTransactions();
+    fetchStats();
+  };
 
   const updateTransaction = async (id: number, data: any) => {
     await paymentsAPI.update(id, data);
     await fetchTransactions();
+    await fetchStats();
   };
 
   const deleteTransaction = async (id: number) => {
     await paymentsAPI.delete(id);
     await fetchTransactions();
+    await fetchStats();
   };
 
   return {
@@ -127,11 +163,13 @@ const useTransactions = (): UseTransactionsReturn => {
     currentPage,
     setCurrentPage,
     reload,
+    fetchStats,
     handleFilterChange,
     resetFilters,
     handleSort,
     sortConfig,
     totalAmount,
+    stats,
     updateTransaction,
     deleteTransaction,
   };

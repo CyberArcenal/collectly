@@ -1,8 +1,8 @@
 // src/renderer/pages/reports/aging/components/ExportButton.tsx
 import React from "react";
 import { Download } from "lucide-react";
-import { dialogs } from "../../../../utils/dialogs";
 import type { AgingBucket } from "../types";
+import { dialogs } from "../../../../utils/dialogs";
 
 interface ExportButtonProps {
   summary: { asOfDate: string; totalOutstanding: number; buckets: AgingBucket[] };
@@ -32,8 +32,19 @@ const ExportButton: React.FC<ExportButtonProps> = ({ summary }) => {
   };
 
   return (
-    <button onClick={handleExportCSV} className="px-3 py-2 rounded flex items-center gap-1" style={{ backgroundColor: "var(--primary-color)", color: "white" }}>
-      <Download className="w-4 h-4" /> Export Summary
+    <button
+      onClick={handleExportCSV}
+      className="px-3 py-1.5 rounded-lg text-sm font-medium text-white transition-colors flex items-center gap-1.5"
+      style={{ backgroundColor: "var(--success-color)" }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.backgroundColor = "var(--btn-success-hover)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = "var(--success-color)";
+      }}
+    >
+      <Download className="w-4 h-4" />
+      Export Summary
     </button>
   );
 };

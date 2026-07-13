@@ -1,5 +1,6 @@
+// src/renderer/pages/audit/components/FilterBar.tsx
 import React from "react";
-import { Search, RefreshCw } from "lucide-react";
+import { Search } from "lucide-react";
 import type { AuditFilters } from "../hooks/useAuditLogs";
 
 interface FilterBarProps {
@@ -8,7 +9,6 @@ interface FilterBarProps {
   onReload: () => void;
 }
 
-// Predefined list of common actions for filter dropdown
 const ACTION_OPTIONS = [
   { value: "all", label: "All Actions" },
   { value: "CREATE", label: "Create" },
@@ -24,75 +24,95 @@ const ACTION_OPTIONS = [
 export const FilterBar: React.FC<FilterBarProps> = ({
   filters,
   onFilterChange,
-  onReload,
 }) => {
   return (
-    <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-lg p-4 mb-4">
-      <div className="flex flex-wrap items-center gap-4">
-        {/* Search */}
-        <div className="flex-1 min-w-[200px] relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[var(--text-tertiary)]" />
-          <input
-            type="text"
-            placeholder="Search by entity ID, user, description..."
-            value={filters.search}
-            onChange={(e) => onFilterChange("search", e.target.value)}
-            className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg pl-10 pr-4 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-tertiary)]"
-          />
-        </div>
-
-        {/* Action Type Filter */}
-        <select
-          value={filters.action}
-          onChange={(e) => onFilterChange("action", e.target.value)}
-          className="bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]"
-        >
-          {ACTION_OPTIONS.map(opt => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-
-        {/* Entity Filter (optional) */}
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[var(--text-tertiary)]" />
         <input
           type="text"
-          placeholder="Entity (e.g., Product)"
-          value={filters.entity || ""}
-          onChange={(e) => onFilterChange("entity", e.target.value || undefined)}
-          className="w-32 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-tertiary)]"
+          placeholder="Search logs..."
+          value={filters.search}
+          onChange={(e) => onFilterChange("search", e.target.value)}
+          className="w-full pl-9 pr-3 py-1.5 rounded-lg border focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)] text-sm"
+          style={{
+            backgroundColor: "var(--input-bg)",
+            borderColor: "var(--input-border)",
+            color: "var(--text-primary)",
+          }}
         />
+      </div>
 
-        {/* User Filter (username) */}
-        <input
-          type="text"
-          placeholder="Username"
-          value={filters.user || ""}
-          onChange={(e) => onFilterChange("user", e.target.value || undefined)}
-          className="w-32 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-tertiary)]"
-        />
+      {/* Action Type */}
+      <select
+        value={filters.action}
+        onChange={(e) => onFilterChange("action", e.target.value)}
+        className="px-3 py-1.5 rounded-lg border focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)] text-sm"
+        style={{
+          backgroundColor: "var(--input-bg)",
+          borderColor: "var(--input-border)",
+          color: "var(--text-primary)",
+        }}
+      >
+        {ACTION_OPTIONS.map((opt) => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
+      </select>
 
-        {/* Date Range */}
+      {/* Entity */}
+      <input
+        type="text"
+        placeholder="Entity (e.g., Debt, Borrower)"
+        value={filters.entity || ""}
+        onChange={(e) => onFilterChange("entity", e.target.value || undefined)}
+        className="px-3 py-1.5 rounded-lg border focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)] text-sm"
+        style={{
+          backgroundColor: "var(--input-bg)",
+          borderColor: "var(--input-border)",
+          color: "var(--text-primary)",
+        }}
+      />
+
+      {/* User */}
+      <input
+        type="text"
+        placeholder="Username"
+        value={filters.user || ""}
+        onChange={(e) => onFilterChange("user", e.target.value || undefined)}
+        className="px-3 py-1.5 rounded-lg border focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)] text-sm"
+        style={{
+          backgroundColor: "var(--input-bg)",
+          borderColor: "var(--input-border)",
+          color: "var(--text-primary)",
+        }}
+      />
+
+      {/* Date Range */}
+      <div className="flex items-center gap-2 col-span-2">
         <input
           type="date"
           value={filters.startDate || ""}
           onChange={(e) => onFilterChange("startDate", e.target.value || undefined)}
-          className="bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]"
+          className="flex-1 px-3 py-1.5 rounded-lg border focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)] text-sm"
+          style={{
+            backgroundColor: "var(--input-bg)",
+            borderColor: "var(--input-border)",
+            color: "var(--text-primary)",
+          }}
         />
-        <span className="text-[var(--text-tertiary)]">to</span>
+        <span className="text-[var(--text-tertiary)] text-sm">to</span>
         <input
           type="date"
           value={filters.endDate || ""}
           onChange={(e) => onFilterChange("endDate", e.target.value || undefined)}
-          className="bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]"
+          className="flex-1 px-3 py-1.5 rounded-lg border focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)] text-sm"
+          style={{
+            backgroundColor: "var(--input-bg)",
+            borderColor: "var(--input-border)",
+            color: "var(--text-primary)",
+          }}
         />
-
-        {/* Reload button */}
-        <button
-          onClick={onReload}
-          className="p-2 bg-[var(--card-hover-bg)] rounded-lg hover:bg-[var(--border-color)] transition-colors"
-          title="Refresh"
-        >
-          <RefreshCw className="w-4 h-4 text-[var(--text-secondary)]" />
-        </button>
       </div>
     </div>
   );

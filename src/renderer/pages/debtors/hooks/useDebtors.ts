@@ -13,11 +13,19 @@ export interface DebtorWithTotal extends Borrower {
   total_debt: number;
 }
 
+export interface DebtorStats {
+  total: number;
+  active: number;
+  deleted: number;
+  withEmail: number;
+  withContact: number;
+}
+
 interface UseDebtorsReturn {
   debtors: DebtorWithTotal[];
   loading: boolean;
   error: string | null;
-  totalItems: number;              // renamed from pagination.totalItems
+  totalItems: number;
   currentPage: number;
   pageSize: number;
   filters: DebtorFilters;
@@ -28,11 +36,13 @@ interface UseDebtorsReturn {
   setPageSize: (size: number) => void;
   setCurrentPage: (page: number) => void;
   reload: () => void;
+  fetchStats: () => Promise<void>;
   handleFilterChange: (key: keyof DebtorFilters, value: string) => void;
   resetFilters: () => void;
   toggleDebtorSelection: (id: number) => void;
   toggleSelectAll: () => void;
   handleSort: (key: string) => void;
+  stats: DebtorStats | null;
 }
 
 const useDebtors = (initialFilters?: Partial<DebtorFilters>): UseDebtorsReturn => {
@@ -47,6 +57,7 @@ const useDebtors = (initialFilters?: Partial<DebtorFilters>): UseDebtorsReturn =
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
+  const [stats, setStats] = useState<DebtorStats | null>(null);
   const [filters, setFilters] = useState<DebtorFilters>({
     search: "",
     status: "active",
@@ -65,6 +76,24 @@ const useDebtors = (initialFilters?: Partial<DebtorFilters>): UseDebtorsReturn =
     if (status === "active") return false;
     return true;
   };
+
+  const fetchStats = useCallback(async () => {
+    try {
+      const response = await borrowersAPI.getStatistics();
+      if (response.status) {
+        const data = response.data;
+        setStats({
+          total: data.total || 0,
+          active: data.total - (data.deleted || 0),
+          deleted: data.deleted || 0,
+          withEmail: data.totalWithEmail || 0,
+          withContact: data.totalWithContact || 0,
+        });
+      }
+    } catch (err) {
+      console.error("Failed to fetch debtor stats:", err);
+    }
+  }, []);
 
   const fetchDebtors = useCallback(async () => {
     setLoading(true);
@@ -127,6 +156,11 @@ const useDebtors = (initialFilters?: Partial<DebtorFilters>): UseDebtorsReturn =
     }
   }, [currentPage, pageSize, filters.search, filters.status, sortConfig.key, sortConfig.direction]);
 
+  // Fetch stats on mount
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
   useEffect(() => {
     fetchDebtors();
   }, [fetchDebtors]);
@@ -187,11 +221,13 @@ const useDebtors = (initialFilters?: Partial<DebtorFilters>): UseDebtorsReturn =
     setPageSize: setPageSizeHandler,
     setCurrentPage,
     reload,
+    fetchStats,
     handleFilterChange,
     resetFilters,
     toggleDebtorSelection,
     toggleSelectAll,
     handleSort,
+    stats,
   };
 };
 

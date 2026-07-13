@@ -1,8 +1,9 @@
 // src/renderer/pages/payments/collection/components/CollectionSummary.tsx
 
 import React from 'react';
-import { formatCurrency } from '../../../../utils/formatters';
+import { Calendar as CalendarIcon, DollarSign, Users, TrendingUp } from 'lucide-react';
 import type { CollectionScheduleResponse } from '../types';
+import { formatCurrency } from '../../../../utils/formatters';
 
 interface CollectionSummaryProps {
   data: CollectionScheduleResponse | null;
@@ -10,41 +11,77 @@ interface CollectionSummaryProps {
 
 const CollectionSummary: React.FC<CollectionSummaryProps> = ({ data }) => {
   if (!data) {
-    return (
-      <div className="text-center py-4" style={{ color: 'var(--text-tertiary)' }}>
-        No data available.
-      </div>
-    );
+    return null;
   }
 
   const paidCount = data.debtors.filter(d => d.allPaid).length;
   const unpaidCount = data.debtors.length - paidCount;
+  const collectionRate = data.totalDue > 0 
+    ? ((data.totalDue - data.debtors.reduce((sum, d) => sum + (d.totalPeriodAmount - d.totalPaidInPeriod), 0)) / data.totalDue * 100)
+    : 100;
 
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <div className="p-3 rounded-md border" style={{ backgroundColor: 'var(--card-secondary-bg)', borderColor: 'var(--border-color)' }}>
-        <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>Period</div>
-        <div className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{data.periodLabel}</div>
-      </div>
-      <div className="p-3 rounded-md border" style={{ backgroundColor: 'var(--card-secondary-bg)', borderColor: 'var(--border-color)' }}>
-        <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>Total Due</div>
-        <div className="text-lg font-bold" style={{ color: 'var(--debt-high)' }}>{formatCurrency(data.totalDue)}</div>
-      </div>
-      <div className="p-3 rounded-md border" style={{ backgroundColor: 'var(--card-secondary-bg)', borderColor: 'var(--border-color)' }}>
-        <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>Debtors</div>
-        <div className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
-          {data.totalDebtors}
-          <span className="text-sm font-normal ml-1" style={{ color: 'var(--text-secondary)' }}>
+  const cards = [
+    {
+      title: "Period",
+      value: data.periodLabel,
+      icon: CalendarIcon,
+      color: "bg-blue-500",
+      format: (v: string) => v,
+    },
+    {
+      title: "Total Due",
+      value: data.totalDue,
+      icon: DollarSign,
+      color: "bg-red-500",
+      format: formatCurrency,
+    },
+    {
+      title: "Debtors",
+      value: `${data.totalDebtors}`,
+      icon: Users,
+      color: "bg-purple-500",
+      format: (v: string) => (
+        <>
+          {v}
+          <span className="text-xs font-normal text-[var(--text-secondary)] ml-1">
             ({paidCount} paid, {unpaidCount} unpaid)
           </span>
+        </>
+      ),
+    },
+    {
+      title: "Collection Rate",
+      value: collectionRate,
+      icon: TrendingUp,
+      color: "bg-green-500",
+      format: (v: number) => `${v.toFixed(1)}%`,
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {cards.map((card) => (
+        <div
+          key={card.title}
+          className="bg-[var(--card-bg)] rounded-xl border border-[var(--border-color)] p-3.5 shadow-sm"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-medium text-[var(--text-secondary)] uppercase tracking-wider">
+                {card.title}
+              </p>
+              <p className="text-lg font-bold text-[var(--text-primary)] mt-0.5">
+                {typeof card.value === 'string' 
+                  ? card.value 
+                  : card.format(card.value)}
+              </p>
+            </div>
+            <div className={`p-2 rounded-full ${card.color} bg-opacity-10`}>
+              <card.icon className={`w-4 h-4 ${card.color.replace("bg-", "text-")}`} />
+            </div>
+          </div>
         </div>
-      </div>
-      <div className="p-3 rounded-md border" style={{ backgroundColor: 'var(--card-secondary-bg)', borderColor: 'var(--border-color)' }}>
-        <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>Collection Rate</div>
-        <div className="text-lg font-bold" style={{ color: 'var(--success-color)' }}>
-          {data.totalDue > 0 ? `${((1 - unpaidCount / data.totalDebtors) * 100).toFixed(1)}%` : '100%'}
-        </div>
-      </div>
+      ))}
     </div>
   );
 };

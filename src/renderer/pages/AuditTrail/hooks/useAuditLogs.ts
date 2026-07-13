@@ -19,13 +19,23 @@ interface Summary {
   mostAffectedEntity: { entity: string; count: number } | null;
 }
 
+interface Stats {
+  total: number;
+  avgPerDay: number;
+  mostActiveDay: { day: string; count: number } | null;
+  uniqueUsers: number;
+}
+
 export const getActionColor = (action: string): string => {
   const lower = action.toLowerCase();
-  if (lower.includes("sale") || lower.includes("create")) return "var(--accent-green)";
-  if (lower.includes("refund") || lower.includes("delete")) return "var(--accent-red)";
-  if (lower.includes("inventory") || lower.includes("stock")) return "var(--accent-blue)";
-  if (lower.includes("setting") || lower.includes("config")) return "var(--accent-amber)";
-  return "var(--text-tertiary)";
+  if (lower.includes("create")) return "#10b981";
+  if (lower.includes("delete")) return "#ef4444";
+  if (lower.includes("update") || lower.includes("edit")) return "#3b82f6";
+  if (lower.includes("view")) return "#8b5cf6";
+  if (lower.includes("export")) return "#f59e0b";
+  if (lower.includes("login")) return "#6366f1";
+  if (lower.includes("logout")) return "#64748b";
+  return "#6b7280";
 };
 
 export const useAuditLogs = (initialFilters: AuditFilters) => {
@@ -39,14 +49,21 @@ export const useAuditLogs = (initialFilters: AuditFilters) => {
     mostActiveUser: null,
     mostAffectedEntity: null,
   });
+  const [stats, setStats] = useState<Stats>({
+    total: 0,
+    avgPerDay: 0,
+    mostActiveDay: null,
+    uniqueUsers: 0,
+  });
 
-  // Debounce timer for search
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
   const computeSummary = (items: AuditLogEntry[]) => {
     const today = new Date().toISOString().split("T")[0];
     const todayLogs = items.filter((log) => {
-      const logDate = typeof log.timestamp === "string" ? log.timestamp : new Date(log.timestamp).toISOString();
+      const logDate = typeof log.timestamp === "string" 
+        ? log.timestamp 
+        : new Date(log.timestamp).toISOString();
       return logDate.startsWith(today);
     });
 
@@ -90,20 +107,29 @@ export const useAuditLogs = (initialFilters: AuditFilters) => {
     });
   };
 
+  const fetchStats = useCallback(async () => {
+    try {
+      const response = await auditAPI.getStats({
+        startDate: filters.startDate,
+        endDate: filters.endDate,
+      });
+      if (response.status) {
+        setStats(response.data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch audit stats:", err);
+    }
+  }, [filters.startDate, filters.endDate]);
+
   const fetchLogs = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      // Build common params
-      const baseParams: any = {
-        page: 1,
-        limit: 1000, // or use a configurable limit
-      };
+      const baseParams: any = { page: 1, limit: 1000 };
 
       let response;
 
-      // Determine which API method to call
       const hasSearch = filters.search && filters.search.trim() !== "";
       const hasAction = filters.action && filters.action !== "all";
       const hasEntity = filters.entity && filters.entity.trim() !== "";
@@ -111,7 +137,6 @@ export const useAuditLogs = (initialFilters: AuditFilters) => {
       const hasDateRange = filters.startDate && filters.endDate;
 
       if (hasSearch) {
-        // Use search endpoint with searchTerm
         response = await auditAPI.search({
           searchTerm: filters.search.trim(),
           action: hasAction ? filters.action : undefined,
@@ -139,33 +164,22 @@ export const useAuditLogs = (initialFilters: AuditFilters) => {
 
       if (!response.status) throw new Error(response.message || "Failed to fetch audit logs");
 
-      // Extract items from response (the structure might vary)
-      const items = response.data?.items || response.data?.data || [];
+      const items = response.data?.data;
       setLogs(items);
       computeSummary(items);
+      await fetchStats();
     } catch (err: any) {
       setError(err.message || "An error occurred while fetching audit logs.");
     } finally {
       setLoading(false);
     }
-  }, [filters]);
+  }, [filters, fetchStats]);
 
-  // Debounced fetch for search changes
   useEffect(() => {
-    if (debounceTimer.current) {
-      clearTimeout(debounceTimer.current);
-    }
-
-    // If search is the only changed filter, debounce
-    // We'll just debounce any filter change for simplicity
-    debounceTimer.current = setTimeout(() => {
-      fetchLogs();
-    }, 300);
-
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => fetchLogs(), 300);
     return () => {
-      if (debounceTimer.current) {
-        clearTimeout(debounceTimer.current);
-      }
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
     };
   }, [filters, fetchLogs]);
 
@@ -177,5 +191,6 @@ export const useAuditLogs = (initialFilters: AuditFilters) => {
     error,
     reload: fetchLogs,
     summary,
+    stats,
   };
 };

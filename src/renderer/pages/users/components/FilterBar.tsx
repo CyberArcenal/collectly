@@ -1,5 +1,6 @@
 // src/renderer/pages/users/components/FilterBar.tsx
 import React from "react";
+import { Search } from "lucide-react";
 import type { UserFiltersLocal } from "../hooks/useUsers";
 
 interface FilterBarProps {
@@ -13,79 +14,76 @@ const FilterBar: React.FC<FilterBarProps> = ({ filters, onFilterChange, onReset 
   const statuses = ["", "active", "restricted", "suspended", "deleted"];
 
   return (
-    <div
-      className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-md border mb-4"
-      style={{
-        backgroundColor: "var(--card-secondary-bg)",
-        borderColor: "var(--border-color)",
-      }}
-    >
-      <div>
-        <label className="block text-sm font-medium mb-1" style={{ color: "var(--sidebar-text)" }}>
-          Search
-        </label>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[var(--text-tertiary)]" />
         <input
           type="text"
           placeholder="Search by name, email, or username..."
           value={filters.search}
           onChange={(e) => onFilterChange("search", e.target.value)}
-          className="w-full px-3 py-2 border rounded-md"
+          className="w-full pl-9 pr-3 py-1.5 rounded-lg border focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)] text-sm"
           style={{
-            backgroundColor: "var(--card-bg)",
-            borderColor: "var(--border-color)",
-            color: "var(--sidebar-text)",
+            backgroundColor: "var(--input-bg)",
+            borderColor: "var(--input-border)",
+            color: "var(--text-primary)",
           }}
         />
       </div>
-      <div>
-        <label className="block text-sm font-medium mb-1" style={{ color: "var(--sidebar-text)" }}>
-          User Type
-        </label>
-        <select
-          value={filters.user_type}
-          onChange={(e) => onFilterChange("user_type", e.target.value)}
-          className="w-full px-3 py-2 border rounded-md"
-          style={{
-            backgroundColor: "var(--card-bg)",
-            borderColor: "var(--border-color)",
-            color: "var(--sidebar-text)",
-          }}
-        >
-          <option value="">All Types</option>
-          {userTypes.slice(1).map(type => (
-            <option key={type} value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</option>
-          ))}
-        </select>
-      </div>
-      <div>
-        <label className="block text-sm font-medium mb-1" style={{ color: "var(--sidebar-text)" }}>
-          Status
-        </label>
-        <select
-          value={filters.status}
-          onChange={(e) => onFilterChange("status", e.target.value)}
-          className="w-full px-3 py-2 border rounded-md"
-          style={{
-            backgroundColor: "var(--card-bg)",
-            borderColor: "var(--border-color)",
-            color: "var(--sidebar-text)",
-          }}
-        >
-          <option value="">All Status</option>
-          {statuses.slice(1).map(status => (
-            <option key={status} value={status}>{status.charAt(0).toUpperCase() + status.slice(1)}</option>
-          ))}
-        </select>
-      </div>
-      <div className="flex items-end">
-        <button
-          onClick={onReset}
-          className="w-full py-2 px-4 rounded-md transition-colors"
-          style={{ backgroundColor: "var(--primary-color)", color: "white" }}
-        >
-          Reset Filters
-        </button>
-      </div>
+
+      {/* User Type */}
+      <select
+        value={filters.user_type}
+        onChange={(e) => onFilterChange("user_type", e.target.value)}
+        className="px-3 py-1.5 rounded-lg border focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)] text-sm"
+        style={{
+          backgroundColor: "var(--input-bg)",
+          borderColor: "var(--input-border)",
+          color: "var(--text-primary)",
+        }}
+      >
+        <option value="">All Types</option>
+        {userTypes.slice(1).map(type => (
+          <option key={type} value={type}>
+            {type.charAt(0).toUpperCase() + type.slice(1)}
+          </option>
+        ))}
+      </select>
+
+      {/* Status */}
+      <select
+        value={filters.status}
+        onChange={(e) => onFilterChange("status", e.target.value)}
+        className="px-3 py-1.5 rounded-lg border focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)] text-sm"
+        style={{
+          backgroundColor: "var(--input-bg)",
+          borderColor: "var(--input-border)",
+          color: "var(--text-primary)",
+        }}
+      >
+        <option value="">All Status</option>
+        {statuses.slice(1).map(status => (
+          <option key={status} value={status}>
+            {status.charAt(0).toUpperCase() + status.slice(1)}
+          </option>
+        ))}
+      </select>
+
+      {/* Reset Button */}
+      <button
+        onClick={onReset}
+        className="px-4 py-1.5 rounded-lg text-sm font-medium text-white transition-colors"
+        style={{ backgroundColor: "var(--primary-color)" }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = "var(--primary-hover)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = "var(--primary-color)";
+        }}
+      >
+        Reset Filters
+      </button>
     </div>
   );
 };

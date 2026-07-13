@@ -89,7 +89,7 @@ export interface DebtUpdateData {
   paidAmount?: number;
   dueDate?: string;
   status?: "active" | "paid" | "overdue" | "defaulted";
-  interestCalculationPeriod: "per_annum" | "per_month";
+  interestCalculationPeriod?: "per_annum" | "per_month";
   interestRate?: number | null;
   penaltyRate?: number | null;
   borrowerId?: number;
@@ -186,6 +186,9 @@ export interface RecalculateRemainingResponse {
 // ----------------------------------------------------------------------
 
 class DebtsAPI {
+  getByApplicationId(id: number) {
+    throw new Error("Method not implemented.");
+  }
   // --------------------------------------------------------------------
   // 🔎 READ-ONLY METHODS
   // --------------------------------------------------------------------

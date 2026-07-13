@@ -1,67 +1,51 @@
 // src/renderer/pages/debtors/components/FilterBar.tsx
 import React from "react";
+import { Search } from "lucide-react";
 import type { DebtorFilters } from "../hooks/useDebtors";
 
 interface FilterBarProps {
   filters: DebtorFilters;
   onFilterChange: (key: keyof DebtorFilters, value: string) => void;
-  onReset: () => void;
 }
 
-const FilterBar: React.FC<FilterBarProps> = ({ filters, onFilterChange, onReset }) => {
+const FilterBar: React.FC<FilterBarProps> = ({ filters, onFilterChange }) => {
   return (
-    <div
-      className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-md border mb-4"
-      style={{
-        backgroundColor: "var(--card-secondary-bg)",
-        borderColor: "var(--border-color)",
-      }}
-    >
-      <div>
-        <label className="block text-sm font-medium mb-1" style={{ color: "var(--sidebar-text)" }}>
-          Search
-        </label>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[var(--text-tertiary)]" />
         <input
           type="text"
           placeholder="Search by name, email, or contact..."
           value={filters.search}
           onChange={(e) => onFilterChange("search", e.target.value)}
-          className="w-full px-3 py-2 border rounded-md"
+          className="w-full pl-9 pr-3 py-1.5 rounded-lg border focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)] text-sm"
           style={{
-            backgroundColor: "var(--card-bg)",
-            borderColor: "var(--border-color)",
-            color: "var(--sidebar-text)",
+            backgroundColor: "var(--input-bg)",
+            borderColor: "var(--input-border)",
+            color: "var(--text-primary)",
           }}
         />
       </div>
-      <div>
-        <label className="block text-sm font-medium mb-1" style={{ color: "var(--sidebar-text)" }}>
-          Status
-        </label>
-        <select
-          value={filters.status}
-          onChange={(e) => onFilterChange("status", e.target.value)}
-          className="w-full px-3 py-2 border rounded-md"
-          style={{
-            backgroundColor: "var(--card-bg)",
-            borderColor: "var(--border-color)",
-            color: "var(--sidebar-text)",
-          }}
-        >
-          <option value="active">Active</option>
-          <option value="deleted">Deleted</option>
-          <option value="all">All</option>
-        </select>
-      </div>
-      <div className="flex items-end">
-        <button
-          onClick={onReset}
-          className="w-full py-2 px-4 rounded-md transition-colors"
-          style={{ backgroundColor: "var(--primary-color)", color: "white" }}
-        >
-          Reset Filters
-        </button>
-      </div>
+
+      {/* Status */}
+      <select
+        value={filters.status}
+        onChange={(e) => onFilterChange("status", e.target.value)}
+        className="px-3 py-1.5 rounded-lg border focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)] text-sm"
+        style={{
+          backgroundColor: "var(--input-bg)",
+          borderColor: "var(--input-border)",
+          color: "var(--text-primary)",
+        }}
+      >
+        <option value="active">Active</option>
+        <option value="deleted">Deleted</option>
+        <option value="all">All</option>
+      </select>
+
+      {/* Empty placeholder for alignment */}
+      <div className="hidden lg:block" />
     </div>
   );
 };

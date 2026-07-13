@@ -1,13 +1,20 @@
 // src/renderer/pages/loans/active/hooks/useActiveLoans.ts
 import { useState, useEffect, useCallback, useRef } from "react";
-import debtsAPI from "../../../../api/core/debt";
 import type { Debt } from "../../../../api/core/debt";
+import debtsAPI from "../../../../api/core/debt";
 
 export interface ActiveLoanFilters {
   search: string;
   dueDateFrom: string;
   dueDateTo: string;
   minRemainingAmount: number;
+}
+
+export interface LoanStats {
+  totalActive: number;
+  totalAmountOwed: number;
+  totalRemainingBalance: number;
+  totalOverdue: number;
 }
 
 interface UseActiveLoansReturn {
@@ -26,11 +33,13 @@ interface UseActiveLoansReturn {
   page: number;
   setPage: (page: number) => void;
   reload: () => void;
+  fetchStats: () => Promise<void>;
   handleFilterChange: (key: keyof ActiveLoanFilters, value: string | number) => void;
   resetFilters: () => void;
   toggleLoanSelection: (id: number) => void;
   toggleSelectAll: () => void;
   handleSort: (key: string) => void;
+  stats: LoanStats | null;
 }
 
 const DEFAULT_LOANS: Debt[] = [];
@@ -40,6 +49,7 @@ const useActiveLoans = (): UseActiveLoansReturn => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedLoans, setSelectedLoans] = useState<number[]>([]);
+  const [stats, setStats] = useState<LoanStats | null>(null);
   const [sortConfig, setSortConfig] = useState<{
     key: string;
     direction: "asc" | "desc";
@@ -68,6 +78,23 @@ const useActiveLoans = (): UseActiveLoansReturn => {
     };
   }, []);
 
+  const fetchStats = useCallback(async () => {
+    try {
+      const response = await debtsAPI.getStatistics();
+      if (response.status) {
+        const data = response.data;
+        setStats({
+          totalActive: data.totalActive || 0,
+          totalAmountOwed: data.totalAmountOwed || 0,
+          totalRemainingBalance: data.totalRemainingBalance || 0,
+          totalOverdue: data.totalOverdue || 0,
+        });
+      }
+    } catch (err) {
+      console.error("Failed to fetch loan stats:", err);
+    }
+  }, []);
+
   const fetchActiveLoans = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -87,12 +114,9 @@ const useActiveLoans = (): UseActiveLoansReturn => {
         throw new Error(response.message || "Failed to fetch active loans");
       }
       if (mountedRef.current) {
-        let data = response.data.data || []; // ✅ ensure array
-        // Client-side filtering for minRemainingAmount (if server can't do it)
+        let data = response.data.data || [];
         if (filters.minRemainingAmount > 0) {
-          data = data.filter(
-            (loan) => (loan.remainingAmount ?? 0) >= filters.minRemainingAmount,
-          );
+          data = data.filter((loan) => (loan.remainingAmount ?? 0) >= filters.minRemainingAmount);
         }
         setLoans(data);
         setPaginationMeta({
@@ -106,7 +130,7 @@ const useActiveLoans = (): UseActiveLoansReturn => {
       if (mountedRef.current) {
         setError(err.message || "Failed to load active loans");
         console.error("useActiveLoans error:", err);
-        setLoans(DEFAULT_LOANS); // ✅ reset on error
+        setLoans(DEFAULT_LOANS);
       }
     } finally {
       if (mountedRef.current) setLoading(false);
@@ -122,7 +146,7 @@ const useActiveLoans = (): UseActiveLoansReturn => {
       setFilters((prev) => ({ ...prev, [key]: value }));
       setPage(1);
     },
-    [],
+    []
   );
 
   const resetFilters = useCallback(() => {
@@ -132,7 +156,7 @@ const useActiveLoans = (): UseActiveLoansReturn => {
 
   const toggleLoanSelection = useCallback((id: number) => {
     setSelectedLoans((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
     );
   }, []);
 
@@ -182,11 +206,13 @@ const useActiveLoans = (): UseActiveLoansReturn => {
     page,
     setPage,
     reload,
+    fetchStats,
     handleFilterChange,
     resetFilters,
     toggleLoanSelection,
     toggleSelectAll,
     handleSort,
+    stats,
   };
 };
 

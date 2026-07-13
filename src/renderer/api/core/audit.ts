@@ -16,6 +16,7 @@ export interface AuditLogEntry {
 }
 
 export interface PaginatedAuditLogs {
+  data: any;
   items: AuditLogEntry[];
   total: number;
   page: number;

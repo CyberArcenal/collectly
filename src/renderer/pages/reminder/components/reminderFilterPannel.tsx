@@ -1,5 +1,6 @@
+// src/renderer/pages/notification/components/reminderFilterPannel.tsx
 import React from 'react';
-import { Filter } from 'lucide-react';
+import { Filter, X } from 'lucide-react';
 
 interface NotificationFilterPanelProps {
   filters: {
@@ -22,6 +23,12 @@ export const NotificationFilterPanel: React.FC<NotificationFilterPanelProps> = (
   isOpen,
   onToggle,
 }) => {
+  const hasFilters = !!(
+    filters.status ||
+    filters.startDate ||
+    filters.endDate
+  );
+
   const updateFilter = (key: string, value: any) => {
     onChange({ ...filters, [key]: value });
   };
@@ -29,29 +36,36 @@ export const NotificationFilterPanel: React.FC<NotificationFilterPanelProps> = (
   if (!isOpen) return null;
 
   return (
-    <div className="bg-[var(--card-bg)] border border-[var(--border-color)]/20 rounded-lg p-5 mt-4">
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-md font-semibold text-[var(--text-primary)] flex items-center gap-2">
+    <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border-color)] p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium text-[var(--text-secondary)] flex items-center gap-2">
           <Filter className="w-4 h-4" /> Filter Email Logs
-        </h3>
-        <button
-          onClick={onClear}
-          className="text-sm text-[var(--text-secondary)] hover:text-[var(--primary-color)] transition-colors"
-        >
-          Clear all
-        </button>
+        </span>
+        {hasFilters && (
+          <button
+            onClick={onClear}
+            className="text-xs text-[var(--primary-color)] hover:underline flex items-center gap-1"
+          >
+            <X className="w-3 h-3" /> Clear all
+          </button>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* Status */}
         <div>
-          <label className="block text-xs font-medium text-[var(--text-tertiary)] mb-1 uppercase">
+          <label className="block text-[10px] font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-1">
             Status
           </label>
           <select
             value={filters.status || ''}
             onChange={(e) => updateFilter('status', e.target.value || undefined)}
-            className="w-full px-3 py-2 rounded-md border bg-[var(--card-secondary-bg)] border-[var(--border-color)]/20 
-                       text-[var(--text-primary)] text-sm focus:border-[var(--primary-color)]"
+            className="w-full px-3 py-1.5 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]"
+            style={{
+              backgroundColor: "var(--input-bg)",
+              borderColor: "var(--input-border)",
+              color: "var(--text-primary)",
+            }}
           >
             <option value="">All statuses</option>
             <option value="queued">Queued</option>
@@ -61,42 +75,57 @@ export const NotificationFilterPanel: React.FC<NotificationFilterPanelProps> = (
           </select>
         </div>
 
+        {/* From Date */}
         <div>
-          <label className="block text-xs font-medium text-[var(--text-tertiary)] mb-1 uppercase">
+          <label className="block text-[10px] font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-1">
             From Date
           </label>
           <input
             type="date"
             value={filters.startDate || ''}
             onChange={(e) => updateFilter('startDate', e.target.value || undefined)}
-            className="w-full px-3 py-2 rounded-md border bg-[var(--card-secondary-bg)] border-[var(--border-color)]/20 
-                       text-[var(--text-primary)] text-sm"
+            className="w-full px-3 py-1.5 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]"
+            style={{
+              backgroundColor: "var(--input-bg)",
+              borderColor: "var(--input-border)",
+              color: "var(--text-primary)",
+            }}
           />
         </div>
 
+        {/* To Date */}
         <div>
-          <label className="block text-xs font-medium text-[var(--text-tertiary)] mb-1 uppercase">
+          <label className="block text-[10px] font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-1">
             To Date
           </label>
           <input
             type="date"
             value={filters.endDate || ''}
             onChange={(e) => updateFilter('endDate', e.target.value || undefined)}
-            className="w-full px-3 py-2 rounded-md border bg-[var(--card-secondary-bg)] border-[var(--border-color)]/20 
-                       text-[var(--text-primary)] text-sm"
+            className="w-full px-3 py-1.5 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]"
+            style={{
+              backgroundColor: "var(--input-bg)",
+              borderColor: "var(--input-border)",
+              color: "var(--text-primary)",
+            }}
           />
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-4 mt-4 pt-4 border-t border-[var(--border-color)]/20">
-        <span className="text-xs font-medium text-[var(--text-tertiary)] uppercase">
+      {/* Sort Options */}
+      <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-[var(--border-color)]">
+        <span className="text-[10px] font-medium text-[var(--text-secondary)] uppercase tracking-wider">
           Sort by
         </span>
         <select
           value={filters.sortBy || 'created_at'}
           onChange={(e) => updateFilter('sortBy', e.target.value)}
-          className="px-3 py-1.5 rounded-md border bg-[var(--card-secondary-bg)] border-[var(--border-color)]/20 
-                     text-[var(--text-primary)] text-xs"
+          className="px-3 py-1 rounded-lg border text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]"
+          style={{
+            backgroundColor: "var(--input-bg)",
+            borderColor: "var(--input-border)",
+            color: "var(--text-primary)",
+          }}
         >
           <option value="created_at">Created at</option>
           <option value="sent_at">Sent at</option>
@@ -107,8 +136,12 @@ export const NotificationFilterPanel: React.FC<NotificationFilterPanelProps> = (
         <select
           value={filters.sortOrder || 'DESC'}
           onChange={(e) => updateFilter('sortOrder', e.target.value as 'ASC' | 'DESC')}
-          className="px-3 py-1.5 rounded-md border bg-[var(--card-secondary-bg)] border-[var(--border-color)]/20 
-                     text-[var(--text-primary)] text-xs"
+          className="px-3 py-1 rounded-lg border text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]"
+          style={{
+            backgroundColor: "var(--input-bg)",
+            borderColor: "var(--input-border)",
+            color: "var(--text-primary)",
+          }}
         >
           <option value="ASC">Ascending</option>
           <option value="DESC">Descending</option>

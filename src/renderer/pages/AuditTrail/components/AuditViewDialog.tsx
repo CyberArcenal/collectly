@@ -1,5 +1,6 @@
+// src/renderer/pages/audit/components/AuditViewDialog.tsx
 import React from "react";
-import { X, Calendar, User, Tag, FileText, Database, Code } from "lucide-react";
+import { X, Calendar, User, Tag, FileText, Database, Code, Clock } from "lucide-react";
 import { getActionColor } from "../hooks/useAuditLogs";
 import type { AuditLogEntry } from "../../../api/core/audit";
 
@@ -9,6 +10,42 @@ interface AuditViewDialogProps {
   onClose: () => void;
 }
 
+const formatDate = (date: string | Date) => {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleString();
+};
+
+const parseJson = (data: string | null) => {
+  if (!data) return null;
+  try {
+    return JSON.parse(data);
+  } catch {
+    return data;
+  }
+};
+
+// ✅ Safely convert any value to a string for rendering
+const safeStringify = (value: any): string => {
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch {
+      return "[Unserializable Object]";
+    }
+  }
+  return String(value);
+};
+
+const formatValue = (value: any): string => {
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "string") return value;
+  if (typeof value === "object") return JSON.stringify(value, null, 2);
+  return String(value);
+};
+
 export const AuditViewDialog: React.FC<AuditViewDialogProps> = ({
   isOpen,
   log,
@@ -16,175 +53,205 @@ export const AuditViewDialog: React.FC<AuditViewDialogProps> = ({
 }) => {
   if (!isOpen || !log) return null;
 
-  // Helper to parse JSON safely
-  const parseJson = (data: string | null) => {
-    if (!data) return null;
-    try {
-      return JSON.parse(data);
-    } catch {
-      return data; // return as string if not JSON
-    }
-  };
-
   const oldData = parseJson(log.oldData);
   const newData = parseJson(log.newData);
+  const hasChanges = !!(oldData || newData);
+
+  // ✅ Safely get description as string
+  const description = log.changes ? safeStringify(log.changes) : null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex items-center justify-center min-h-screen px-4">
-        <div
-          className="fixed inset-0 bg-black/50 transition-opacity"
-          onClick={onClose}
-        />
-        <div className="relative bg-[var(--card-bg)] rounded-lg w-full max-w-3xl max-h-[90vh] overflow-hidden shadow-xl">
-          <div className="flex items-center justify-between p-6 border-b border-[var(--border-color)]">
-            <h2 className="text-xl font-bold text-[var(--text-primary)]">
-              Audit Log Details #{log.id}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div
+        className="w-full max-w-2xl max-h-[90vh] rounded-xl shadow-xl border overflow-hidden"
+        style={{
+          backgroundColor: "var(--card-bg)",
+          borderColor: "var(--border-color)",
+        }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--border-color)]">
+          <div className="flex items-center gap-3">
+            <div
+              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+              style={{ backgroundColor: getActionColor(log.action) }}
+            />
+            <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+              Audit Log #{log.id}
             </h2>
-            <button
-              onClick={onClose}
-              className="p-1 hover:bg-[var(--card-hover-bg)] rounded"
+            <span
+              className="px-2 py-0.5 text-xs rounded-full font-medium"
+              style={{
+                backgroundColor: `${getActionColor(log.action)}20`,
+                color: getActionColor(log.action),
+              }}
             >
-              <X className="w-5 h-5 text-[var(--text-tertiary)]" />
-            </button>
+              {log.action}
+            </span>
           </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors text-[var(--text-secondary)]"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
 
-          <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
-            <div className="space-y-4">
-              {/* Basic Info */}
-              <div className="bg-[var(--card-secondary-bg)] rounded-lg p-4 border border-[var(--border-color)]">
-                <h3 className="text-md font-semibold text-[var(--text-primary)] mb-3">
-                  Basic Information
-                </h3>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-[var(--text-tertiary)] flex items-center gap-1">
-                      <Calendar className="w-3 h-3" /> Timestamp
-                    </p>
-                    <p className="text-[var(--text-primary)]">
-                      {new Date(log.timestamp).toLocaleString()}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[var(--text-tertiary)] flex items-center gap-1">
-                      <User className="w-3 h-3" /> User
-                    </p>
-                    <p className="text-[var(--text-primary)]">
-                      {log.user ||
-                        (log.userId ? `User #${log.userId}` : "System")}
-                      {log.userType && ` (${log.userType})`}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[var(--text-tertiary)] flex items-center gap-1">
-                      <Tag className="w-3 h-3" /> Action
-                    </p>
-                    <p
-                      className="inline-flex px-2 py-1 rounded-full text-xs font-medium"
-                      style={{
-                        backgroundColor: `${getActionColor(log.action)}20`,
-                        color: getActionColor(log.action),
-                      }}
-                    >
-                      {log.action}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[var(--text-tertiary)] flex items-center gap-1">
-                      <Database className="w-3 h-3" /> Entity
-                    </p>
-                    <p className="text-[var(--text-primary)]">
-                      {log.entity}
-                      {log.entityId && ` #${log.entityId}`}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Changes / Description */}
-              {log.changes && (
-                <div className="bg-[var(--card-secondary-bg)] rounded-lg p-4 border border-[var(--border-color)]">
-                  <h3 className="text-md font-semibold text-[var(--text-primary)] mb-2 flex items-center gap-2">
-                    <FileText className="w-4 h-4" />
-                    Description
-                  </h3>
-                  <p className="text-sm text-[var(--text-secondary)] whitespace-pre-wrap">
-                    {log.changes}
-                  </p>
-                </div>
-              )}
-
-              {/* Old Data */}
-              {oldData && (
-                <div className="bg-[var(--card-secondary-bg)] rounded-lg p-4 border border-[var(--border-color)]">
-                  <h3 className="text-md font-semibold text-[var(--text-primary)] mb-2 flex items-center gap-2">
-                    <Code className="w-4 h-4" />
-                    Old Data
-                  </h3>
-                  <pre className="text-xs text-[var(--text-secondary)] bg-[var(--background-color)] p-2 rounded overflow-auto max-h-60">
-                    {typeof oldData === "string"
-                      ? oldData
-                      : JSON.stringify(oldData, null, 2)}
-                  </pre>
-                </div>
-              )}
-
-              {/* New Data */}
-              {newData && (
-                <div className="bg-[var(--card-secondary-bg)] rounded-lg p-4 border border-[var(--border-color)]">
-                  <h3 className="text-md font-semibold text-[var(--text-primary)] mb-2 flex items-center gap-2">
-                    <Code className="w-4 h-4" />
-                    New Data
-                  </h3>
-                  <pre className="text-xs text-[var(--text-secondary)] bg-[var(--background-color)] p-2 rounded overflow-auto max-h-60">
-                    {typeof newData === "string"
-                      ? newData
-                      : JSON.stringify(newData, null, 2)}
-                  </pre>
-                </div>
-              )}
-
-              {/* Metadata */}
-              {(log.ipAddress || log.userAgent) && (
-                <div className="bg-[var(--card-secondary-bg)] rounded-lg p-4 border border-[var(--border-color)]">
-                  <h3 className="text-md font-semibold text-[var(--text-primary)] mb-2">
-                    Metadata
-                  </h3>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    {log.ipAddress && (
-                      <>
-                        <p className="text-[var(--text-tertiary)]">
-                          IP Address
-                        </p>
-                        <p className="text-[var(--text-primary)]">
-                          {log.ipAddress}
-                        </p>
-                      </>
-                    )}
-                    {log.userAgent && (
-                      <>
-                        <p className="text-[var(--text-tertiary)]">
-                          User Agent
-                        </p>
-                        <p className="text-[var(--text-primary)]">
-                          {log.userAgent}
-                        </p>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
+        {/* Body */}
+        <div className="overflow-y-auto p-5 space-y-4 max-h-[calc(90vh-80px)]">
+          {/* Metadata Grid */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider flex items-center gap-1.5">
+                <Calendar className="w-3 h-3" /> Timestamp
+              </label>
+              <p className="text-sm text-[var(--text-primary)] mt-1 flex items-center gap-1.5">
+                <Clock className="w-3 h-3 text-[var(--text-tertiary)]" />
+                {formatDate(log.timestamp)}
+              </p>
+            </div>
+            <div>
+              <label className="text-[10px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider flex items-center gap-1.5">
+                <User className="w-3 h-3" /> User
+              </label>
+              <p className="text-sm text-[var(--text-primary)] mt-1">
+                {log.user || "System"}
+                {log.userType && (
+                  <span className="text-xs text-[var(--text-tertiary)] ml-1.5">
+                    ({log.userType})
+                  </span>
+                )}
+              </p>
+            </div>
+            <div>
+              <label className="text-[10px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider flex items-center gap-1.5">
+                <Tag className="w-3 h-3" /> Entity
+              </label>
+              <p className="text-sm text-[var(--text-primary)] mt-1">
+                {log.entity}
+                {log.entityId && (
+                  <span className="text-[var(--text-tertiary)] ml-1.5">
+                    #{log.entityId}
+                  </span>
+                )}
+              </p>
+            </div>
+            <div>
+              <label className="text-[10px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider flex items-center gap-1.5">
+                <Database className="w-3 h-3" /> Action Type
+              </label>
+              <span
+                className="inline-block px-2 py-0.5 text-xs rounded-full font-medium mt-1"
+                style={{
+                  backgroundColor: `${getActionColor(log.action)}20`,
+                  color: getActionColor(log.action),
+                }}
+              >
+                {log.action}
+              </span>
             </div>
           </div>
 
-          <div className="flex justify-end p-6 border-t border-[var(--border-color)]">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 bg-[var(--accent-blue)] text-white rounded-lg hover:bg-[var(--accent-blue-hover)]"
-            >
-              Close
-            </button>
-          </div>
+          {/* Description / Changes - ✅ fixed to handle objects */}
+          {description && (
+            <div className="bg-[var(--card-secondary-bg)] rounded-lg p-3 border border-[var(--border-color)]">
+              <label className="text-[10px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider flex items-center gap-1.5">
+                <FileText className="w-3 h-3" /> Description
+              </label>
+              <pre className="mt-1 text-sm text-[var(--text-secondary)] whitespace-pre-wrap font-sans">
+                {description}
+              </pre>
+            </div>
+          )}
+
+          {/* Data Changes */}
+          {hasChanges && (
+            <div className="space-y-3">
+              {oldData && (
+                <div className="bg-[var(--card-secondary-bg)] rounded-lg p-3 border border-[var(--border-color)]">
+                  <label className="text-[10px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider flex items-center gap-1.5">
+                    <Code className="w-3 h-3" /> Old Data
+                  </label>
+                  <pre className="mt-1 p-2 rounded text-xs overflow-auto max-h-32 font-mono" style={{
+                    backgroundColor: "var(--background-color)",
+                    color: "var(--text-secondary)",
+                    border: "1px solid var(--border-color)",
+                  }}>
+                    {formatValue(oldData)}
+                  </pre>
+                </div>
+              )}
+
+              {newData && (
+                <div className="bg-[var(--card-secondary-bg)] rounded-lg p-3 border border-[var(--border-color)]">
+                  <label className="text-[10px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider flex items-center gap-1.5">
+                    <Code className="w-3 h-3" /> New Data
+                  </label>
+                  <pre className="mt-1 p-2 rounded text-xs overflow-auto max-h-32 font-mono" style={{
+                    backgroundColor: "var(--background-color)",
+                    color: "var(--text-secondary)",
+                    border: "1px solid var(--border-color)",
+                  }}>
+                    {formatValue(newData)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Metadata */}
+          {(log.ipAddress || log.userAgent) && (
+            <div className="bg-[var(--card-secondary-bg)] rounded-lg p-3 border border-[var(--border-color)]">
+              <label className="text-[10px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider">
+                Request Metadata
+              </label>
+              <div className="mt-1 space-y-1 text-sm">
+                {log.ipAddress && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[var(--text-tertiary)] text-xs">IP:</span>
+                    <span className="text-[var(--text-primary)] font-mono text-xs">
+                      {log.ipAddress}
+                    </span>
+                  </div>
+                )}
+                {log.userAgent && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[var(--text-tertiary)] text-xs">Agent:</span>
+                    <span className="text-[var(--text-secondary)] text-xs truncate">
+                      {log.userAgent}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {!hasChanges && !description && !log.ipAddress && !log.userAgent && (
+            <p className="text-sm text-[var(--text-tertiary)] italic text-center py-4">
+              No additional data available for this log entry.
+            </p>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end px-5 py-3 border-t border-[var(--border-color)]">
+          <button
+            onClick={onClose}
+            className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors btn-secondary"
+            style={{
+              backgroundColor: "var(--btn-secondary-bg)",
+              color: "var(--btn-secondary-text)",
+              border: "1px solid var(--btn-secondary-border)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "var(--btn-secondary-hover)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "var(--btn-secondary-bg)";
+            }}
+          >
+            Close
+          </button>
         </div>
       </div>
     </div>

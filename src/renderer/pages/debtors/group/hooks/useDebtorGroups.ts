@@ -79,11 +79,11 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
   const [editGroupModalOpen, setEditGroupModalOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<DebtorGroup | null>(null);
 
-  // Load all groups (with pagination – but groups are usually few, so we can fetch all)
+  // Load all groups
   const loadGroups = useCallback(async () => {
     setLoadingGroups(true);
     try {
-      const response = await groupsAPI.getAll(1, 100); // fetch up to 100 groups
+      const response = await groupsAPI.getAll(1, 100);
       if (response.status) {
         setGroups(response.data.data);
         setGroupsPagination({
@@ -102,16 +102,14 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
     }
   }, []);
 
-  // Load members of the selected group with pagination
+  // Load members of the selected group
   const loadGroupMembers = useCallback(
     async (groupId: number, page: number, limit: number) => {
       setLoadingMembers(true);
       try {
         const response = await groupsAPI.getMembers(groupId, page, limit);
         if (response.status) {
-          // Normalize members: ensure each has a 'debtor' object
           const normalizedMembers = response.data.data.map((member) => {
-            // If 'debtor' already exists and has a name, use it as-is
             if (
               member.debtor &&
               typeof member.debtor === "object" &&
@@ -119,24 +117,19 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
             ) {
               return member;
             }
-
-            // Otherwise, construct from flat fields (offline mode)
             const flat = member as any;
             const debtorName =
               flat.debtorName ||
               flat.name ||
               flat.debtor_name ||
               `Debtor #${member.debtorId}`;
-            const contact = flat.contact || flat.debtor_contact || null;
-            const email = flat.email || flat.debtor_email || null;
-
             return {
               ...member,
               debtor: {
                 id: member.debtorId,
                 name: debtorName,
-                contact: contact,
-                email: email,
+                contact: flat.contact || flat.debtor_contact || null,
+                email: flat.email || flat.debtor_email || null,
               },
             };
           });
@@ -168,7 +161,7 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
     []
   );
 
-  // Load all active debtors for assignment dropdown (fetch up to 1000)
+  // Load all active debtors
   const loadAvailableDebtors = useCallback(async () => {
     setLoadingDebtors(true);
     try {
@@ -196,7 +189,7 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
     loadAvailableDebtors();
   }, [loadGroups, loadAvailableDebtors]);
 
-  // Reload members when selected group changes or pagination changes
+  // Reload members when selected group or pagination changes
   useEffect(() => {
     if (selectedGroup) {
       loadGroupMembers(selectedGroup.id, membersCurrentPage, membersPageSize);
@@ -258,8 +251,7 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
   const handleDeleteGroup = async (id: number) => {
     const confirmed = await dialogs.confirm({
       title: "Delete Group",
-      message:
-        "Are you sure? This will remove all debtor assignments from this group.",
+      message: "Are you sure? This will remove all debtor assignments from this group.",
     });
     if (!confirmed) return;
     try {
@@ -282,11 +274,7 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
     try {
       const response = await groupsAPI.assignDebtor(selectedGroup.id, debtorId);
       if (response.status) {
-        await loadGroupMembers(
-          selectedGroup.id,
-          membersCurrentPage,
-          membersPageSize
-        );
+        await loadGroupMembers(selectedGroup.id, membersCurrentPage, membersPageSize);
         dialogs.success("Debtor assigned");
       } else {
         throw new Error(response.message || "Assignment failed");
@@ -301,11 +289,7 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
     try {
       const response = await groupsAPI.removeDebtor(selectedGroup.id, debtorId);
       if (response.status) {
-        await loadGroupMembers(
-          selectedGroup.id,
-          membersCurrentPage,
-          membersPageSize
-        );
+        await loadGroupMembers(selectedGroup.id, membersCurrentPage, membersPageSize);
         dialogs.success("Debtor removed from group");
       } else {
         throw new Error(response.message || "Removal failed");
@@ -320,11 +304,7 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
     try {
       const response = await groupsAPI.bulkAssign(selectedGroup.id, debtorIds);
       if (response.status) {
-        await loadGroupMembers(
-          selectedGroup.id,
-          membersCurrentPage,
-          membersPageSize
-        );
+        await loadGroupMembers(selectedGroup.id, membersCurrentPage, membersPageSize);
         dialogs.success(`${debtorIds.length} debtor(s) assigned to group`);
       } else {
         throw new Error(response.message || "Bulk assignment failed");

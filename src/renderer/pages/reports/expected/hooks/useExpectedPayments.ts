@@ -96,7 +96,7 @@ const useExpectedPayments = () => {
         const due = new Date(debt.dueDate);
         return due >= intervalStart && due <= intervalEnd;
       });
-      const amount = debtsInInterval.reduce((sum, d) => sum + d.remainingAmount, 0);
+      const amount = debtsInInterval.reduce((sum, d) => sum + (Number(d.remainingAmount) || 0), 0);
       const details = debtsInInterval.map(d => ({
         debtId: d.id,
         debtName: d.name,
@@ -112,7 +112,7 @@ const useExpectedPayments = () => {
       };
     });
 
-    const totalExpected = data.reduce((sum, d) => sum + d.amount, 0);
+    const totalExpected = data.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
     return { period: { from: fromDate, to: toDate }, groupBy, totalExpected, data };
   }, [relevantDebts, fromDate, toDate, groupBy]);
 

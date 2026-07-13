@@ -1,6 +1,8 @@
+// src/renderer/pages/payments/amortization/hooks/useAmortizationSchedule.ts
+
 import { useState, useEffect, useCallback } from 'react';
-import type { Debt } from '../../../../api/core/debt';
 import type { AmortizationEntry, AmortizationSchedule, PaymentFrequency } from '../types';
+import type { Debt } from '../../../../api/core/debt';
 import debtsAPI from '../../../../api/core/debt';
 
 function computePMT(principal: number, ratePerPeriod: number, numberOfPeriods: number): number {

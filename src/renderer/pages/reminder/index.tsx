@@ -1,6 +1,6 @@
 // src/renderer/pages/notification/index.tsx
 import React, { useState, useCallback, useRef, useEffect } from "react";
-import { Filter, RefreshCw, Mail } from "lucide-react";
+import { Filter, RefreshCw, Mail, Eye, EyeOff, Download } from "lucide-react";
 import { dialogs } from "../../utils/dialogs";
 import reminderLogAPI from "../../api/core/reminder_log";
 import { showSuccess, showError } from "../../utils/notification";
@@ -12,6 +12,8 @@ import { NotificationFilterPanel } from "./components/reminderFilterPannel";
 import { NotificationTable } from "./components/reminderTable";
 import { NotificationViewDialog } from "./components/reminderViewDialogs";
 import { usePagination } from "../../contexts/PaginationContext";
+import LoadingSpinner from "../../components/Shared/LoadingSpinner";
+import Button from "../../components/UI/Button";
 
 const NotificationLogPage: React.FC = () => {
   const {
@@ -31,12 +33,20 @@ const NotificationLogPage: React.FC = () => {
   } = useNotificationLogs();
 
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [showStats, setShowStats] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLog, setSelectedLog] = useState<NotificationLogEntry | null>(null);
   const [sendingRows, setSendingRows] = useState<Set<number>>(new Set());
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
 
   const { setPagination, clearPagination } = usePagination();
+
+  const hasFilters = !!(
+    searchQuery ||
+    filters.status ||
+    filters.startDate ||
+    filters.endDate
+  );
 
   // Stable pagination handlers
   const handlePageChange = useCallback(
@@ -60,7 +70,6 @@ const NotificationLogPage: React.FC = () => {
   const prevTotalRef = useRef(totalItems);
   const prevLimitRef = useRef(pageSize);
 
-  // Sync with global pagination context
   useEffect(() => {
     const pageChanged = prevPageRef.current !== currentPage;
     const totalChanged = prevTotalRef.current !== totalItems;
@@ -87,7 +96,7 @@ const NotificationLogPage: React.FC = () => {
     return () => clearPagination();
   }, [clearPagination]);
 
-  // Handlers (unchanged)
+  // Handlers
   const handleSearchChange = (query: string) => {
     setSearchQuery(query);
     updateFilters({ keyword: query });
@@ -108,11 +117,11 @@ const NotificationLogPage: React.FC = () => {
   };
 
   const handleRetry = async (id: number) => {
-    showSuccess("The email reminder has been queued for retry.");
     setSendingRows((prev) => new Set(prev).add(id));
     try {
       const response = await reminderLogAPI.retry(id);
       if (response.status) {
+        showSuccess("Email reminder queued for retry.");
         refetch();
       } else {
         throw new Error(response.message);
@@ -143,11 +152,11 @@ const NotificationLogPage: React.FC = () => {
   };
 
   const handleResend = async (id: number) => {
-    showSuccess("The email reminder has been resent.");
     setSendingRows((prev) => new Set(prev).add(id));
     try {
       const response = await reminderLogAPI.resend(id);
       if (response.status) {
+        showSuccess("Email reminder resent.");
         refetch();
       } else {
         throw new Error(response.message);
@@ -200,95 +209,129 @@ const NotificationLogPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--card-bg)]">
-      <main className="mx-auto px-2 py-2">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-          <div>
-            <h2 className="text-2xl font-bold text-[var(--text-primary)] flex items-center gap-2">
-              <Mail className="w-6 h-6 text-[var(--primary-color)]" />
-              Email Reminder Logs
-            </h2>
-            <p className="text-[var(--text-secondary)] mt-1">
-              {totalItems} total email records
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => refetch()}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg
-                         bg-[var(--card-secondary-bg)] hover:bg-[var(--card-hover-bg)]
-                         text-[var(--text-primary)] border border-[var(--border-color)]/20
-                         hover:border-[var(--border-color)]/40 transition-all duration-200"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Refresh
-            </button>
-            <button
-              onClick={() => setIsFilterOpen(!isFilterOpen)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg
-                         bg-[var(--card-secondary-bg)] hover:bg-[var(--card-hover-bg)]
-                         text-[var(--text-primary)] border border-[var(--border-color)]/20
-                         hover:border-[var(--border-color)]/40 transition-all duration-200"
-            >
-              <Filter className="w-4 h-4" />
-              Filters
-            </button>
-          </div>
+    <div className="p-4 space-y-4">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-xl font-bold text-[var(--text-primary)] flex items-center gap-2">
+            <Mail className="w-5 h-5 text-[var(--primary-color)]" />
+            Email Reminder Logs
+          </h1>
+          <p className="text-sm text-[var(--text-secondary)] mt-0.5">
+            Track all email reminders sent to debtors
+          </p>
         </div>
-
-        <NotificationStats stats={stats} loading={loading} />
-
-        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-          <NotificationSearch
-            value={searchQuery}
-            onChange={handleSearchChange}
-            placeholder="Search by recipient email, subject, or content..."
-          />
-          {searchQuery && (
-            <span className="text-sm text-[var(--text-secondary)]">
-              Searching: “{searchQuery}”
-            </span>
-          )}
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowStats(!showStats)}
+            className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors"
+            title={showStats ? "Hide summary" : "Show summary"}
+          >
+            {showStats ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+          <button
+            onClick={() => setIsFilterOpen(!isFilterOpen)}
+            className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors"
+            title={isFilterOpen ? "Hide filters" : "Show filters"}
+          >
+            <Filter className="w-4 h-4" />
+          </button>
+          <button
+            onClick={refetch}
+            disabled={loading}
+            className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors disabled:opacity-50"
+            title="Refresh"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+          </button>
         </div>
+      </div>
 
-        <NotificationFilterPanel
-          filters={{
-            status: filters.status,
-            startDate: filters.startDate,
-            endDate: filters.endDate,
-            sortBy: filters.sortBy,
-            sortOrder: filters.sortOrder,
-          }}
-          onChange={handleFilterChange}
-          onClear={handleClearFilters}
-          isOpen={isFilterOpen}
-          onToggle={() => setIsFilterOpen(!isFilterOpen)}
+      {/* Summary Cards */}
+      {showStats && <NotificationStats stats={stats} loading={loading} />}
+
+      {/* Search */}
+      <div className="flex flex-wrap items-center gap-3">
+        <NotificationSearch
+          value={searchQuery}
+          onChange={handleSearchChange}
+          placeholder="Search by recipient email, subject, or content..."
         />
-
-        {error && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mt-4 text-red-400">
-            {error}
-            <button onClick={refetch} className="ml-3 underline">
-              Retry
-            </button>
-          </div>
+        {searchQuery && (
+          <span className="text-xs text-[var(--text-tertiary)]">
+            Searching: “{searchQuery}”
+          </span>
         )}
+        {hasFilters && (
+          <span className="text-xs text-[var(--text-secondary)] flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--primary-color)]" />
+            Filters active
+          </span>
+        )}
+      </div>
 
-        <div className="mt-6">
-          <NotificationTable
-            logs={logs}
-            onView={handleView}
-            onRetry={confirmRetry}
-            onResend={confirmResend}
-            onDelete={confirmDelete}
-            isLoading={loading}
-            sendingIds={sendingRows}
-          />
+      {/* Filters Panel */}
+      <NotificationFilterPanel
+        filters={{
+          status: filters.status,
+          startDate: filters.startDate,
+          endDate: filters.endDate,
+          sortBy: filters.sortBy,
+          sortOrder: filters.sortOrder,
+        }}
+        onChange={handleFilterChange}
+        onClear={handleClearFilters}
+        isOpen={isFilterOpen}
+        onToggle={() => setIsFilterOpen(!isFilterOpen)}
+      />
+
+      {/* Error */}
+      {error && (
+        <div
+          className="p-3 rounded-lg text-sm flex items-center justify-between"
+          style={{
+            backgroundColor: "var(--status-overdue-bg)",
+            color: "var(--danger-color)",
+            border: "1px solid var(--danger-color)",
+          }}
+        >
+          <span>Error: {error}</span>
+          <button
+            onClick={refetch}
+            className="px-3 py-1 rounded-lg text-xs font-medium text-white"
+            style={{ backgroundColor: "var(--primary-color)" }}
+          >
+            Retry
+          </button>
         </div>
+      )}
 
-        {/* Global pagination will appear here via Layout */}
-      </main>
+      {/* Loading / Empty State */}
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <LoadingSpinner size="medium" />
+        </div>
+      ) : logs.length === 0 ? (
+        <div className="text-center py-8 text-[var(--text-tertiary)] border border-[var(--border-color)] rounded-xl bg-[var(--card-bg)] text-sm">
+          <Mail className="w-8 h-8 mx-auto mb-2 text-[var(--text-tertiary)]" />
+          <p>No email records found</p>
+          <p className="text-xs text-[var(--text-tertiary)] mt-1">
+            {hasFilters || searchQuery ? "Try adjusting your filters" : "Email reminders will appear here when sent"}
+          </p>
+        </div>
+      ) : (
+        <NotificationTable
+          logs={logs}
+          onView={handleView}
+          onRetry={confirmRetry}
+          onResend={confirmResend}
+          onDelete={confirmDelete}
+          isLoading={loading}
+          sendingIds={sendingRows}
+        />
+      )}
 
+      {/* View Dialog */}
       {selectedLog && (
         <NotificationViewDialog
           log={selectedLog}

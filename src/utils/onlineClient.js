@@ -1,9 +1,9 @@
 // src/utils/onlineClient.js
-const Store = require('electron-store').default;
-const fetch = require('electron-fetch').default;
-const { logger } = require('./logger');
-const { BrowserWindow } = require('electron');
-const TokenStorage = require('./tokenStorage');
+const Store = require("electron-store").default;
+const fetch = require("electron-fetch").default;
+const { logger } = require("./logger");
+const { BrowserWindow } = require("electron");
+const TokenStorage = require("./tokenStorage");
 
 // unused store – remove or keep for compatibility
 // const store = new Store({ name: 'auth' });
@@ -16,23 +16,23 @@ class OnlineClient {
   }
 
   setBaseUrl(url) {
-    this.baseUrl = url.replace(/\/$/, '');
+    this.baseUrl = url.replace(/\/$/, "");
   }
 
   // Always read fresh from storage
   getToken() {
     const token = TokenStorage.getAccessToken();
-    logger.debug(`[OnlineClient] getToken: ${token ? 'present' : 'null'}`);
+    logger.debug(`[OnlineClient] getToken: ${token ? "present" : "null"}`);
     return token;
   }
 
   setToken(token) {
-    logger.debug('[OnlineClient] setToken called');
+    logger.debug("[OnlineClient] setToken called");
     TokenStorage.setAccessToken(token);
   }
 
   clearToken() {
-    logger.debug('[OnlineClient] clearToken called');
+    logger.debug("[OnlineClient] clearToken called");
     TokenStorage.clearTokens();
   }
 
@@ -41,18 +41,20 @@ class OnlineClient {
     this.refreshPromise = (async () => {
       try {
         const refreshToken = TokenStorage.getRefreshToken();
-        logger.debug(`[OnlineClient] refreshToken: refresh token ${refreshToken ? 'exists' : 'missing'}`);
-        if (!refreshToken) throw new Error('No refresh token');
+        logger.debug(
+          `[OnlineClient] refreshToken: refresh token ${refreshToken ? "exists" : "missing"}`,
+        );
+        if (!refreshToken) throw new Error("No refresh token");
 
         const response = await fetch(`${this.baseUrl}/refresh`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ refresh: refreshToken }),
         });
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.detail || 'Refresh failed');
+          throw new Error(errorData.detail || "Refresh failed");
         }
 
         const data = await response.json();
@@ -60,7 +62,7 @@ class OnlineClient {
         const newRefreshToken = data.refresh || data.refresh_token;
         const expiresIn = data.expires_in || data.expiresIn || 3600;
 
-        logger.debug('[OnlineClient] Refresh successful, new tokens received');
+        logger.debug("[OnlineClient] Refresh successful, new tokens received");
 
         if (newRefreshToken) {
           TokenStorage.setTokens(accessToken, newRefreshToken, expiresIn);
@@ -71,10 +73,10 @@ class OnlineClient {
 
         return accessToken;
       } catch (err) {
-        logger.error('[OnlineClient] Refresh failed:', err.message);
+        logger.error("[OnlineClient] Refresh failed:", err.message);
         this.clearToken();
-        BrowserWindow.getAllWindows().forEach(win => {
-          win.webContents.send('auth:unauthorized');
+        BrowserWindow.getAllWindows().forEach((win) => {
+          win.webContents.send("auth:unauthorized");
         });
         throw err;
       } finally {
@@ -85,18 +87,18 @@ class OnlineClient {
   }
 
   async request(method, endpoint, body = null, headers = {}, query = {}) {
-    if (!this.baseUrl) throw new Error('Server URL not set');
+    if (!this.baseUrl) throw new Error("Server URL not set");
     let url = `${this.baseUrl}${endpoint}`;
     const queryString = new URLSearchParams(query).toString();
     if (queryString) url += `?${queryString}`;
 
     const makeRequest = async (token) => {
       const requestHeaders = {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...headers,
       };
       if (token) {
-        requestHeaders['Authorization'] = `Bearer ${token}`;
+        requestHeaders["Authorization"] = `Bearer ${token}`;
         logger.debug(`[OnlineClient] Request to ${url} with token`);
       } else {
         logger.debug(`[OnlineClient] Request to ${url} without token`);
@@ -116,43 +118,56 @@ class OnlineClient {
     if (response.status === 401) {
       const refreshToken = TokenStorage.getRefreshToken();
       if (refreshToken) {
-        logger.debug('[OnlineClient] 401 received, attempting refresh...');
+        logger.debug("[OnlineClient] 401 received, attempting refresh...");
         try {
           const newToken = await this.refreshToken();
           response = await makeRequest(newToken);
         } catch (refreshErr) {
-          logger.debug('[OnlineClient] Refresh failed, returning original 401');
-          return response;
+          logger.debug("[OnlineClient] Refresh failed, returning original 401");
+          // refreshToken already broadcasts auth:unauthorized on failure
+          // but we keep the original response
+          // (do not reassign response)
         }
       } else {
-        logger.debug('[OnlineClient] 401 received but no refresh token available');
+        logger.debug(
+          "[OnlineClient] 401 received but no refresh token available",
+        );
+        // Broadcast unauthorized event to all renderer windows
+        BrowserWindow.getAllWindows().forEach((win) => {
+          win.webContents.send("auth:unauthorized");
+        });
+        // Clear any stale tokens
+        this.clearToken();
+        // Keep the original 401 response
       }
     }
+
+    // ✅ Always return the response (whether it's the original or the retry)
     return response;
   }
 
   async get(endpoint, options = {}) {
     const headers = options.headers || {};
     const query = options.params || {};
-    return this.request('GET', endpoint, null, headers, query);
+    return this.request("GET", endpoint, null, headers, query);
   }
 
   async post(endpoint, body, headers = {}, query = {}) {
-    return this.request('POST', endpoint, body, headers, query);
+    return this.request("POST", endpoint, body, headers, query);
   }
 
   async put(endpoint, body, headers = {}, query = {}) {
-    return this.request('PUT', endpoint, body, headers, query);
+    return this.request("PUT", endpoint, body, headers, query);
   }
 
   async patch(endpoint, body, headers = {}, query = {}) {
-    return this.request('PATCH', endpoint, body, headers, query);
+    return this.request("PATCH", endpoint, body, headers, query);
   }
 
   async delete(endpoint, options = {}) {
     const headers = options.headers || {};
     const query = options.params || {};
-    return this.request('DELETE', endpoint, null, headers, query);
+    return this.request("DELETE", endpoint, null, headers, query);
   }
 }
 

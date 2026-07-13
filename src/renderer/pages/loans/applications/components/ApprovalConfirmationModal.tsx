@@ -1,16 +1,15 @@
 // src/renderer/pages/loans/applications/components/ApprovalConfirmationModal.tsx
 import React, { useState, useCallback, useRef, useEffect } from "react";
-import Modal from "../../../../components/UI/Modal";
-import Button from "../../../../components/UI/Button";
+import { X, CheckCircle, XCircle, AlertTriangle, Loader2 } from "lucide-react";
 import type { LoanApplication } from "../types";
-import { Loader2 } from "lucide-react";
+import { formatCurrency } from "../../../../utils/formatters";
 
 interface ApprovalConfirmationModalProps {
   isOpen: boolean;
   application: LoanApplication | null;
   type: "approve" | "reject";
   onClose: () => void;
-  onConfirm: (reason?: string) => Promise<void>;   // must return a promise, can throw
+  onConfirm: (reason?: string) => Promise<void>;
 }
 
 const ApprovalConfirmationModal: React.FC<ApprovalConfirmationModalProps> = ({
@@ -36,12 +35,10 @@ const ApprovalConfirmationModal: React.FC<ApprovalConfirmationModalProps> = ({
     setIsLoading(true);
     try {
       await onConfirm(type === "reject" ? rejectionReason : undefined);
-      // Only close if successful
       if (isMountedRef.current) {
         onClose();
       }
     } catch (error) {
-      // Error already handled by parent (dialogs.error), but we need to reset loading
       console.error("Confirmation error:", error);
     } finally {
       if (isMountedRef.current) {
@@ -50,132 +47,179 @@ const ApprovalConfirmationModal: React.FC<ApprovalConfirmationModalProps> = ({
     }
   }, [isLoading, onConfirm, onClose, rejectionReason, type]);
 
-  if (!application) return null;
+  if (!isOpen || !application) return null;
 
   const isApprove = type === "approve";
-  const confirmVariant = isApprove ? "success" : "danger";
-  const confirmText = isApprove ? "Approve" : "Reject";
   const titleText = isApprove ? "Approve Application" : "Reject Application";
+  const icon = isApprove ? (
+    <CheckCircle className="w-5 h-5 text-[var(--success-color)]" />
+  ) : (
+    <XCircle className="w-5 h-5 text-[var(--danger-color)]" />
+  );
+  const confirmText = isApprove ? "Approve" : "Reject";
+  const confirmColor = isApprove ? "var(--success-color)" : "var(--danger-color)";
+  const confirmHoverColor = isApprove ? "var(--btn-success-hover)" : "var(--btn-danger-hover)";
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={titleText} size="md">
-      <div className="space-y-4">
-        {/* Application summary card */}
-        <div
-          className="p-4 rounded-lg border"
-          style={{
-            backgroundColor: "var(--card-secondary-bg)",
-            borderColor: "var(--border-color)",
-          }}
-        >
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <span className="text-xs uppercase tracking-wide" style={{ color: "var(--text-tertiary)" }}>
-                Debtor
-              </span>
-              <p className="font-medium" style={{ color: "var(--text-primary)" }}>
-                {application.debtorName}
-              </p>
-            </div>
-            <div>
-              <span className="text-xs uppercase tracking-wide" style={{ color: "var(--text-tertiary)" }}>
-                Requested Amount
-              </span>
-              <p className="font-medium" style={{ color: "var(--text-primary)" }}>
-                ₱{Number(application.requestedAmount).toLocaleString()}
-              </p>
-            </div>
-            <div className="col-span-2">
-              <span className="text-xs uppercase tracking-wide" style={{ color: "var(--text-tertiary)" }}>
-                Purpose
-              </span>
-              <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                {application.purpose || "—"}
-              </p>
-            </div>
-          </div>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div
+        className="rounded-xl w-full max-w-md shadow-xl border"
+        style={{
+          backgroundColor: "var(--card-bg)",
+          borderColor: "var(--border-color)",
+        }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-color)]">
+          <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+            {icon}
+            {titleText}
+          </h3>
+          <button
+            onClick={onClose}
+            className="p-1 rounded hover:bg-[var(--card-hover-bg)] transition-colors text-[var(--text-tertiary)]"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
 
-        {/* Confirmation message */}
-        {isApprove ? (
+        {/* Body */}
+        <div className="p-4 space-y-4">
+          {/* Application Summary */}
           <div
-            className="p-3 rounded-md text-sm"
-            style={{
-              backgroundColor: "rgba(16, 185, 129, 0.1)",
-              color: "var(--success-color)",
-              borderLeft: "3px solid var(--success-color)",
-            }}
+            className="p-3 rounded-lg"
+            style={{ backgroundColor: "var(--card-secondary-bg)" }}
           >
-            ✅ Approving this application will create an active loan for the debtor. The debtor will be notified via email/SMS if configured.
+            <div className="grid grid-cols-2 gap-1 text-sm">
+              <div>
+                <span className="text-[var(--text-tertiary)]">Debtor:</span>
+                <span className="ml-1 font-medium text-[var(--text-primary)]">
+                  {application.debtorName}
+                </span>
+              </div>
+              <div>
+                <span className="text-[var(--text-tertiary)]">Amount:</span>
+                <span className="ml-1 font-medium text-[var(--text-primary)]">
+                  {formatCurrency(application.requestedAmount)}
+                </span>
+              </div>
+              <div className="col-span-2">
+                <span className="text-[var(--text-tertiary)]">Purpose:</span>
+                <span className="ml-1 text-[var(--text-secondary)]">
+                  {application.purpose}
+                </span>
+              </div>
+            </div>
           </div>
-        ) : (
-          <div
-            className="p-3 rounded-md text-sm"
-            style={{
-              backgroundColor: "rgba(239, 68, 68, 0.1)",
-              color: "var(--danger-color)",
-              borderLeft: "3px solid var(--danger-color)",
-            }}
-          >
-            ⚠️ Rejecting this application will archive it. The debtor will be notified (if contact info is provided).
-          </div>
-        )}
 
-        {/* Rejection reason textarea (only for reject) */}
-        {!isApprove && (
-          <div>
-            <label
-              htmlFor="rejection-reason"
-              className="block text-sm font-medium mb-1"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              Rejection Reason <span className="text-xs">(optional)</span>
-            </label>
-            <textarea
-              id="rejection-reason"
-              rows={3}
-              value={rejectionReason}
-              onChange={(e) => setRejectionReason(e.target.value)}
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-opacity-50 transition"
+          {/* Message */}
+          {isApprove ? (
+            <div
+              className="p-3 rounded-lg text-sm flex items-start gap-2"
               style={{
-                backgroundColor: "var(--input-bg)",
-                borderColor: "var(--border-color)",
-                color: "var(--text-primary)",
+                backgroundColor: "var(--status-success-bg)",
+                color: "var(--status-success-text)",
+                border: "1px solid var(--status-success-text)",
               }}
-              placeholder="Why is this application being rejected? (will be shared with the debtor)"
-              disabled={isLoading}
-            />
-          </div>
-        )}
+            >
+              <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <div>
+                <p>Approving this application will create an active loan for the debtor.</p>
+                <p className="text-xs opacity-80 mt-0.5">
+                  The debtor will be notified via email/SMS if configured.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div
+              className="p-3 rounded-lg text-sm flex items-start gap-2"
+              style={{
+                backgroundColor: "var(--status-overdue-bg)",
+                color: "var(--status-overdue-text)",
+                border: "1px solid var(--status-overdue-text)",
+              }}
+            >
+              <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <div>
+                <p>Rejecting this application will archive it.</p>
+                <p className="text-xs opacity-80 mt-0.5">
+                  The debtor will be notified if contact info is provided.
+                </p>
+              </div>
+            </div>
+          )}
 
-        {/* Action Buttons */}
-        <div className="flex justify-end gap-3 pt-2">
-          <Button
-            variant="secondary"
-            onClick={onClose}
-            disabled={isLoading}
-            className="min-w-[80px]"
-          >
-            Cancel
-          </Button>
-          <Button
-            variant={confirmVariant}
-            onClick={handleConfirm}
-            disabled={isLoading}
-            className="min-w-[100px] flex items-center justify-center gap-2"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Processing...
-              </>
-            ) : (
-              confirmText
-            )}
-          </Button>
+          {/* Rejection Reason */}
+          {!isApprove && (
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-1">
+                Rejection Reason <span className="text-[10px] font-normal">(optional)</span>
+              </label>
+              <textarea
+                rows={3}
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                className="w-full px-3 py-1.5 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)] resize-none"
+                style={{
+                  backgroundColor: "var(--input-bg)",
+                  borderColor: "var(--input-border)",
+                  color: "var(--text-primary)",
+                }}
+                placeholder="Why is this application being rejected? (will be shared with the debtor)"
+                disabled={isLoading}
+              />
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex justify-end gap-2 pt-2 border-t border-[var(--border-color)]">
+            <button
+              onClick={onClose}
+              disabled={isLoading}
+              className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors"
+              style={{
+                backgroundColor: "var(--btn-secondary-bg)",
+                color: "var(--btn-secondary-text)",
+                border: "1px solid var(--btn-secondary-border)",
+              }}
+              onMouseEnter={(e) => {
+                if (!e.currentTarget.disabled) {
+                  e.currentTarget.style.backgroundColor = "var(--btn-secondary-hover)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--btn-secondary-bg)";
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirm}
+              disabled={isLoading}
+              className="px-4 py-1.5 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              style={{ backgroundColor: confirmColor }}
+              onMouseEnter={(e) => {
+                if (!e.currentTarget.disabled) {
+                  e.currentTarget.style.backgroundColor = confirmHoverColor;
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = confirmColor;
+              }}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                confirmText
+              )}
+            </button>
+          </div>
         </div>
       </div>
-    </Modal>
+    </div>
   );
 };
 

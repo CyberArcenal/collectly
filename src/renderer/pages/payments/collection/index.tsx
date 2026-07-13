@@ -1,7 +1,7 @@
 // src/renderer/pages/payments/collection/index.tsx
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Calendar, Download, RefreshCw, Wrench } from "lucide-react";
+import { Calendar, Download, RefreshCw, Wrench, Eye, EyeOff, Filter } from "lucide-react";
 import useCollectionSchedule from "./hooks/useCollectionSchedule";
 import PeriodTabs from "./components/PeriodTabs";
 import CollectionSummary from "./components/CollectionSummary";
@@ -12,6 +12,7 @@ import type { DebtorCollection } from "./types";
 import { usePagination } from "../../../contexts/PaginationContext";
 import { dialogs } from "../../../utils/dialogs";
 import debtsAPI from "../../../api/core/debt";
+import LoadingSpinner from "../../../components/Shared/LoadingSpinner";
 
 const CollectionPage: React.FC = () => {
   const {
@@ -35,6 +36,7 @@ const CollectionPage: React.FC = () => {
   const [selectedDebtor, setSelectedDebtor] = useState<DebtorCollection | null>(
     null,
   );
+  const [showStats, setShowStats] = useState(true);
 
   // Stable pagination handlers
   const handlePageChange = useCallback(
@@ -126,172 +128,131 @@ const CollectionPage: React.FC = () => {
   const { start, end } = getDisplayRange();
 
   return (
-    <div className="m-1" style={{ backgroundColor: "var(--background-color)" }}>
-      <div
-        className="rounded-md shadow-md border p-4"
-        style={{
-          backgroundColor: "var(--card-bg)",
-          borderColor: "var(--border-color)",
-        }}
-      >
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-          <div className="flex items-center gap-2">
-            <Calendar
-              className="w-6 h-6"
-              style={{ color: "var(--primary-color)" }}
-            />
-            <h1
-              className="text-xl font-bold"
-              style={{ color: "var(--sidebar-text)" }}
-            >
-              Collection Schedule
-            </h1>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={handleFixPrecision}
-              className="px-3 py-2 rounded-md flex items-center gap-1 border"
-              style={{ borderColor: "var(--border-color)" }}
-            >
-              <Wrench className="w-4 h-4" />
-              Fix Precision
-            </button>
-            <button
-              onClick={refresh}
-              disabled={loading}
-              className="px-3 py-2 rounded-md flex items-center gap-1 border"
-              style={{ borderColor: "var(--border-color)" }}
-            >
-              <RefreshCw
-                className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
-              />
-              Refresh
-            </button>
-            <button
-              onClick={handleExport}
-              disabled={!data || data.debtors.length === 0}
-              className="px-3 py-2 rounded-md flex items-center gap-1 border"
-              style={{ borderColor: "var(--border-color)" }}
-            >
-              <Download className="w-4 h-4" />
-              Export
-            </button>
-          </div>
+    <div className="p-4 space-y-4">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-xl font-bold text-[var(--text-primary)] flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-[var(--primary-color)]" />
+            Collection Schedule
+          </h1>
+          <p className="text-sm text-[var(--text-secondary)] mt-0.5">
+            Track and manage periodic collections from debtors
+          </p>
         </div>
-
-        {/* Period Navigation */}
-        <div className="mb-4">
-          <PeriodTabs
-            value={periodType}
-            onChange={setPeriodType}
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowStats(!showStats)}
+            className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors"
+            title={showStats ? "Hide summary" : "Show summary"}
+          >
+            {showStats ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+          <button
+            onClick={handleFixPrecision}
+            className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors"
+            title="Fix Floating Point Precision"
+          >
+            <Wrench className="w-4 h-4" />
+          </button>
+          <button
+            onClick={refresh}
             disabled={loading}
-          />
+            className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors disabled:opacity-50"
+            title="Refresh"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+          </button>
+          <button
+            onClick={handleExport}
+            disabled={!data || data.debtors.length === 0}
+            className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors disabled:opacity-50"
+            title="Export"
+          >
+            <Download className="w-4 h-4" />
+          </button>
         </div>
-
-        {/* Loading / Error - centered like ActiveLoansPage */}
-        {(loading || error) && (
-          <div className="flex-1 flex items-center justify-center min-h-[200px]">
-            {loading && (
-              <div className="flex flex-col items-center gap-3">
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[var(--primary-color)]"></div>
-                <p className="text-sm text-[var(--text-secondary)]">
-                  Loading collection schedule...
-                </p>
-              </div>
-            )}
-            {error && (
-              <div className="text-center">
-                <div className="text-red-500 mb-2">⚠️</div>
-                <p className="text-red-500">Error: {error}</p>
-                <button
-                  onClick={refresh}
-                  className="mt-3 px-4 py-2 bg-[var(--primary-color)] text-white rounded-md text-sm"
-                >
-                  Retry
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Content */}
-        {!loading && !error && data && (
-          <>
-            {/* Summary */}
-            <div className="mb-4">
-              <CollectionSummary data={data} />
-            </div>
-
-            {/* Page info and pagination controls (inline) */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3">
-              <div className="flex items-center gap-2">
-                <label
-                  className="text-sm"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  Show:
-                </label>
-                <select
-                  value={limit}
-                  onChange={(e) => setLimit(Number(e.target.value))}
-                  className="px-2 py-1 border rounded text-sm"
-                  style={{
-                    backgroundColor: "var(--card-bg)",
-                    borderColor: "var(--border-color)",
-                    color: "var(--text-primary)",
-                  }}
-                >
-                  {[10, 25, 50, 100].map((size) => (
-                    <option key={size} value={size}>
-                      {size}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div
-                className="text-sm"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                {pagination.totalItems > 0
-                  ? `Showing ${start} to ${end} of ${pagination.totalItems} debtors`
-                  : "No debtors"}
-              </div>
-            </div>
-
-            {/* Table */}
-            {data.debtors.length > 0 ? (
-              <CollectionTable
-                debtors={paginatedDebtors}
-                onMarkPaid={handleMarkPaid}
-              />
-            ) : (
-              <div
-                className="text-center py-12 border rounded-md"
-                style={{ borderColor: "var(--border-color)" }}
-              >
-                <Calendar
-                  className="w-12 h-12 mx-auto mb-3"
-                  style={{ color: "var(--text-tertiary)" }}
-                />
-                <p
-                  className="text-lg font-medium"
-                  style={{ color: "var(--text-primary)" }}
-                >
-                  No due payments for this period
-                </p>
-                <p
-                  className="text-sm"
-                  style={{ color: "var(--text-tertiary)" }}
-                >
-                  All debtors have paid their {data.periodLabel.toLowerCase()}{" "}
-                  obligations.
-                </p>
-              </div>
-            )}
-          </>
-        )}
       </div>
+
+      {/* Period Navigation */}
+      <PeriodTabs
+        value={periodType}
+        onChange={setPeriodType}
+        disabled={loading}
+      />
+
+      {/* Summary */}
+      {showStats && data && (
+        <CollectionSummary data={data} />
+      )}
+
+      {/* Page info and pagination controls */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-[var(--text-secondary)]">Show:</label>
+          <select
+            value={limit}
+            onChange={(e) => setLimit(Number(e.target.value))}
+            className="px-2 py-1 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]"
+            style={{
+              backgroundColor: "var(--input-bg)",
+              borderColor: "var(--input-border)",
+              color: "var(--text-primary)",
+            }}
+          >
+            {[10, 25, 50, 100].map((size) => (
+              <option key={size} value={size}>
+                {size}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="text-sm text-[var(--text-secondary)]">
+          {pagination.totalItems > 0
+            ? `Showing ${start} to ${end} of ${pagination.totalItems} debtors`
+            : "No debtors"}
+        </div>
+      </div>
+
+      {/* Loading / Error */}
+      {loading && (
+        <div className="flex justify-center py-12">
+          <LoadingSpinner size="medium" />
+        </div>
+      )}
+
+      {error && !loading && (
+        <div className="text-center py-8 text-[var(--danger-color)] border border-[var(--border-color)] rounded-xl bg-[var(--card-bg)]">
+          <p className="text-sm">Error: {error}</p>
+          <button
+            onClick={refresh}
+            className="mt-3 px-4 py-1.5 rounded-lg text-sm font-medium text-white"
+            style={{ backgroundColor: "var(--primary-color)" }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* Content */}
+      {!loading && !error && data && (
+        <>
+          {data.debtors.length > 0 ? (
+            <CollectionTable
+              debtors={paginatedDebtors}
+              onMarkPaid={handleMarkPaid}
+            />
+          ) : (
+            <div className="text-center py-8 text-[var(--text-tertiary)] border border-[var(--border-color)] rounded-xl bg-[var(--card-bg)] text-sm">
+              <Calendar className="w-8 h-8 mx-auto mb-2 text-[var(--text-tertiary)]" />
+              <p>No due payments for this period</p>
+              <p className="text-xs text-[var(--text-tertiary)] mt-1">
+                All debtors have paid their {data.periodLabel.toLowerCase()} obligations.
+              </p>
+            </div>
+          )}
+        </>
+      )}
 
       {/* Modals */}
       <RecordPeriodPaymentModal

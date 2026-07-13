@@ -1,8 +1,8 @@
+// src/renderer/pages/notification/components/reminderViewDialogs.tsx
 import React from "react";
-import { X, Mail, AlertCircle, User, Hash, FileText } from "lucide-react";
+import { X, Mail, AlertCircle, User, FileText, Clock, Hash, CheckCircle, XCircle } from "lucide-react";
 import { formatDate } from "../../../utils/formatters";
 import type { NotificationLogEntry } from "../../../api/core/reminder_log";
-import Modal from "../../../components/UI/Modal";
 
 interface NotificationViewDialogProps {
   log: NotificationLogEntry;
@@ -17,50 +17,87 @@ export const NotificationViewDialog: React.FC<NotificationViewDialogProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const statusColors = {
-    queued: "text-yellow-400",
-    sent: "text-green-400",
-    failed: "text-red-400",
-    resend: "text-blue-400",
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "sent":
+        return { bg: "bg-[var(--status-success-bg)]", text: "text-[var(--status-success-text)]" };
+      case "queued":
+        return { bg: "bg-[var(--status-pending-bg)]", text: "text-[var(--status-pending-text)]" };
+      case "failed":
+        return { bg: "bg-[var(--status-overdue-bg)]", text: "text-[var(--status-overdue-text)]" };
+      case "resend":
+        return { bg: "bg-[var(--status-partial-bg)]", text: "text-[var(--status-partial-text)]" };
+      default:
+        return { bg: "bg-[var(--status-inactive-bg)]", text: "text-[var(--status-inactive-text)]" };
+    }
   };
 
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "sent": return <CheckCircle className="w-4 h-4" />;
+      case "queued": return <Clock className="w-4 h-4" />;
+      case "failed": return <XCircle className="w-4 h-4" />;
+      case "resend": return <Mail className="w-4 h-4" />;
+      default: return <Mail className="w-4 h-4" />;
+    }
+  };
+
+  const statusBadge = getStatusBadge(log.status);
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Email Reminder Details" size="lg">
-      <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border-color)]/20 w-full max-w-2xl max-h-[90vh] overflow-y-auto windows-fade-in">
-        {/* Content */}
-        <div className="p-6 space-y-6">
-          <div className="flex items-center justify-between">
-            <span
-              className={`px-3 py-1.5 rounded-full text-xs font-medium border ${statusColors[log.status]}`}
-            >
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div
+        className="rounded-xl w-full max-w-2xl max-h-[90vh] shadow-xl border flex flex-col"
+        style={{
+          backgroundColor: "var(--card-bg)",
+          borderColor: "var(--border-color)",
+        }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-color)] flex-shrink-0">
+          <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+            <Mail className="w-4 h-4 text-[var(--primary-color)]" />
+            Email Reminder Details
+            <span className="text-xs font-normal text-[var(--text-tertiary)] ml-1">
+              #{log.id}
+            </span>
+          </h3>
+          <button
+            onClick={onClose}
+            className="p-1 rounded hover:bg-[var(--card-hover-bg)] transition-colors text-[var(--text-tertiary)]"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {/* Status */}
+          <div className="flex items-center gap-3">
+            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium ${statusBadge.bg} ${statusBadge.text}`}>
+              {getStatusIcon(log.status)}
               {log.status.toUpperCase()}
             </span>
-            <span className="text-sm text-[var(--text-tertiary)]">
+            <span className="text-xs text-[var(--text-tertiary)]">
               ID: #{log.id}
             </span>
           </div>
 
           {/* Recipient */}
-          <div className="flex items-start gap-3">
-            <User className="w-4 h-4 text-[var(--text-tertiary)] mt-0.5" />
-            <div className="flex-1">
-              <p className="text-xs text-[var(--text-tertiary)] uppercase">
-                Recipient
-              </p>
-              <p className="text-[var(--text-primary)] font-medium">
-                {log.recipient_email}
-              </p>
+          <div className="flex items-start gap-3 p-3 rounded-lg" style={{ backgroundColor: "var(--card-secondary-bg)" }}>
+            <User className="w-4 h-4 text-[var(--text-tertiary)] flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">Recipient</p>
+              <p className="text-sm font-medium text-[var(--text-primary)]">{log.recipient_email}</p>
             </div>
           </div>
 
           {/* Subject */}
-          <div className="flex items-start gap-3">
-            <Mail className="w-4 h-4 text-[var(--text-tertiary)] mt-0.5" />
-            <div className="flex-1">
-              <p className="text-xs text-[var(--text-tertiary)] uppercase">
-                Subject
-              </p>
-              <p className="text-[var(--text-primary)] font-medium">
+          <div className="flex items-start gap-3 p-3 rounded-lg" style={{ backgroundColor: "var(--card-secondary-bg)" }}>
+            <Mail className="w-4 h-4 text-[var(--text-tertiary)] flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">Subject</p>
+              <p className="text-sm font-medium text-[var(--text-primary)]">
                 {log.subject || "(No subject)"}
               </p>
             </div>
@@ -68,13 +105,15 @@ export const NotificationViewDialog: React.FC<NotificationViewDialogProps> = ({
 
           {/* Payload / Body */}
           {log.payload && (
-            <div className="flex items-start gap-3">
-              <FileText className="w-4 h-4 text-[var(--text-tertiary)] mt-0.5" />
-              <div className="flex-1">
-                <p className="text-xs text-[var(--text-tertiary)] uppercase">
-                  Message Content
-                </p>
-                <pre className="mt-1 p-3 bg-[var(--card-secondary-bg)] rounded-lg text-xs text-[var(--text-secondary)] overflow-x-auto whitespace-pre-wrap">
+            <div className="flex items-start gap-3 p-3 rounded-lg" style={{ backgroundColor: "var(--card-secondary-bg)" }}>
+              <FileText className="w-4 h-4 text-[var(--text-tertiary)] flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">Message Content</p>
+                <pre className="mt-1 p-2 rounded text-xs overflow-x-auto whitespace-pre-wrap max-h-48" style={{
+                  backgroundColor: "var(--input-bg)",
+                  color: "var(--text-secondary)",
+                  border: "1px solid var(--border-color)",
+                }}>
                   {log.payload}
                 </pre>
               </div>
@@ -83,82 +122,76 @@ export const NotificationViewDialog: React.FC<NotificationViewDialogProps> = ({
 
           {/* Error Message */}
           {log.error_message && (
-            <div className="flex items-start gap-3 bg-red-500/10 p-3 rounded-lg border border-red-500/30">
-              <AlertCircle className="w-4 h-4 text-red-400 mt-0.5" />
+            <div
+              className="flex items-start gap-3 p-3 rounded-lg text-sm"
+              style={{
+                backgroundColor: "var(--status-overdue-bg)",
+                color: "var(--danger-color)",
+                border: "1px solid var(--danger-color)",
+              }}
+            >
+              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-xs text-red-400 uppercase">Error</p>
-                <p className="text-sm text-red-300">{log.error_message}</p>
+                <p className="text-[10px] uppercase tracking-wider">Error</p>
+                <p>{log.error_message}</p>
               </div>
             </div>
           )}
 
           {/* Metadata */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-4 border-t border-[var(--border-color)]/10">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 rounded-lg" style={{ backgroundColor: "var(--card-secondary-bg)" }}>
             <div>
-              <p className="text-xs text-[var(--text-tertiary)] uppercase">
-                Created
-              </p>
-              <p className="text-sm text-[var(--text-primary)]">
-                {formatDate(log.created_at)}
-              </p>
+              <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">Created</p>
+              <p className="text-sm text-[var(--text-primary)]">{formatDate(log.created_at)}</p>
             </div>
             {log.sent_at && (
               <div>
-                <p className="text-xs text-[var(--text-tertiary)] uppercase">
-                  Sent
-                </p>
-                <p className="text-sm text-[var(--text-primary)]">
-                  {formatDate(log.sent_at)}
-                </p>
+                <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">Sent</p>
+                <p className="text-sm text-[var(--text-primary)]">{formatDate(log.sent_at)}</p>
               </div>
             )}
             {log.last_error_at && (
               <div>
-                <p className="text-xs text-[var(--text-tertiary)] uppercase">
-                  Last Error
-                </p>
-                <p className="text-sm text-[var(--text-primary)]">
-                  {formatDate(log.last_error_at)}
-                </p>
+                <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">Last Error</p>
+                <p className="text-sm text-[var(--text-primary)]">{formatDate(log.last_error_at)}</p>
               </div>
             )}
             <div>
-              <p className="text-xs text-[var(--text-tertiary)] uppercase">
-                Retry Count
-              </p>
-              <p className="text-sm text-[var(--text-primary)]">
-                {log.retry_count}
-              </p>
+              <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">Retry Count</p>
+              <p className="text-sm text-[var(--text-primary)]">{log.retry_count}</p>
             </div>
             <div>
-              <p className="text-xs text-[var(--text-tertiary)] uppercase">
-                Resend Count
-              </p>
-              <p className="text-sm text-[var(--text-primary)]">
-                {log.resend_count}
-              </p>
+              <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">Resend Count</p>
+              <p className="text-sm text-[var(--text-primary)]">{log.resend_count}</p>
             </div>
             <div>
-              <p className="text-xs text-[var(--text-tertiary)] uppercase">
-                Updated
-              </p>
-              <p className="text-sm text-[var(--text-primary)]">
-                {formatDate(log.updated_at)}
-              </p>
+              <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">Updated</p>
+              <p className="text-sm text-[var(--text-primary)]">{formatDate(log.updated_at)}</p>
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end p-6 border-t border-[var(--border-color)]/20">
+        <div className="flex justify-end px-4 py-3 border-t border-[var(--border-color)] flex-shrink-0">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-lg bg-[var(--card-secondary-bg)] hover:bg-[var(--card-hover-bg)] text-[var(--text-primary)] transition-colors"
+            className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors"
+            style={{
+              backgroundColor: "var(--btn-secondary-bg)",
+              color: "var(--btn-secondary-text)",
+              border: "1px solid var(--btn-secondary-border)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "var(--btn-secondary-hover)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "var(--btn-secondary-bg)";
+            }}
           >
             Close
           </button>
         </div>
       </div>
-    </Modal>
+    </div>
   );
 };
