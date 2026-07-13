@@ -99,51 +99,35 @@ const useOverdueLoans = (): UseOverdueLoansReturn => {
     return Math.max(0, diff);
   };
 
-  const fetchStats = useCallback(async () => {
-    try {
-      const [statsRes, penaltiesRes] = await Promise.all([
-        debtsAPI.getStatistics(),
-        penaltiesAPI.getStatistics(),
-      ]);
+const fetchStats = useCallback(async () => {
+  try {
+    const [debtsRes, penaltiesRes] = await Promise.all([
+      debtsAPI.getStatistics(),
+      penaltiesAPI.getStatistics(),
+    ]);
 
-      let totalOverdue = 0;
-      let totalAmount = 0;
+    let total = 0;
+    let totalAmount = 0;
+    let avgDaysOverdue = 0;
 
-      if (statsRes.status) {
-        const data = statsRes.data;
-        // Adaptive: try camelCase first, then snake_case
-        totalOverdue = data.totalOverdue ?? data.total_overdue ?? 0;
-        totalAmount =
-          data.totalRemainingBalance ?? data.total_remaining_balance ?? 0;
-      }
-
-      let totalPenalties = 0;
-      if (penaltiesRes.status) {
-        const data = penaltiesRes.data;
-        totalPenalties =
-          data.totalPenaltyAmount ?? data.total_penalty_amount ?? 0;
-      }
-
-      // Compute average days overdue from current loans if available
-      let avgDays = 0;
-      if (loans.length > 0) {
-        const totalDays = loans.reduce(
-          (sum, loan) => sum + (loan.stats?.daysOverdue || 0),
-          0,
-        );
-        avgDays = Math.round(totalDays / loans.length);
-      }
-
-      setStats({
-        total: totalOverdue,
-        totalAmount,
-        averageDaysOverdue: avgDays,
-        totalPenalties,
-      });
-    } catch (err) {
-      console.error("Failed to fetch overdue stats:", err);
+    if (debtsRes.status) {
+      const data = debtsRes.data || {};
+      // Handle both camelCase and snake_case
+      total = data.totalOverdue ?? data.total_overdue ?? 0;
+      totalAmount = data.totalRemainingBalance ?? data.total_remaining_balance ?? 0;
+      avgDaysOverdue = data.avgDaysOverdue ?? data.avg_days_overdue ?? 0;
     }
-  }, []);
+
+    setStats({
+      total,
+      totalAmount,
+      averageDaysOverdue: avgDaysOverdue,
+      totalPenalties: penaltiesRes.status ? (penaltiesRes.data.totalPenaltyAmount ?? penaltiesRes.data.total_penalty_amount ?? 0) : 0,
+    });
+  } catch (err) {
+    console.error("Failed to fetch overdue stats:", err);
+  }
+}, []);
 
   const fetchOverdueLoans = useCallback(async () => {
     setLoading(true);

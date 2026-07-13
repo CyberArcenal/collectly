@@ -52,6 +52,8 @@ export interface BorrowerFilters {
 }
 
 export interface DebtStatistics {
+  avg_days_overdue: any;
+  avgDaysOverdue: any;
   total_active: number;
   total_amount_owed: number;
   total_remaining_balance: number;
