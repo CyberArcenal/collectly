@@ -23,7 +23,10 @@ class PenaltyTransactionHandler {
     this.updatePenalty = this.importHandler("./update.ipc");
     this.deletePenalty = this.importHandler("./delete.ipc");
     this.restorePenalty = this.importHandler("./restore.ipc");
-    this.permanentlyDeletePenalty = this.importHandler("./permanent_delete.ipc");
+    this.permanentlyDeletePenalty = this.importHandler(
+      "./permanent_delete.ipc",
+    );
+    this.runAutoPenalty = this.importHandler("./auto_run.ipc");
 
     // 🔄 BATCH OPERATIONS
     this.bulkCreatePenalties = this.importHandler("./bulk_create.ipc");
@@ -37,8 +40,15 @@ class PenaltyTransactionHandler {
       const fullPath = require.resolve(`./${path}`, { paths: [__dirname] });
       return require(fullPath);
     } catch (error) {
-      console.warn(`[PenaltyTransactionHandler] Failed to load handler: ${path}`, error.message);
-      return async () => ({ status: false, message: `Handler not implemented: ${path}`, data: null });
+      console.warn(
+        `[PenaltyTransactionHandler] Failed to load handler: ${path}`,
+        error.message,
+      );
+      return async () => ({
+        status: false,
+        message: `Handler not implemented: ${path}`,
+        data: null,
+      });
     }
   }
 
@@ -72,27 +82,49 @@ class PenaltyTransactionHandler {
         case "restorePenalty":
           return await this.handleWithTransaction(this.restorePenalty, params);
         case "permanentlyDeletePenalty":
-          return await this.handleWithTransaction(this.permanentlyDeletePenalty, params);
+          return await this.handleWithTransaction(
+            this.permanentlyDeletePenalty,
+            params,
+          );
+        case "runAutoPenalty":
+          return await this.handleWithTransaction(this.runAutoPenalty, params);
 
         // 🔄 BATCH (with transaction)
         case "bulkCreatePenalties":
-          return await this.handleWithTransaction(this.bulkCreatePenalties, params);
+          return await this.handleWithTransaction(
+            this.bulkCreatePenalties,
+            params,
+          );
         case "bulkUpdatePenalties":
-          return await this.handleWithTransaction(this.bulkUpdatePenalties, params);
+          return await this.handleWithTransaction(
+            this.bulkUpdatePenalties,
+            params,
+          );
         case "importPenaltiesCSV":
-          return await this.handleWithTransaction(this.importPenaltiesCSV, params);
+          return await this.handleWithTransaction(
+            this.importPenaltiesCSV,
+            params,
+          );
 
         // 📄 EXPORT (read-only)
         case "exportPenalties":
           return await this.exportPenalties(params);
 
         default:
-          return { status: false, message: `Unknown penalty method: ${method}`, data: null };
+          return {
+            status: false,
+            message: `Unknown penalty method: ${method}`,
+            data: null,
+          };
       }
     } catch (error) {
       console.error("PenaltyTransactionHandler error:", error);
       logger?.error("PenaltyTransactionHandler error:", error);
-      return { status: false, message: error.message || "Internal server error", data: null };
+      return {
+        status: false,
+        message: error.message || "Internal server error",
+        data: null,
+      };
     }
   }
 
@@ -121,7 +153,10 @@ class PenaltyTransactionHandler {
 const penaltyTransactionHandler = new PenaltyTransactionHandler();
 ipcMain.handle(
   "penaltyTransaction",
-  withErrorHandling(penaltyTransactionHandler.handleRequest.bind(penaltyTransactionHandler), "IPC:penaltyTransaction")
+  withErrorHandling(
+    penaltyTransactionHandler.handleRequest.bind(penaltyTransactionHandler),
+    "IPC:penaltyTransaction",
+  ),
 );
 
 module.exports = { PenaltyTransactionHandler, penaltyTransactionHandler };

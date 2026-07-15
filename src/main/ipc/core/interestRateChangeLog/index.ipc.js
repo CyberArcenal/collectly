@@ -15,6 +15,7 @@ class InterestRateChangeLogHandler {
     this.getAllLogs = this.importHandler("./get/all.ipc");
     this.getLogById = this.importHandler("./get/by_id.ipc");
     this.getLogsForLoan = this.importHandler("./get/by_loan.ipc");
+    this.getStatistics = this.importHandler("./get/statistics.ipc");
 
     // WRITE (with transaction)
     this.createLog = this.importHandler("./create.ipc");
@@ -44,6 +45,8 @@ class InterestRateChangeLogHandler {
       logger?.info(`InterestRateChangeLogHandler: ${method}`, params);
 
       switch (method) {
+        case "getStatistics":
+  return await this.getStatistics(params);
         case "getAllLogs":
           return await this.getAllLogs(params);
         case "getLogById":

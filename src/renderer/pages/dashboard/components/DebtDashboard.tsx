@@ -32,6 +32,7 @@ import { AuditViewDialog } from "../../AuditTrail/components/AuditViewDialog";
 import { useAuditView } from "../../AuditTrail/hooks/useAuditView";
 import auditAPI from "../../../api/core/audit";
 import { hideLoading, showError, showLoading } from "../../../utils/notification";
+import { showAlert } from "../../../utils/dialogs";
 
 // ==================== Subcomponents ====================
 
@@ -187,7 +188,7 @@ const AgingBuckets: React.FC<{
                   color: "var(--text-secondary)",
                 }}
               >
-                {bucket.percentage.toFixed(1)}%
+                {bucket?.percentage? bucket.percentage.toFixed(1) : 0}%
               </span>
             </div>
           </div>

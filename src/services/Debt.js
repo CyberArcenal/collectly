@@ -225,42 +225,82 @@ class DebtService {
     }
   }
 
-  /**
-   * Soft delete a debt (set deletedAt)
-   * @param {number} id
-   * @param {string} user
-   * @param {import("typeorm").QueryRunner | null} qr
-   */
-  async delete(id, user = "system", qr = null) {
-    const { updateDb } = require("../utils/dbUtils/dbActions");
-    const Debt = require("../entities/Debt");
-    // @ts-ignore
-    const debtRepo = this._getRepo(qr, Debt);
+/**
+ * Soft delete a debt (set deletedAt)
+ * @param {number} id
+ * @param {string} user
+ * @param {import("typeorm").QueryRunner | null} qr
+ */
+async delete(id, user = "system", qr = null) {
+  const { updateDb } = require("../utils/dbUtils/dbActions");
+  const Debt = require("../entities/Debt");
+  const PaymentTransaction = require("../entities/PaymentTransaction");
+  const PenaltyTransaction = require("../entities/PenaltyTransaction");
+  const LoanAgreement = require("../entities/LoanAgreement");
+  const debtRepo = this._getRepo(qr, Debt);
+  const paymentRepo = this._getRepo(qr, PaymentTransaction);
+  const penaltyRepo = this._getRepo(qr, PenaltyTransaction);
+  const agreementRepo = this._getRepo(qr, LoanAgreement);
 
-    try {
-      const debt = await debtRepo.findOne({ where: { id } });
-      if (!debt) {
-        throw new Error(`Debt with ID ${id} not found`);
-      }
-      if (debt.deletedAt) {
-        throw new Error(`Debt #${id} is already deleted`);
-      }
-
-      const oldData = { ...debt };
-      debt.deletedAt = new Date();
-      debt.updatedAt = new Date();
-
-      // @ts-ignore
-      const saved = await updateDb(debtRepo, debt, { queryRunner: qr });
-      await auditLogger.logDelete("Debt", id, oldData, user);
-      console.log(`Debt soft deleted: #${id}`);
-      return saved;
-    } catch (error) {
-      // @ts-ignore
-      console.error("Failed to delete debt:", error.message);
-      throw error;
+  try {
+    // 1. Find the debt with borrower info for user-friendly error messages
+    const debt = await debtRepo.findOne({
+      where: { id },
+      relations: ["borrower"],
+    });
+    if (!debt) {
+      throw new Error(`Debt with ID ${id} not found`);
     }
+    if (debt.deletedAt) {
+      throw new Error(`Debt "${debt.name}" is already deleted`);
+    }
+
+    const borrowerName = debt.borrower?.name || "Unknown Borrower";
+
+    // 2. 🔒 Check for active payments (not soft-deleted)
+    const paymentCount = await paymentRepo.count({
+      where: { debt: { id }, deletedAt: null },
+    });
+    if (paymentCount > 0) {
+      throw new Error(
+        `Cannot delete debt "${debt.name}" for ${borrowerName} because it has ${paymentCount} active payment(s). Please delete or void all payments first.`
+      );
+    }
+
+    // 3. 🔒 Check for active penalties (not soft-deleted)
+    const penaltyCount = await penaltyRepo.count({
+      where: { debt: { id }, deletedAt: null },
+    });
+    if (penaltyCount > 0) {
+      throw new Error(
+        `Cannot delete debt "${debt.name}" for ${borrowerName} because it has ${penaltyCount} active penalty(s). Please delete all penalties first.`
+      );
+    }
+
+    // 4. 🔒 Check for signed loan agreements (status = 'signed')
+    const signedAgreementCount = await agreementRepo.count({
+      where: { debt: { id }, status: "signed", deletedAt: null },
+    });
+    if (signedAgreementCount > 0) {
+      throw new Error(
+        `Cannot delete debt "${debt.name}" for ${borrowerName} because it has ${signedAgreementCount} signed loan agreement(s). Please void or delete the agreements first.`
+      );
+    }
+
+    // 5. Proceed with soft delete
+    const oldData = { ...debt };
+    debt.deletedAt = new Date();
+    debt.updatedAt = new Date();
+
+    const saved = await updateDb(debtRepo, debt, { queryRunner: qr });
+    await auditLogger.logDelete("Debt", id, oldData, user);
+    console.log(`Debt soft deleted: "${debt.name}" (ID: ${id})`);
+    return saved;
+  } catch (error) {
+    console.error("Failed to delete debt:", error.message);
+    throw error;
   }
+}
 
   /**
    * Restore a soft-deleted debt
@@ -1463,6 +1503,39 @@ class DebtService {
 
     console.log(`[fixFloatingPointPrecision] Fixed ${fixed} debts`);
     return { fixed };
+  }
+
+  // services/Debt.js – inside DebtService class
+
+  /**
+   * Check if a borrower has active debts (remainingAmount > 0.01 and not deleted)
+   * @param {number} borrowerId
+   * @param {import("typeorm").QueryRunner | null} qr
+   * @returns {Promise<boolean>}
+   */
+  async hasActiveDebt(borrowerId, qr = null) {
+    const count = await this.getActiveDebtCount(borrowerId, qr);
+    return count > 0;
+  }
+
+  /**
+   * Get count of active debts for a borrower
+   * @param {number} borrowerId
+   * @param {import("typeorm").QueryRunner | null} qr
+   * @returns {Promise<number>}
+   */
+  async getActiveDebtCount(borrowerId, qr = null) {
+    const Debt = require("../entities/Debt");
+    const repo = this._getRepo(qr, Debt);
+    const { MoreThan } = require("typeorm");
+    const count = await repo.count({
+      where: {
+        borrower: { id: borrowerId },
+        remainingAmount: MoreThan(0.01),
+        deletedAt: null,
+      },
+    });
+    return count;
   }
 }
 

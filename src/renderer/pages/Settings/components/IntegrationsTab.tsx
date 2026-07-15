@@ -1,22 +1,7 @@
 // src/renderer/pages/Settings/components/IntegrationsTab.tsx
-import React, { useState } from "react";
-import type {
-  IntegrationsSettings,
-  WebhookSetting,
-} from "../../../api/utils/system_config";
+import React from "react";
+import type { IntegrationsSettings } from "../../../api/utils/system_config";
 import Switch from "../../../components/UI/Switch";
-import Button from "../../../components/UI/Button";
-import Select from "../../../components/UI/Select";
-
-const PAYMENT_PROVIDERS = [
-  { value: "stripe", label: "Stripe" },
-  { value: "paypal", label: "PayPal" },
-  { value: "square", label: "Square" },
-  { value: "authorize_net", label: "Authorize.Net" },
-  { value: "braintree", label: "Braintree" },
-  { value: "adyen", label: "Adyen" },
-  { value: "other", label: "Other (specify below)" },
-];
 
 interface Props {
   settings: IntegrationsSettings;
@@ -24,218 +9,80 @@ interface Props {
 }
 
 const IntegrationsTab: React.FC<Props> = ({ settings, onUpdate }) => {
-  const [webhooks, setWebhooks] = useState<WebhookSetting[]>(() => {
-    return Array.isArray(settings.webhooks) ? settings.webhooks : [];
-  });
-
-  const handleWebhookChange = (
-    index: number,
-    field: keyof WebhookSetting,
-    value: any,
-  ) => {
-    const updated = [...webhooks];
-    updated[index] = { ...updated[index], [field]: value };
-    setWebhooks(updated);
-    onUpdate("webhooks", updated);
+  const inputStyle = {
+    backgroundColor: "var(--input-bg)",
+    borderColor: "var(--input-border)",
+    color: "var(--text-primary)",
   };
-
-  const addWebhook = () => {
-    const newWebhook: WebhookSetting = {
-      url: "",
-      events: [],
-      enabled: true,
-      secret: "",
-    };
-    const updated = [...webhooks, newWebhook];
-    setWebhooks(updated);
-    onUpdate("webhooks", updated);
-  };
-
-  const removeWebhook = (index: number) => {
-    const updated = webhooks.filter((_, i) => i !== index);
-    setWebhooks(updated);
-    onUpdate("webhooks", updated);
-  };
-
-  const isOtherProvider =
-    settings.payment_gateway_provider &&
-    !PAYMENT_PROVIDERS.some(
-      (p) => p.value === settings.payment_gateway_provider,
-    ) &&
-    settings.payment_gateway_provider !== "other";
-
-  const selectValue = isOtherProvider
-    ? "other"
-    : settings.payment_gateway_provider || "";
 
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold text-[var(--text-primary)]">Integrations Settings</h3>
-        <p className="text-sm text-[var(--text-secondary)]">Connect external services and APIs</p>
+        <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>Integrations Settings</h3>
+        <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Connect with external services and APIs</p>
       </div>
 
-      {/* Payment Gateway */}
-      <div className="border border-[var(--border-color)] rounded-lg p-5 bg-[var(--card-secondary-bg)]">
-        <h4 className="text-md font-medium text-[var(--text-primary)] mb-3">Payment Gateway</h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="md:col-span-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <label htmlFor="payment_gateway_enabled" className="text-sm font-medium text-[var(--text-primary)]">
-                  Enable Payment Gateway
-                </label>
-                <p className="text-xs text-[var(--text-tertiary)]">Accept online payments via third‑party providers</p>
-              </div>
-              <Switch
-                checked={settings.payment_gateway_enabled || false}
-                onChange={(checked) => onUpdate("payment_gateway_enabled", checked)}
-              />
-            </div>
-          </div>
+      {/* Accounting Integration */}
+      <div className="border rounded-lg p-4 space-y-4" style={{ borderColor: "var(--border-color)" }}>
+        <div className="flex items-center justify-between">
           <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-              Provider
-            </label>
-            <Select
-              value={selectValue}
-              onChange={(val) => {
-                if (val === "other") {
-                  // Keep the current custom value
-                  onUpdate("payment_gateway_provider", settings.payment_gateway_provider || "");
-                } else {
-                  onUpdate("payment_gateway_provider", val);
-                }
-              }}
-              options={PAYMENT_PROVIDERS}
-              placeholder="Select a provider"
-              disabled={!settings.payment_gateway_enabled}
-            />
+            <label className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>Accounting Integration</label>
+            <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>Sync with accounting software</p>
           </div>
-          {(selectValue === "other" || isOtherProvider) && (
+          <Switch checked={settings.accounting_integration_enabled || false} onChange={(checked) => onUpdate("accounting_integration_enabled", checked)} />
+        </div>
+        {settings.accounting_integration_enabled && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-                Custom Provider Name
-              </label>
-              <input
-                type="text"
-                value={settings.payment_gateway_provider || ""}
-                onChange={(e) => onUpdate("payment_gateway_provider", e.target.value)}
-                className="windows-input w-full"
-                placeholder="e.g., MyCustomGateway"
-                disabled={!settings.payment_gateway_enabled}
-              />
+              <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>API URL</label>
+              <input type="url" value={settings.accounting_api_url || ""} onChange={(e) => onUpdate("accounting_api_url", e.target.value)} className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]" style={inputStyle} placeholder="https://api.accounting.com/v1" />
             </div>
-          )}
-          <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-              API Key
-            </label>
-            <input
-              type="password"
-              value={settings.payment_gateway_api_key || ""}
-              onChange={(e) => onUpdate("payment_gateway_api_key", e.target.value)}
-              className="windows-input w-full"
-              placeholder="••••••••••••••••"
-              disabled={!settings.payment_gateway_enabled}
-            />
+            <div>
+              <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>API Key</label>
+              <input type="password" value={settings.accounting_api_key || ""} onChange={(e) => onUpdate("accounting_api_key", e.target.value)} className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]" style={inputStyle} placeholder="••••••••" />
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Webhooks section remains unchanged (no selects) */}
-      <div className="border border-[var(--border-color)] rounded-lg p-5 bg-[var(--card-secondary-bg)]">
-        <div className="flex justify-between items-center mb-3">
-          <h4 className="text-md font-medium text-[var(--text-primary)]">Webhooks</h4>
-          <Button variant="secondary" size="sm" onClick={addWebhook}>
-            + Add Webhook
-          </Button>
+      {/* Credit Bureau */}
+      <div className="border rounded-lg p-4 space-y-4" style={{ borderColor: "var(--border-color)" }}>
+        <div className="flex items-center justify-between">
+          <div>
+            <label className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>Credit Bureau Integration</label>
+            <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>Check credit scores from external bureaus</p>
+          </div>
+          <Switch checked={settings.credit_bureau_api_enabled || false} onChange={(checked) => onUpdate("credit_bureau_api_enabled", checked)} />
         </div>
-        <div className="space-y-4">
-          {webhooks.length > 0 ? (
-            webhooks.map((webhook, index) => (
-              <div
-                key={index}
-                className="border border-[var(--border-color)] rounded-lg p-4 bg-[var(--card-bg)]"
-              >
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="md:col-span-2 flex justify-between items-start">
-                    <h5 className="text-sm font-medium text-[var(--text-primary)]">
-                      Webhook #{index + 1}
-                    </h5>
-                    <button
-                      onClick={() => removeWebhook(index)}
-                      className="text-[var(--danger-color)] hover:text-[var(--danger-hover)] text-sm"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-                      URL
-                    </label>
-                    <input
-                      type="url"
-                      value={webhook.url}
-                      onChange={(e) =>
-                        handleWebhookChange(index, "url", e.target.value)
-                      }
-                      className="windows-input w-full"
-                      placeholder="https://example.com/webhook"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-                      Events (comma separated)
-                    </label>
-                    <input
-                      type="text"
-                      value={webhook.events.join(", ")}
-                      onChange={(e) =>
-                        handleWebhookChange(
-                          index,
-                          "events",
-                          e.target.value
-                            .split(",")
-                            .map((s) => s.trim())
-                            .filter(Boolean)
-                        )
-                      }
-                      className="windows-input w-full"
-                      placeholder="sale.created, inventory.updated"
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <label htmlFor={`webhook_enabled_${index}`} className="text-sm font-medium text-[var(--text-primary)]">
-                      Enabled
-                    </label>
-                    <Switch
-                      checked={webhook.enabled}
-                      onChange={(checked) =>
-                        handleWebhookChange(index, "enabled", checked)
-                      }
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-                      Secret (optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={webhook.secret || ""}
-                      onChange={(e) =>
-                        handleWebhookChange(index, "secret", e.target.value)
-                      }
-                      className="windows-input w-full"
-                    />
-                  </div>
-                </div>
-              </div>
-            ))
-          ) : (
-            <p className="text-sm text-[var(--text-secondary)] italic">No webhooks configured.</p>
-          )}
+        {settings.credit_bureau_api_enabled && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>API Endpoint</label>
+              <input type="url" value={settings.credit_bureau_endpoint || ""} onChange={(e) => onUpdate("credit_bureau_endpoint", e.target.value)} className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]" style={inputStyle} placeholder="https://api.creditbureau.com/v1" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>API Key</label>
+              <input type="password" value={settings.credit_bureau_api_key || ""} onChange={(e) => onUpdate("credit_bureau_api_key", e.target.value)} className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]" style={inputStyle} placeholder="••••••••" />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Webhooks */}
+      <div className="border rounded-lg p-4 space-y-4" style={{ borderColor: "var(--border-color)" }}>
+        <div className="flex items-center justify-between">
+          <div>
+            <label className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>Webhooks</label>
+            <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>Send events to external services</p>
+          </div>
+          <Switch checked={settings.webhooks_enabled || false} onChange={(checked) => onUpdate("webhooks_enabled", checked)} />
         </div>
+        {settings.webhooks_enabled && (
+          <div>
+            <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Webhook URLs (comma separated)</label>
+            <input type="text" value={Array.isArray(settings.webhooks) ? settings.webhooks.join(", ") : ""} onChange={(e) => { const urls = e.target.value.split(",").map((u) => u.trim()).filter(Boolean); onUpdate("webhooks", urls); }} className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]" style={inputStyle} placeholder="https://webhook.site/xxx, https://example.com/webhook" />
+          </div>
+        )}
       </div>
     </div>
   );

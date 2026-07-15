@@ -1,8 +1,8 @@
 // src/renderer/pages/payments/schedule/components/CalendarView.tsx
 import React, { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, DollarSign } from "lucide-react";
+import { ChevronLeft, ChevronRight, DollarSign, User } from "lucide-react";
 import type { ScheduledPayment } from "../types";
-import { formatCurrency, formatDate } from "../../../../utils/formatters";
+import { formatCurrency } from "../../../../utils/formatters";
 
 interface CalendarViewProps {
   payments: ScheduledPayment[];
@@ -29,14 +29,13 @@ const CalendarView: React.FC<CalendarViewProps> = ({ payments, onDateClick }) =>
   const paymentsByDate = useMemo(() => {
     const map = new Map<string, ScheduledPayment[]>();
     payments.forEach(p => {
-      // Convert dueDate to YYYY-MM-DD safely (handles both string and Date)
       let dateKey: string;
       if (typeof p.dueDate === 'string') {
         dateKey = p.dueDate.slice(0, 10);
       } else if (p.dueDate instanceof Date) {
         dateKey = p.dueDate.toISOString().slice(0, 10);
       } else {
-        return; // invalid date, skip
+        return;
       }
       if (!map.has(dateKey)) map.set(dateKey, []);
       map.get(dateKey)!.push(p);
@@ -55,40 +54,104 @@ const CalendarView: React.FC<CalendarViewProps> = ({ payments, onDateClick }) =>
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  const monthYear = currentMonth.getFullYear();
+  const month = String(currentMonth.getMonth() + 1).padStart(2, "0");
+
   return (
-    <div className="border rounded-md p-3" style={{ backgroundColor: "var(--card-bg)", borderColor: "var(--border-color)" }}>
+    <div className="rounded-xl border border-[var(--border-color)] bg-[var(--card-bg)] p-4 shadow-sm">
+      {/* Header */}
       <div className="flex justify-between items-center mb-4">
-        <h3 className="font-semibold text-lg" style={{ color: "var(--text-primary)" }}>{monthName} {year}</h3>
-        <div className="flex gap-2">
-          <button onClick={goToToday} className="px-2 py-1 text-sm border rounded" style={{ borderColor: "var(--border-color)", color: "var(--text-primary)" }}>Today</button>
-          <button onClick={handlePrevMonth} className="p-1 rounded hover:bg-[var(--card-hover-bg)]"><ChevronLeft className="w-5 h-5" style={{ color: "var(--text-primary)" }} /></button>
-          <button onClick={handleNextMonth} className="p-1 rounded hover:bg-[var(--card-hover-bg)]"><ChevronRight className="w-5 h-5" style={{ color: "var(--text-primary)" }} /></button>
+        <h3 className="text-base font-semibold text-[var(--text-primary)]">
+          {monthName} {year}
+        </h3>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={goToToday}
+            className="px-3 py-1 rounded-lg text-xs font-medium transition-colors"
+            style={{
+              backgroundColor: "var(--card-secondary-bg)",
+              color: "var(--text-secondary)",
+              border: "1px solid var(--border-color)",
+            }}
+          >
+            Today
+          </button>
+          <button
+            onClick={handlePrevMonth}
+            className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors text-[var(--text-secondary)]"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <button
+            onClick={handleNextMonth}
+            className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors text-[var(--text-secondary)]"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
         </div>
       </div>
-      <div className="grid grid-cols-7 gap-1 text-center text-sm font-medium mb-2" style={{ color: "var(--text-secondary)" }}>
-        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => <div key={day}>{day}</div>)}
+
+      {/* Week days */}
+      <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider mb-1.5">
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => (
+          <div key={day} className="py-1">{day}</div>
+        ))}
       </div>
+
+      {/* Days */}
       <div className="grid grid-cols-7 gap-1">
         {calendarDays.map((day, idx) => {
-          if (day === null) return <div key={`empty-${idx}`} className="h-24 border rounded" style={{ backgroundColor: "var(--card-secondary-bg)", borderColor: "var(--border-color)" }}></div>;
+          if (day === null) {
+            return (
+              <div
+                key={`empty-${idx}`}
+                className="aspect-square rounded-lg border border-[var(--border-color)]"
+                style={{ backgroundColor: "var(--card-secondary-bg)" }}
+              />
+            );
+          }
+
           const dateKey = `${year}-${String(currentMonth.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
           const dayPayments = paymentsByDate.get(dateKey) || [];
           const isToday = today.toISOString().slice(0, 10) === dateKey;
+          const hasPayments = dayPayments.length > 0;
+          const dayTotal = dayPayments.reduce((sum, p) => sum + p.amountDue, 0);
+
           return (
             <div
               key={day}
-              onClick={() => dayPayments.length > 0 && onDateClick(dateKey, dayPayments)}
-              className="h-24 border rounded p-1 overflow-y-auto cursor-pointer hover:shadow-md transition"
-              style={{ backgroundColor: "var(--card-bg)", borderColor: dayPayments.length ? "var(--primary-color)" : "var(--border-color)" }}
+              onClick={() => hasPayments && onDateClick(dateKey, dayPayments)}
+              className={`aspect-square rounded-lg border p-1 cursor-pointer transition-all hover:shadow-md ${
+                hasPayments ? "hover:border-[var(--primary-color)]" : ""
+              } ${isToday ? "border-[var(--primary-color)] border-2" : "border-[var(--border-color)]"}`}
+              style={{
+                backgroundColor: hasPayments ? "var(--card-secondary-bg)" : "var(--card-bg)",
+              }}
             >
-              <div className={`text-right text-sm font-medium ${isToday ? "font-bold" : ""}`} style={{ color: isToday ? "var(--primary-color)" : "var(--text-primary)" }}>{day}</div>
-              {dayPayments.slice(0, 3).map(p => (
-                <div key={p.debtId} className="text-xs truncate flex items-center gap-1 mt-1">
-                  <DollarSign className="w-3 h-3" style={{ color: "var(--success-color)" }} />
-                  <span style={{ color: "var(--text-primary)" }} title={p.debtName}>{p.borrowerName}</span>
+              <div className="flex flex-col h-full">
+                <div className={`text-right text-xs font-medium ${isToday ? "text-[var(--primary-color)]" : "text-[var(--text-primary)]"}`}>
+                  {day}
                 </div>
-              ))}
-              {dayPayments.length > 3 && <div className="text-xs mt-1" style={{ color: "var(--text-tertiary)" }}>+{dayPayments.length - 3} more</div>}
+                {hasPayments && (
+                  <div className="flex-1 flex flex-col justify-end">
+                    <div className="text-[10px] font-semibold text-[var(--success-color)] text-right">
+                      {formatCurrency(dayTotal)}
+                    </div>
+                    <div className="flex items-center justify-end gap-0.5 mt-0.5">
+                      <User className="w-2.5 h-2.5 text-[var(--text-tertiary)]" />
+                      <span className="text-[10px] text-[var(--text-secondary)]">
+                        {dayPayments.length}
+                      </span>
+                    </div>
+                    {dayPayments.length > 0 && (
+                      <div className="text-[8px] text-[var(--text-tertiary)] truncate mt-0.5">
+                        {dayPayments.slice(0, 2).map(p => p.borrowerName).join(", ")}
+                        {dayPayments.length > 2 && ` +${dayPayments.length - 2}`}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           );
         })}

@@ -4,27 +4,32 @@ const onlineClient = require("../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../utils/system");
 
 module.exports = async (params, queryRunner) => {
-  try {
-    const { logId, user = "system" } = params;
-    const mode = await syncMode();
+  const { logId, user = "system" } = params;
+  const mode = await syncMode();
 
-    if (mode === "online") {
-      const url = await serverUrl();
-      if (!url) throw new Error("Server URL not configured");
-      onlineClient.setBaseUrl(url);
-      const response = await onlineClient.delete(`/api/v1/credit-check/logs/${logId}`, { user });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Server error: ${response.status} - ${errorText}`);
-      }
-      const result = await response.json();
-      return { status: true, message: "Credit check log deleted on server", data: result.data };
-    } else {
-      await creditCheckService.deleteCreditCheckLog(logId, user, queryRunner);
-      return { status: true, message: "Credit check log deleted locally", data: null };
+  if (mode === "online") {
+    const url = await serverUrl();
+    if (!url) throw new Error("Server URL not configured");
+    onlineClient.setBaseUrl(url);
+
+    // Endpoint: DELETE /api/v1/borrowers/credit-checks/{id}/
+    const response = await onlineClient.delete(`/api/v1/borrowers/credit-checks/${logId}/`);
+    if (!response.ok && response.status !== 204) {
+      const errorText = await response.text();
+      throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-  } catch (error) {
-    console.error("Error in deleteCreditCheckLog:", error);
-    return { status: false, message: error.message, data: null };
+
+    return {
+      status: true,
+      message: "Credit check log deleted on server",
+      data: null,
+    };
+  } else {
+    await creditCheckService.deleteCreditCheckLog(logId, user, queryRunner);
+    return {
+      status: true,
+      message: "Credit check log deleted locally",
+      data: null,
+    };
   }
 };

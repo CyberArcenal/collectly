@@ -1,8 +1,8 @@
 // src/renderer/pages/payments/transactions/components/TransactionsTable.tsx
 import React from "react";
-import { ChevronUp, ChevronDown, Edit, Trash2, Eye } from "lucide-react";
-import { formatCurrency, formatDate } from "../../../../utils/formatters";
+import { ChevronUp, ChevronDown, Edit, Trash2, Eye, User, Calendar, CreditCard } from "lucide-react";
 import type { PaymentTransaction } from "../../../../api/core/payment_transaction";
+import { formatCurrency, formatDate } from "../../../../utils/formatters";
 
 interface TransactionsTableProps {
   transactions: PaymentTransaction[];
@@ -13,6 +13,15 @@ interface TransactionsTableProps {
   onEdit: (tx: PaymentTransaction) => void;
   onDelete: (tx: PaymentTransaction) => void;
 }
+
+const getInitials = (name: string) => {
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+};
 
 const TransactionsTable: React.FC<TransactionsTableProps> = ({
   transactions,
@@ -26,158 +35,142 @@ const TransactionsTable: React.FC<TransactionsTableProps> = ({
   const getSortIcon = (key: string) => {
     if (sortConfig.key !== key) return null;
     return sortConfig.direction === "asc" ? (
-      <ChevronUp className="w-4 h-4" />
+      <ChevronUp className="w-3.5 h-3.5" />
     ) : (
-      <ChevronDown className="w-4 h-4" />
+      <ChevronDown className="w-3.5 h-3.5" />
     );
   };
+
   return (
-    <div
-      className="overflow-x-auto rounded-md border"
-      style={{ borderColor: "var(--border-color)" }}
-    >
-      <table className="min-w-full">
-        <thead style={{ backgroundColor: "var(--card-secondary-bg)" }}>
+    <div className="overflow-x-auto rounded-xl border border-[var(--border-color)] bg-[var(--card-bg)]">
+      <table className="w-full text-sm">
+        <thead className="bg-[var(--card-secondary-bg)] border-b border-[var(--border-color)]">
           <tr>
             <th
-              className="px-4 py-2 text-left text-xs font-medium cursor-pointer"
+              className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider cursor-pointer hover:text-[var(--primary-color)]"
               onClick={() => onSort("paymentDate")}
             >
-              <div
-                className="flex items-center gap-1"
-                style={{ color: "var(--text-secondary)" }}
-              >
+              <div className="flex items-center gap-1">
                 Date {getSortIcon("paymentDate")}
               </div>
             </th>
             <th
-              className="px-4 py-2 text-left text-xs font-medium cursor-pointer"
+              className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider cursor-pointer hover:text-[var(--primary-color)]"
               onClick={() => onSort("borrower")}
             >
-              <div
-                className="flex items-center gap-1"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                Borrower {getSortIcon("borrower")}
+              <div className="flex items-center gap-1">
+                Debtor {getSortIcon("borrower")}
               </div>
             </th>
             <th
-              className="px-4 py-2 text-left text-xs font-medium cursor-pointer"
+              className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider cursor-pointer hover:text-[var(--primary-color)]"
               onClick={() => onSort("debtName")}
             >
-              <div
-                className="flex items-center gap-1"
-                style={{ color: "var(--text-secondary)" }}
-              >
+              <div className="flex items-center gap-1">
                 Debt {getSortIcon("debtName")}
               </div>
             </th>
             <th
-              className="px-4 py-2 text-right text-xs font-medium cursor-pointer"
+              className="text-right py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider cursor-pointer hover:text-[var(--primary-color)]"
               onClick={() => onSort("amount")}
             >
-              <div
-                className="flex items-center gap-1 justify-end"
-                style={{ color: "var(--text-secondary)" }}
-              >
+              <div className="flex items-center justify-end gap-1">
                 Amount {getSortIcon("amount")}
               </div>
             </th>
-            <th
-              className="px-4 py-2 text-left text-xs font-medium"
-              style={{ color: "var(--text-secondary)" }}
-            >
+            <th className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
               Reference
             </th>
-            <th
-              className="px-4 py-2 text-left text-xs font-medium"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              Notes
+            <th className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
+              Method
             </th>
             {isAdmin && (
-              <th
-                className="px-4 py-2 text-right text-xs font-medium"
-                style={{ color: "var(--text-secondary)" }}
-              >
+              <th className="text-center py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
                 Actions
               </th>
             )}
           </tr>
         </thead>
         <tbody>
-          {transactions.map((tx) => (
-            <tr
-              key={tx.id}
-              onClick={() => onView(tx)}
-              className="border-t hover:bg-[var(--card-hover-bg)]"
-              style={{ borderColor: "var(--border-color)" }}
-            >
-              <td
-                className="px-4 py-2"
-                style={{ color: "var(--text-primary)" }}
+          {transactions.map((tx) => {
+            const borrowerName = tx.debt?.borrower?.name ?? "—";
+            return (
+              <tr
+                key={tx.id}
+                className="border-b border-[var(--border-color)] hover:bg-[var(--card-hover-bg)] transition-colors cursor-pointer"
+                onClick={() => onView(tx)}
               >
-                {formatDate(tx.paymentDate)}
-              </td>
-              <td
-                className="px-4 py-2"
-                style={{ color: "var(--text-primary)" }}
-              >
-                {tx.debt?.borrower?.name || "—"}
-              </td>
-              <td
-                className="px-4 py-2"
-                style={{ color: "var(--text-primary)" }}
-              >
-                {tx.debt?.name || "—"}
-              </td>
-              <td
-                className="px-4 py-2 text-right font-medium"
-                style={{ color: "var(--success-color)" }}
-              >
-                {formatCurrency(tx.amount)}
-              </td>
-              <td
-                className="px-4 py-2"
-                style={{ color: "var(--text-primary)" }}
-              >
-                {tx.reference || "—"}
-              </td>
-              <td
-                className="px-4 py-2"
-                style={{ color: "var(--text-primary)" }}
-              >
-                {tx.notes || "—"}
-              </td>
-              {isAdmin && (
-                <td className="px-4 py-2 text-right">
-                  <div className="flex justify-end gap-2">
-                    <button
-                      onClick={() => onView(tx)}
-                      className="p-1 rounded hover:bg-[var(--card-hover-bg)]"
-                      style={{ color: "var(--accent-blue)" }}
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => onEdit(tx)}
-                      className="p-1 rounded hover:bg-[var(--card-hover-bg)] hidden"
-                      style={{ color: "var(--accent-blue)" }}
-                    >
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => onDelete(tx)}
-                      className="p-1 rounded hover:bg-[var(--card-hover-bg)] hidden"
-                      style={{ color: "var(--danger-color)" }}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                <td className="py-2.5 px-3">
+                  <div className="flex items-center gap-1.5 text-[var(--text-secondary)] text-sm">
+                    <Calendar className="w-3 h-3 text-[var(--text-tertiary)]" />
+                    {formatDate(tx.paymentDate)}
                   </div>
                 </td>
-              )}
-            </tr>
-          ))}
+                <td className="py-2.5 px-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[var(--primary-color)] to-[var(--primary-hover)] flex items-center justify-center text-white text-[10px] font-medium flex-shrink-0">
+                      {borrowerName !== "—" ? getInitials(borrowerName) : "?"}
+                    </div>
+                    <span className="text-[var(--text-primary)] text-sm truncate max-w-[120px]">
+                      {borrowerName}
+                    </span>
+                  </div>
+                </td>
+                <td className="py-2.5 px-3">
+                  <span className="text-[var(--text-secondary)] text-sm truncate max-w-[150px] block">
+                    {tx.debt?.name || "—"}
+                  </span>
+                </td>
+                <td className="py-2.5 px-3 text-right">
+                  <span className="font-semibold text-[var(--success-color)]">
+                    {formatCurrency(tx.amount)}
+                  </span>
+                </td>
+                <td className="py-2.5 px-3">
+                  <span className="text-[var(--text-secondary)] text-sm">
+                    {tx.reference || "—"}
+                  </span>
+                </td>
+                <td className="py-2.5 px-3">
+                  <span className="text-[var(--text-secondary)] text-sm">
+                    {tx.methodId ? (
+                      <span className="flex items-center gap-1">
+                        <CreditCard className="w-3 h-3 text-[var(--text-tertiary)]" />
+                        #{tx.methodId}
+                      </span>
+                    ) : "—"}
+                  </span>
+                </td>
+                {isAdmin && (
+                  <td className="py-2.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex justify-center gap-1">
+                      <button
+                        onClick={() => onView(tx)}
+                        className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors"
+                        title="View"
+                      >
+                        <Eye className="w-4 h-4 text-[var(--accent-blue)]" />
+                      </button>
+                      <button
+                        onClick={() => onEdit(tx)}
+                        className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors hidden"
+                        title="Edit"
+                      >
+                        <Edit className="w-4 h-4 text-yellow-500" />
+                      </button>
+                      <button
+                        onClick={() => onDelete(tx)}
+                        className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors hidden"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4 text-[var(--danger-color)]" />
+                      </button>
+                    </div>
+                  </td>
+                )}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

@@ -13,10 +13,13 @@ class CreditCheckHandler {
   initializeHandlers() {
     // READ-ONLY
     this.getCreditCheckHistory = this.importHandler("./get/history.ipc");
+this.getStatistics = this.importHandler("./get/statistics.ipc");
 
     // WRITE (with transaction)
     this.performCreditCheck = this.importHandler("./perform.ipc");
     this.deleteCreditCheckLog = this.importHandler("./delete_log.ipc");
+    this.getCreditCheckStats = this.importHandler("./get/stats.ipc");
+
   }
 
   importHandler(path) {
@@ -45,16 +48,21 @@ class CreditCheckHandler {
       switch (method) {
         case "getCreditCheckHistory":
           return await this.getCreditCheckHistory(params);
+          case "getStatistics":
+        return await this.getStatistics(params);
         case "performCreditCheck":
           return await this.handleWithTransaction(
             this.performCreditCheck,
             params,
           );
+        case "getCreditCheckStats":
+          return await this.getCreditCheckStats(params);
         case "deleteCreditCheckLog":
           return await this.handleWithTransaction(
             this.deleteCreditCheckLog,
             params,
           );
+          
         default:
           return {
             status: false,

@@ -7,6 +7,9 @@ import {
   CheckCircle,
   XCircle,
   Clock,
+  Eye,
+  EyeOff,
+  Filter,
 } from "lucide-react";
 import Button from "../../../components/UI/Button";
 import useLoanApplications from "./hooks/useLoanApplications";
@@ -16,6 +19,8 @@ import ApplicationDetailModal from "./components/ApplicationDetailModal";
 import ApprovalConfirmationModal from "./components/ApprovalConfirmationModal";
 import { dialogs } from "../../../utils/dialogs";
 import { usePagination } from "../../../contexts/PaginationContext";
+import LoadingSpinner from "../../../components/Shared/LoadingSpinner";
+import ApplicationSummaryCards from "./components/ApplicationSummaryCards";
 
 const LoanApplicationsPage: React.FC = () => {
   const {
@@ -31,11 +36,14 @@ const LoanApplicationsPage: React.FC = () => {
     refresh,
     approve,
     reject,
+    stats,
+    fetchStats,
   } = useLoanApplications();
 
   const [formOpen, setFormOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedApp, setSelectedApp] = useState<any>(null);
+  const [showStats, setShowStats] = useState(true);
   const [confirmModal, setConfirmModal] = useState<{
     open: boolean;
     type: "approve" | "reject";
@@ -47,14 +55,14 @@ const LoanApplicationsPage: React.FC = () => {
   // Stable pagination handlers
   const handlePageChange = useCallback(
     (newPage: number) => setCurrentPage(newPage),
-    [setCurrentPage],
+    [setCurrentPage]
   );
   const handlePageSizeChange = useCallback(
     (newSize: number) => {
       setPageSize(newSize);
       setCurrentPage(1);
     },
-    [setPageSize, setCurrentPage],
+    [setPageSize, setCurrentPage]
   );
 
   const handlersRef = useRef({
@@ -72,7 +80,6 @@ const LoanApplicationsPage: React.FC = () => {
   const prevTotalRef = useRef(totalItems);
   const prevLimitRef = useRef(pageSize);
 
-  // Sync with global pagination context
   useEffect(() => {
     const pageChanged = prevPageRef.current !== currentPage;
     const totalChanged = prevTotalRef.current !== totalItems;
@@ -89,7 +96,7 @@ const LoanApplicationsPage: React.FC = () => {
         pageSize,
         onPageChange: handlersRef.current.onPageChange,
         onPageSizeChange: handlersRef.current.onPageSizeChange,
-        pageSizeOptions: [9, 18, 27], // grid layout with 3 columns
+        pageSizeOptions: [9, 18, 27],
         showPageSize: true,
       });
     }
@@ -98,6 +105,11 @@ const LoanApplicationsPage: React.FC = () => {
   useEffect(() => {
     return () => clearPagination();
   }, [clearPagination]);
+
+  // Fetch stats on mount
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
 
   const openDetail = (app: any) => {
     setSelectedApp(app);
@@ -123,10 +135,11 @@ const LoanApplicationsPage: React.FC = () => {
         dialogs.success(`Application rejected.`);
       }
       refresh();
+      fetchStats();
       setConfirmModal({ open: false, type: "approve", app: null });
       setDetailOpen(false);
     } catch (err: any) {
-      dialogs.error(err.message);
+      dialogs.error("Ops! Something went wrong while approving the application.");
     }
   };
 
@@ -136,160 +149,127 @@ const LoanApplicationsPage: React.FC = () => {
   };
 
   const tabs = [
-    { id: "pending", label: "Pending", icon: Clock, colorKey: "warning" },
-    {
-      id: "approved",
-      label: "Approved",
-      icon: CheckCircle,
-      colorKey: "success",
-    },
-    { id: "rejected", label: "Rejected", icon: XCircle, colorKey: "danger" },
+    { id: "pending", label: "Pending", icon: Clock, color: "var(--warning-color)" },
+    { id: "approved", label: "Approved", icon: CheckCircle, color: "var(--success-color)" },
+    { id: "rejected", label: "Rejected", icon: XCircle, color: "var(--danger-color)" },
   ];
 
-  const getTabStyle = (tabId: string) => {
-    if (activeTab !== tabId)
-      return { color: "var(--text-secondary)", borderColor: "transparent" };
-    switch (tabId) {
-      case "pending":
-        return {
-          color: "var(--warning-color)",
-          borderColor: "var(--warning-color)",
-        };
-      case "approved":
-        return {
-          color: "var(--success-color)",
-          borderColor: "var(--success-color)",
-        };
-      case "rejected":
-        return {
-          color: "var(--danger-color)",
-          borderColor: "var(--danger-color)",
-        };
-      default:
-        return {
-          color: "var(--text-primary)",
-          borderColor: "var(--primary-color)",
-        };
-    }
-  };
-
   return (
-    <div className="m-1" style={{ backgroundColor: "var(--background-color)" }}>
-      <div
-        className="rounded-md shadow-md border p-4"
-        style={{
-          backgroundColor: "var(--card-bg)",
-          borderColor: "var(--border-color)",
-        }}
-      >
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-          <div className="flex items-center gap-2">
-            <FileText
-              className="w-6 h-6"
-              style={{ color: "var(--primary-color)" }}
-            />
-            <h1
-              className="text-xl font-bold"
-              style={{ color: "var(--text-primary)" }}
-            >
-              Loan Applications
-            </h1>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={refresh}
-              disabled={loading}
-              className="px-3 py-2 rounded-md flex items-center gap-1 border"
-              style={{
-                borderColor: "var(--border-color)",
-                backgroundColor: "var(--card-secondary-bg)",
-                color: "var(--text-primary)",
-              }}
-            >
-              <RefreshCw
-                className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
-              />{" "}
-              Refresh
-            </button>
-            <Button
-              onClick={() => setFormOpen(true)}
-              variant="success"
-              icon={Plus}
-            >
-              New Application
-            </Button>
-          </div>
+    <div className="p-4 space-y-4">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-xl font-bold text-[var(--text-primary)] flex items-center gap-2">
+            <FileText className="w-5 h-5 text-[var(--primary-color)]" />
+            Loan Applications
+          </h1>
+          <p className="text-sm text-[var(--text-secondary)] mt-0.5">
+            Review and manage loan requests from debtors
+          </p>
         </div>
-
-        {/* Tabs */}
-        <div
-          className="flex border-b mb-4"
-          style={{ borderColor: "var(--border-color)" }}
-        >
-          {tabs.map((tab) => {
-            const style = getTabStyle(tab.id);
-            return (
-              <button
-                key={tab.id}
-                onClick={() => handleTabChange(tab.id as any)}
-                className="px-4 py-2 text-sm font-medium transition-colors border-b-2"
-                style={{
-                  color: style.color,
-                  borderBottomColor: style.borderColor,
-                }}
-              >
-                <div className="flex items-center gap-2">
-                  <tab.icon className="w-4 h-4" />
-                  {tab.label}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-
-        {loading ? (
-          <div className="flex justify-center py-8">
-            <div
-              className="animate-spin rounded-full h-8 w-8 border-b-2"
-              style={{ borderColor: "var(--primary-color)" }}
-            ></div>
-          </div>
-        ) : applications.length === 0 ? (
-          <div
-            className="text-center py-12 border rounded-md"
-            style={{ borderColor: "var(--border-color)" }}
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowStats(!showStats)}
+            className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors"
+            title={showStats ? "Hide summary" : "Show summary"}
           >
-            <FileText
-              className="w-12 h-12 mx-auto mb-3"
-              style={{ color: "var(--text-tertiary)" }}
-            />
-            <p
-              className="text-lg font-medium"
-              style={{ color: "var(--text-primary)" }}
-            >
-              No {activeTab} applications
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {applications.map((app) => (
-              <ApplicationCard
-                key={app.id}
-                application={app}
-                onView={openDetail}
-                onApprove={handleApprove}
-                onReject={handleReject}
-                showActions={app.status === "pending"}
-              />
-            ))}
-          </div>
-        )}
+            {showStats ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+          <button
+            onClick={refresh}
+            disabled={loading}
+            className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors disabled:opacity-50"
+            title="Refresh"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+          </button>
+          <Button
+            onClick={() => setFormOpen(true)}
+            variant="primary"
+            size="sm"
+            icon={Plus}
+          >
+            New Application
+          </Button>
+        </div>
       </div>
 
+      {/* Summary Cards */}
+      {showStats && stats && (
+        <ApplicationSummaryCards
+          total={stats.total}
+          pending={stats.pending}
+          approved={stats.approved}
+          rejected={stats.rejected}
+          totalAmount={stats.totalRequestedAmount}
+        />
+      )}
+
+      {/* Tabs */}
+      <div className="flex border-b border-[var(--border-color)]">
+        {tabs.map((tab) => {
+          const isActive = activeTab === tab.id;
+          const count = stats?.[tab.id as keyof typeof stats] ?? 0;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => handleTabChange(tab.id as any)}
+              className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+                isActive
+                  ? "border-[var(--primary-color)] text-[var(--primary-color)]"
+                  : "border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <tab.icon className="w-4 h-4" style={{ color: isActive ? tab.color : "var(--text-tertiary)" }} />
+                {tab.label}
+                <span className="text-xs bg-[var(--card-secondary-bg)] px-1.5 py-0.5 rounded-full text-[var(--text-tertiary)]">
+                  {count}
+                </span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Loading / Empty State */}
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <LoadingSpinner size="medium" />
+        </div>
+      ) : applications.length === 0 ? (
+        <div className="text-center py-8 text-[var(--text-tertiary)] border border-[var(--border-color)] rounded-xl bg-[var(--card-bg)] text-sm">
+          <FileText className="w-8 h-8 mx-auto mb-2 text-[var(--text-tertiary)]" />
+          <p>No {activeTab} applications</p>
+          <p className="text-xs text-[var(--text-tertiary)] mt-1">
+            {activeTab === "pending"
+              ? "All applications have been reviewed"
+              : `No applications have been ${activeTab}`}
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {applications.map((app) => (
+            <ApplicationCard
+              key={app.id}
+              application={app}
+              onView={openDetail}
+              onApprove={handleApprove}
+              onReject={handleReject}
+              showActions={app.status === "pending"}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Modals */}
       <ApplicationFormModal
         isOpen={formOpen}
         onClose={() => setFormOpen(false)}
-        onSuccess={refresh}
+        onSuccess={() => {
+          refresh();
+          fetchStats();
+        }}
       />
       <ApplicationDetailModal
         isOpen={detailOpen}

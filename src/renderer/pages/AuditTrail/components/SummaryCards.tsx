@@ -1,7 +1,26 @@
+// src/renderer/pages/audit/components/SummaryCards.tsx
 import React from "react";
-import { Users, Database, Calendar } from "lucide-react";
+import { 
+  Calendar, 
+  Users, 
+  Activity,
+  FileText,
+  Clock
+} from "lucide-react";
+
+interface Stats {
+  total: number;
+  avgPerDay: number;
+  mostActiveDay: { day: string; count: number } | null;
+  uniqueUsers: number;
+  totalToday: number;
+  byAction: Array<{ action: string; count: number }>;
+  byEntity: Array<{ entity: string; count: number }>;
+  byUser: Array<{ user: string; count: number }>;
+}
 
 interface SummaryCardsProps {
+  stats: Stats;
   summary: {
     totalToday: number;
     byAction: Record<string, number>;
@@ -10,77 +29,59 @@ interface SummaryCardsProps {
   };
 }
 
-export const SummaryCards: React.FC<SummaryCardsProps> = ({ summary }) => {
-  // Get top 3 actions by count
-  const topActions = Object.entries(summary.byAction)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3);
+export const SummaryCards: React.FC<SummaryCardsProps> = ({ stats, summary }) => {
+  // Use stats.totalToday (from API) if available, otherwise fallback to summary.totalToday
+  const totalToday = stats.totalToday || summary.totalToday || 0;
 
   const cards = [
     {
-      title: "Actions Today",
-      value: summary.totalToday,
-      icon: Calendar,
-      color: "var(--accent-blue)",
-      bgColor: "var(--accent-blue-light)",
+      title: "Total Logs",
+      value: stats.total?.toLocaleString() || "0",
+      icon: FileText,
+      color: "bg-blue-500",
     },
     {
-      title: "Most Active User",
-      value: summary.mostActiveUser
-        ? `${summary.mostActiveUser.user} (${summary.mostActiveUser.count})`
-        : "N/A",
+      title: "Today's Actions",
+      value: totalToday.toLocaleString(),
+      icon: Activity,
+      color: "bg-green-500",
+    },
+    {
+      title: "Unique Users",
+      value: stats.uniqueUsers?.toLocaleString() || "0",
       icon: Users,
-      color: "var(--accent-green)",
-      bgColor: "var(--accent-green-light)",
+      color: "bg-purple-500",
     },
     {
-      title: "Top Affected Entity",
-      value: summary.mostAffectedEntity
-        ? `${summary.mostAffectedEntity.entity} (${summary.mostAffectedEntity.count})`
-        : "N/A",
-      icon: Database,
-      color: "var(--accent-purple)",
-      bgColor: "var(--accent-purple-light)",
+      title: "Avg / Day",
+      value: stats.avgPerDay?.toFixed(1) || "0.0",
+      icon: Calendar,
+      color: "bg-orange-500",
     },
   ];
 
   return (
-    <div className="grid grid-cols-4 gap-4 mb-6">
-      {cards.map((card, idx) => {
-        const Icon = card.icon;
-        return (
-          <div
-            key={idx}
-            className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-lg p-4 flex items-center gap-4"
-          >
-            <div
-              className="w-12 h-12 rounded-full flex items-center justify-center"
-              style={{ backgroundColor: card.bgColor }}
-            >
-              <Icon className="w-6 h-6" style={{ color: card.color }} />
-            </div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {cards.map((card) => (
+        <div
+          key={card.title}
+          className="bg-[var(--card-bg)] rounded-xl border border-[var(--border-color)] p-3.5 shadow-sm"
+        >
+          <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-[var(--text-tertiary)]">{card.title}</p>
-              <p className="text-lg font-bold text-[var(--text-primary)] truncate max-w-[150px]">
+              <p className="text-[10px] font-medium text-[var(--text-secondary)] uppercase tracking-wider">
+                {card.title}
+              </p>
+              <p className="text-lg font-bold text-[var(--text-primary)] mt-0.5">
                 {card.value}
               </p>
             </div>
-          </div>
-        );
-      })}
-
-      {/* Top Actions card */}
-      <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-lg p-4">
-        <p className="text-sm text-[var(--text-tertiary)] mb-2">Top Actions</p>
-        <div className="space-y-1">
-          {topActions.map(([action, count]) => (
-            <div key={action} className="flex justify-between text-sm">
-              <span className="text-[var(--text-secondary)]">{action}</span>
-              <span className="font-medium text-[var(--text-primary)]">{count}</span>
+            <div className={`p-2 rounded-full ${card.color} bg-opacity-10`}>
+              <card.icon className={`w-4 h-4 ${card.color.replace("bg-", "text-")}`} />
             </div>
-          ))}
+          </div>
         </div>
-      </div>
+      ))}
     </div>
   );
 };

@@ -1,6 +1,11 @@
 // src/main/services/CreditCheckService.js
 const auditLogger = require("../utils/auditLogger");
-const { creditBureauApiEnabled, creditBureauApiKey, creditBureauEndpoint, enforceCreditCheck } = require("../utils/system");
+const {
+  creditBureauApiEnabled,
+  creditBureauApiKey,
+  creditBureauEndpoint,
+  enforceCreditCheck,
+} = require("../utils/system");
 const { paginateQueryBuilder } = require("../utils/dbUtils/pagination");
 
 class CreditCheckService {
@@ -63,7 +68,13 @@ class CreditCheckService {
    */
   _computeScore(debtorDebtStats) {
     let score = 700;
-    const { totalDebt, overdueCount, totalPaid, totalTransactions, averagePaymentDelay } = debtorDebtStats;
+    const {
+      totalDebt,
+      overdueCount,
+      totalPaid,
+      totalTransactions,
+      averagePaymentDelay,
+    } = debtorDebtStats;
 
     if (totalDebt > 100000) score -= 50;
     else if (totalDebt > 50000) score -= 30;
@@ -112,7 +123,9 @@ class CreditCheckService {
       console.warn("Credit bureau API enabled but key or endpoint missing.");
       return null;
     }
-    console.log(`Calling external credit bureau at ${endpoint} for debtor ${debtorId}`);
+    console.log(
+      `Calling external credit bureau at ${endpoint} for debtor ${debtorId}`,
+    );
     // Placeholder – implement actual HTTP call with fetch/axios
     return null;
   }
@@ -130,7 +143,12 @@ class CreditCheckService {
       relations: ["payments"],
     });
 
-    let totalDebt = 0, totalPaid = 0, overdueCount = 0, totalTransactions = 0, totalPaymentDelay = 0, paymentDelaysCount = 0;
+    let totalDebt = 0,
+      totalPaid = 0,
+      overdueCount = 0,
+      totalTransactions = 0,
+      totalPaymentDelay = 0,
+      paymentDelaysCount = 0;
     const now = new Date();
     for (const debt of debts) {
       totalDebt += parseFloat(debt.totalAmount);
@@ -138,21 +156,31 @@ class CreditCheckService {
       totalTransactions += debt.payments ? debt.payments.length : 0;
 
       const dueDate = new Date(debt.dueDate);
-      if (dueDate < now && debt.status !== "paid" && debt.remainingAmount > 0) overdueCount++;
+      if (dueDate < now && debt.status !== "paid" && debt.remainingAmount > 0)
+        overdueCount++;
 
       if (debt.payments && debt.payments.length > 0) {
         for (const payment of debt.payments) {
           const paymentDate = new Date(payment.paymentDate);
           if (paymentDate > dueDate) {
-            const delay = Math.floor((paymentDate - dueDate) / (1000 * 60 * 60 * 24));
+            const delay = Math.floor(
+              (paymentDate - dueDate) / (1000 * 60 * 60 * 24),
+            );
             totalPaymentDelay += delay;
             paymentDelaysCount++;
           }
         }
       }
     }
-    const averagePaymentDelay = paymentDelaysCount > 0 ? totalPaymentDelay / paymentDelaysCount : 0;
-    return { totalDebt, totalPaid, overdueCount, totalTransactions, averagePaymentDelay };
+    const averagePaymentDelay =
+      paymentDelaysCount > 0 ? totalPaymentDelay / paymentDelaysCount : 0;
+    return {
+      totalDebt,
+      totalPaid,
+      overdueCount,
+      totalTransactions,
+      averagePaymentDelay,
+    };
   }
 
   // ----------------------------------------------------------------------
@@ -169,7 +197,8 @@ class CreditCheckService {
   async getCreditCheckHistory(debtorId, page = 1, limit = 20, qr = null) {
     const CreditCheckLog = require("../entities/CreditCheckLog");
     const repo = this._getRepo(qr, CreditCheckLog);
-    const qb = repo.createQueryBuilder("log")
+    const qb = repo
+      .createQueryBuilder("log")
       .where("log.debtorId = :debtorId", { debtorId })
       .orderBy("log.dateChecked", "DESC");
     const result = await paginateQueryBuilder(qb, { page, limit });
@@ -202,14 +231,22 @@ class CreditCheckService {
    * @param {import("typeorm").QueryRunner | null} qr
    * @param {Object|null} debtorInfo
    */
-  async performCreditCheck(debtorId, user = "system", qr = null, debtorInfo = null) {
+  async performCreditCheck(
+    debtorId,
+    user = "system",
+    qr = null,
+    debtorInfo = null,
+  ) {
     const { saveDb } = require("../utils/dbUtils/dbActions");
     const CreditCheckLog = require("../entities/CreditCheckLog");
     const logRepo = this._getRepo(qr, CreditCheckLog);
 
     let score, riskLevel, remarks;
 
-    const externalResult = await this._callExternalCreditBureau(debtorId, debtorInfo);
+    const externalResult = await this._callExternalCreditBureau(
+      debtorId,
+      debtorInfo,
+    );
     if (externalResult) {
       score = externalResult.score;
       riskLevel = externalResult.riskLevel;
@@ -233,7 +270,9 @@ class CreditCheckService {
 
     const saved = await saveDb(logRepo, logEntry, { queryRunner: qr });
     await auditLogger.logCreate("CreditCheckLog", saved.id, saved, user);
-    console.log(`Credit check performed for debtor ${debtorId}: score=${score}, risk=${riskLevel}`);
+    console.log(
+      `Credit check performed for debtor ${debtorId}: score=${score}, risk=${riskLevel}`,
+    );
     return { score, riskLevel, remarks, dateChecked: saved.dateChecked };
   }
 
@@ -254,21 +293,84 @@ class CreditCheckService {
     console.log(`Credit check log ${logId} deleted`);
   }
 
-    /**
- * Get the most recent credit check for a debtor
- * @param {number} debtorId
- * @param {import("typeorm").QueryRunner | null} qr
- * @returns {Promise<Object|null>}
- */
-async getLatestCreditCheck(debtorId, qr = null) {
-  const CreditCheckLog = require("../entities/CreditCheckLog");
-  const repo = this._getRepo(qr, CreditCheckLog);
-  const latest = await repo.findOne({
-    where: { debtorId },
-    order: { dateChecked: "DESC" },
-  });
-  return latest || null;
-}
+  /**
+   * Get the most recent credit check for a debtor
+   * @param {number} debtorId
+   * @param {import("typeorm").QueryRunner | null} qr
+   * @returns {Promise<Object|null>}
+   */
+  async getLatestCreditCheck(debtorId, qr = null) {
+    const CreditCheckLog = require("../entities/CreditCheckLog");
+    const repo = this._getRepo(qr, CreditCheckLog);
+    const latest = await repo.findOne({
+      where: { debtorId },
+      order: { dateChecked: "DESC" },
+    });
+    return latest || null;
+  }
+
+ 
+  /**
+   * Get aggregated statistics for credit checks.
+   * @param {Object} filters - optional date filters (startDate, endDate)
+   * @param {string} [filters.startDate] - YYYY-MM-DD
+   * @param {string} [filters.endDate] - YYYY-MM-DD
+   * @param {import("typeorm").QueryRunner | null} qr
+   * @returns {Promise<Object>}
+   */
+  async getStatistics(filters = {}, qr = null) {
+    const CreditCheckLog = require("../entities/CreditCheckLog");
+    const repo = this._getRepo(qr, CreditCheckLog);
+    const qb = repo.createQueryBuilder("log");
+
+    // Apply date filters if provided
+    if (filters.startDate) {
+      qb.andWhere("log.dateChecked >= :startDate", { startDate: filters.startDate });
+    }
+    if (filters.endDate) {
+      qb.andWhere("log.dateChecked <= :endDate", { endDate: filters.endDate });
+    }
+
+    // Total checks
+    const totalChecks = await qb.clone().getCount();
+
+    // Average score
+    const avgScoreResult = await qb.clone()
+      .select("AVG(log.score)", "avg")
+      .getRawOne();
+    const averageScore = parseFloat(avgScoreResult?.avg) || 0;
+
+    // Risk level distribution
+    const riskDistributionRaw = await qb.clone()
+      .select("log.riskLevel", "level")
+      .addSelect("COUNT(*)", "count")
+      .groupBy("log.riskLevel")
+      .getRawMany();
+
+    const riskLevelDistribution = {
+      Low: 0,
+      Medium: 0,
+      High: 0,
+    };
+    riskDistributionRaw.forEach(({ level, count }) => {
+      if (level in riskLevelDistribution) {
+        riskLevelDistribution[level] = parseInt(count, 10);
+      }
+    });
+
+    // Latest check date
+    const latest = await qb.clone()
+      .orderBy("log.dateChecked", "DESC")
+      .limit(1)
+      .getOne();
+
+    return {
+      totalChecks,
+      averageScore,
+      riskLevelDistribution,
+      lastCheckDate: latest ? latest.dateChecked : null,
+    };
+  }
 }
 
 const creditCheckService = new CreditCheckService();

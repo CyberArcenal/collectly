@@ -1,8 +1,9 @@
-// src/main/ipc/audit/get/by_action.ipc.js
+// src/main/ipc/core/audit/get/by_action.ipc.js
 const { AuditLog } = require("../../../../../entities/AuditLog");
-const { AppDataSource } = require("../../../../db/data-source");
-const { syncMode, serverUrl } = require("../../../../../utils/system");
 const onlineClient = require("../../../../../utils/onlineClient");
+const { syncMode, serverUrl } = require("../../../../../utils/system");
+const { AppDataSource } = require("../../../../db/data-source");
+const { extractData, transformSingle, transformPaginatedResult } = require("../../../../../utils/responseTransformer");
 
 module.exports = async (params) => {
   const mode = await syncMode();
@@ -11,13 +12,16 @@ module.exports = async (params) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.get('/api/v1/audit/action', { params });
+    const query = { action: params.action };
+    if (params.page) query.page = params.page;
+    if (params.limit) query.page_size = params.limit;
+    const response = await onlineClient.get('/api/v1/audit/action/', { params: query });
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    const result = await response.json();
-    return { status: true, message: "Audit logs by action retrieved from server", data: result.data };
+    const serverResult = await response.json();
+    return transformPaginatedResult(serverResult);
   } else {
     const { action, page = 1, limit = 50 } = params;
     const repo = AppDataSource.getRepository(AuditLog);
@@ -31,7 +35,7 @@ module.exports = async (params) => {
     return {
       status: true,
       message: "Audit logs by action retrieved locally",
-      data: { items, total, page, limit, totalPages: Math.ceil(total / limit) },
+      data: { data: items, total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
 };

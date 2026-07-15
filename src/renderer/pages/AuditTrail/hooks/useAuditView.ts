@@ -11,6 +11,7 @@ export const useAuditView = () => {
     setLoading(true);
     try {
       // Fetch full details using the ID
+      console.log("Audit Id is", log.id)
       const response = await auditAPI.getById(log.id);
       if (response.status && response.data) {
         setLog(response.data); // full details including oldData, newData, etc.

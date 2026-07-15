@@ -6,6 +6,7 @@ const Borrower = require("../../../../../entities/Borrower");
 const Debt = require("../../../../../entities/Debt");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
 const onlineClient = require("../../../../../utils/onlineClient");
+const { extractData } = require("../../../../../utils/responseTransformer");
 
 module.exports = async (params) => {
   const mode = await syncMode();
@@ -14,13 +15,18 @@ module.exports = async (params) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.get('/api/v1/dashboard/overview', { params });
+
+    const response = await onlineClient.get('/api/v1/analytics/dashboard/overview/', { params });
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
     const result = await response.json();
-    return { status: true, message: "Overview retrieved from server", data: result.data };
+    return {
+      status: true,
+      message: "Overview retrieved from server",
+      data: extractData(result),
+    };
   } else {
     const paymentRepo = AppDataSource.getRepository(PaymentTransaction);
     const borrowerRepo = AppDataSource.getRepository(Borrower);

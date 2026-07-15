@@ -1,5 +1,5 @@
 // src/renderer/pages/audit/hooks/useAuditLogs.ts
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { AuditLogEntry } from "../../../api/core/audit";
 import auditAPI from "../../../api/core/audit";
 
@@ -19,17 +19,27 @@ interface Summary {
   mostAffectedEntity: { entity: string; count: number } | null;
 }
 
+interface Stats {
+  total: number;
+  avgPerDay: number;
+  mostActiveDay: { day: string; count: number } | null;
+  uniqueUsers: number;
+  totalToday: number;        // Added for summary cards
+  byAction: Array<{ action: string; count: number }>;
+  byEntity: Array<{ entity: string; count: number }>;
+  byUser: Array<{ user: string; count: number }>;
+}
+
 export const getActionColor = (action: string): string => {
   const lower = action.toLowerCase();
-  if (lower.includes("sale") || lower.includes("create"))
-    return "var(--accent-green)";
-  if (lower.includes("refund") || lower.includes("delete"))
-    return "var(--accent-red)";
-  if (lower.includes("inventory") || lower.includes("stock"))
-    return "var(--accent-blue)";
-  if (lower.includes("setting") || lower.includes("config"))
-    return "var(--accent-amber)";
-  return "var(--text-tertiary)";
+  if (lower.includes("create")) return "#10b981";
+  if (lower.includes("delete")) return "#ef4444";
+  if (lower.includes("update") || lower.includes("edit")) return "#3b82f6";
+  if (lower.includes("view")) return "#8b5cf6";
+  if (lower.includes("export")) return "#f59e0b";
+  if (lower.includes("login")) return "#6366f1";
+  if (lower.includes("logout")) return "#64748b";
+  return "#6b7280";
 };
 
 export const useAuditLogs = (initialFilters: AuditFilters) => {
@@ -43,82 +53,151 @@ export const useAuditLogs = (initialFilters: AuditFilters) => {
     mostActiveUser: null,
     mostAffectedEntity: null,
   });
+  const [stats, setStats] = useState<Stats>({
+    total: 0,
+    avgPerDay: 0,
+    mostActiveDay: null,
+    uniqueUsers: 0,
+    totalToday: 0,
+    byAction: [],
+    byEntity: [],
+    byUser: [],
+  });
+
+  const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+
+  const computeSummary = (items: AuditLogEntry[]) => {
+    const today = new Date().toISOString().split("T")[0];
+    const todayLogs = items.filter((log) => {
+      const logDate = typeof log.timestamp === "string" 
+        ? log.timestamp 
+        : new Date(log.timestamp).toISOString();
+      return logDate.startsWith(today);
+    });
+
+    const byAction: Record<string, number> = {};
+    const userCounts: Record<string, number> = {};
+    const entityCounts: Record<string, number> = {};
+
+    items.forEach((log) => {
+      const action = log.action || "Unknown";
+      byAction[action] = (byAction[action] || 0) + 1;
+      const userName = log.user || "System";
+      userCounts[userName] = (userCounts[userName] || 0) + 1;
+      if (log.entity) {
+        entityCounts[log.entity] = (entityCounts[log.entity] || 0) + 1;
+      }
+    });
+
+    let mostActiveUser = null;
+    let maxUserCount = 0;
+    Object.entries(userCounts).forEach(([user, count]) => {
+      if (count > maxUserCount) {
+        maxUserCount = count;
+        mostActiveUser = { user, count };
+      }
+    });
+
+    let mostAffectedEntity = null;
+    let maxEntityCount = 0;
+    Object.entries(entityCounts).forEach(([entity, count]) => {
+      if (count > maxEntityCount) {
+        maxEntityCount = count;
+        mostAffectedEntity = { entity, count };
+      }
+    });
+
+    setSummary({
+      totalToday: todayLogs.length,
+      byAction,
+      mostActiveUser,
+      mostAffectedEntity,
+    });
+  };
+
+  const fetchStats = useCallback(async () => {
+    try {
+      // Use the enhanced stats endpoint with days parameter
+      const response = await auditAPI.getStats({ days: 7 });
+      if (response.status) {
+        const data = response.data;
+        setStats({
+          total: data.total || 0,
+          avgPerDay: data.avgPerDay || 0,
+          mostActiveDay: data.mostActiveDay || null,
+          uniqueUsers: data.uniqueUsers || 0,
+          totalToday: data.totalToday || 0,
+          byAction: data.byAction || [],
+          byEntity: data.byEntity || [],
+          byUser: data.byUser || [],
+        });
+      }
+    } catch (err) {
+      console.error("Failed to fetch audit stats:", err);
+    }
+  }, []);
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
     setError(null);
+
     try {
-      const params: any = {
-        action: filters.action === "all" ? undefined : filters.action,
-        startDate: filters.startDate,
-        endDate: filters.endDate,
-        user: filters.user,
-        entity: filters.entity,
-        searchTerm: filters.search,
-      };
-      const response = await auditAPI.search(params);
-      if (!response.status) throw new Error(response.message);
-      const items = response.data.items;
+      const baseParams: any = { page: 1, limit: 1000 };
+
+      let response;
+
+      const hasSearch = filters.search && filters.search.trim() !== "";
+      const hasAction = filters.action && filters.action !== "all";
+      const hasEntity = filters.entity && filters.entity.trim() !== "";
+      const hasUser = filters.user && filters.user.trim() !== "";
+      const hasDateRange = filters.startDate && filters.endDate;
+
+      if (hasSearch) {
+        response = await auditAPI.search({
+          searchTerm: filters.search.trim(),
+          action: hasAction ? filters.action : undefined,
+          startDate: filters.startDate,
+          endDate: filters.endDate,
+          user: hasUser ? filters.user : undefined,
+          entity: hasEntity ? filters.entity : undefined,
+          ...baseParams,
+        });
+      } else if (hasAction) {
+        response = await auditAPI.getByAction({ action: filters.action, ...baseParams });
+      } else if (hasEntity) {
+        response = await auditAPI.getByEntity({ entity: filters.entity, ...baseParams });
+      } else if (hasUser) {
+        response = await auditAPI.getByUser({ user: filters.user, ...baseParams });
+      } else if (hasDateRange) {
+        response = await auditAPI.getByDateRange({
+          startDate: filters.startDate,
+          endDate: filters.endDate,
+          ...baseParams,
+        });
+      } else {
+        response = await auditAPI.getAll(baseParams);
+      }
+
+      if (!response.status) throw new Error(response.message || "Failed to fetch audit logs");
+
+      const items = response.data?.data || response.data?.items || [];
       setLogs(items);
-
-      // Compute summary
-      const today = new Date().toISOString().split("T")[0];
-      const todayLogs = items.filter((log) => {
-        const logDate =
-          typeof log.timestamp === "string"
-            ? log.timestamp
-            : new Date(log.timestamp).toISOString();
-        return logDate.startsWith(today);
-      });
-
-      const byAction: Record<string, number> = {};
-      const userCounts: Record<string, number> = {};
-      const entityCounts: Record<string, number> = {};
-
-      items.forEach((log) => {
-        const action = log.action || "Unknown";
-        byAction[action] = (byAction[action] || 0) + 1;
-        const userName = log.user || "System";
-        userCounts[userName] = (userCounts[userName] || 0) + 1;
-        if (log.entity) {
-          entityCounts[log.entity] = (entityCounts[log.entity] || 0) + 1;
-        }
-      });
-
-      let mostActiveUser = null;
-      let maxUserCount = 0;
-      Object.entries(userCounts).forEach(([user, count]) => {
-        if (count > maxUserCount) {
-          maxUserCount = count;
-          mostActiveUser = { user, count };
-        }
-      });
-
-      let mostAffectedEntity = null;
-      let maxEntityCount = 0;
-      Object.entries(entityCounts).forEach(([entity, count]) => {
-        if (count > maxEntityCount) {
-          maxEntityCount = count;
-          mostAffectedEntity = { entity, count };
-        }
-      });
-
-      setSummary({
-        totalToday: todayLogs.length,
-        byAction,
-        mostActiveUser,
-        mostAffectedEntity,
-      });
+      computeSummary(items);
+      await fetchStats();
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || "An error occurred while fetching audit logs.");
     } finally {
       setLoading(false);
     }
-  }, [filters]);
+  }, [filters, fetchStats]);
 
   useEffect(() => {
-    fetchLogs();
-  }, [fetchLogs]);
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => fetchLogs(), 300);
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
+  }, [filters, fetchLogs]);
 
   return {
     logs,
@@ -128,5 +207,6 @@ export const useAuditLogs = (initialFilters: AuditFilters) => {
     error,
     reload: fetchLogs,
     summary,
+    stats,
   };
 };

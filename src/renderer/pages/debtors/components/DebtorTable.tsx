@@ -10,6 +10,7 @@ import {
   User,
   Mail,
   Phone,
+  MapPin,
 } from "lucide-react";
 import type { DebtorWithTotal } from "../hooks/useDebtors";
 import { formatCurrency } from "../../../utils/formatters";
@@ -27,6 +28,15 @@ interface DebtorTableProps {
   onRestore?: (debtor: DebtorWithTotal) => void;
 }
 
+const getInitials = (name: string) => {
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+};
+
 const DebtorTable: React.FC<DebtorTableProps> = ({
   debtors,
   selectedDebtors,
@@ -42,170 +52,176 @@ const DebtorTable: React.FC<DebtorTableProps> = ({
   const getSortIcon = (key: string) => {
     if (sortConfig.key !== key) return null;
     return sortConfig.direction === "asc" ? (
-      <ChevronUp className="w-4 h-4" />
+      <ChevronUp className="w-3.5 h-3.5" />
     ) : (
-      <ChevronDown className="w-4 h-4" />
+      <ChevronDown className="w-3.5 h-3.5" />
     );
   };
 
+  const allSelected = debtors.length > 0 && selectedDebtors.length === debtors.length;
+  const someSelected = selectedDebtors.length > 0 && !allSelected;
+
   return (
-    <div
-      className="overflow-x-auto rounded-md border"
-      style={{ borderColor: "var(--border-color)" }}
-    >
-      <table className="min-w-full">
-        <thead style={{ backgroundColor: "var(--card-secondary-bg)" }}>
+    <div className="overflow-x-auto rounded-xl border border-[var(--border-color)] bg-[var(--card-bg)]">
+      <table className="w-full text-sm">
+        <thead className="bg-[var(--card-secondary-bg)] border-b border-[var(--border-color)]">
           <tr>
-            <th className="w-10 px-2 py-3 text-left">
+            <th className="py-2.5 px-3 w-8">
               <input
                 type="checkbox"
-                checked={
-                  debtors.length > 0 &&
-                  selectedDebtors.length === debtors.length
-                }
+                checked={allSelected}
+                ref={(input) => {
+                  if (input) input.indeterminate = someSelected;
+                }}
                 onChange={onToggleSelectAll}
-                className="h-4 w-4 rounded"
-                style={{ accentColor: "var(--primary-color)" }}
+                className="rounded border-[var(--border-color)] cursor-pointer"
               />
             </th>
             <th
-              className="px-4 py-3 text-left text-xs font-medium uppercase cursor-pointer"
-              onClick={(e) =>{e.stopPropagation(); onSort("name")}}
+              className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider cursor-pointer hover:text-[var(--primary-color)]"
+              onClick={() => onSort("name")}
             >
               <div className="flex items-center gap-1">
                 Name {getSortIcon("name")}
               </div>
             </th>
             <th
-              className="px-4 py-3 text-left text-xs font-medium uppercase cursor-pointer"
-              onClick={(e) =>{e.stopPropagation(); onSort("contact")}}
+              className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider cursor-pointer hover:text-[var(--primary-color)]"
+              onClick={() => onSort("contact")}
             >
               <div className="flex items-center gap-1">
                 Contact {getSortIcon("contact")}
               </div>
             </th>
             <th
-              className="px-4 py-3 text-left text-xs font-medium uppercase cursor-pointer"
-              onClick={(e) =>{e.stopPropagation(); onSort("email")}}
+              className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider cursor-pointer hover:text-[var(--primary-color)]"
+              onClick={() => onSort("email")}
             >
               <div className="flex items-center gap-1">
                 Email {getSortIcon("email")}
               </div>
             </th>
             <th
-              className="px-4 py-3 text-left text-xs font-medium uppercase cursor-pointer"
-              onClick={(e) =>{e.stopPropagation(); onSort("total_debt")}}
+              className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider cursor-pointer hover:text-[var(--primary-color)]"
+              onClick={() => onSort("total_debt")}
             >
               <div className="flex items-center gap-1">
                 Total Debt {getSortIcon("total_debt")}
               </div>
             </th>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase">
+            <th className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
               Status
             </th>
-            <th className="px-4 py-3 text-right text-xs font-medium uppercase">
+            <th className="text-center py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
               Actions
             </th>
           </tr>
         </thead>
         <tbody>
-          {debtors.map((debtor) => (
-            <tr
-              key={debtor.id}
-              onClick={(e) => {
-                e.stopPropagation();
-                onView(debtor);
-              }}
-              className="hover:bg-[var(--card-hover-bg)] transition-colors border-b"
-              style={{ borderColor: "var(--border-color)" }}
-            >
-              <td className="px-2 py-3">
-                <input
-                  type="checkbox"
-                  checked={selectedDebtors.includes(debtor.id)}
-                  onChange={(e) => {e.stopPropagation(); onToggleSelect(debtor.id)}}
-                  className="h-4 w-4 rounded"
-                  style={{ accentColor: "var(--primary-color)" }}
-                />
-              </td>
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-[var(--primary-color)]/10 flex items-center justify-center">
-                    <User className="w-4 h-4 text-[var(--primary-color)]" />
-                  </div>
-                  <span className="font-medium">{debtor.name}</span>
-                </div>
-              </td>
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-1">
-                  <Phone className="w-3 h-3 text-[var(--text-tertiary)]" />
-                  <span>{debtor.contact || "—"}</span>
-                </div>
-              </td>
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-1">
-                  <Mail className="w-3 h-3 text-[var(--text-tertiary)]" />
-                  <span>{debtor.email || "—"}</span>
-                </div>
-              </td>
-              <td
-                className="px-4 py-3 font-semibold"
-                style={{ color: "var(--debt-high)" }}
+          {debtors.map((debtor) => {
+            const isDeleted = !!debtor.deletedAt;
+            return (
+              <tr
+                key={debtor.id}
+                className="border-b border-[var(--border-color)] hover:bg-[var(--card-hover-bg)] transition-colors cursor-pointer"
+                onClick={() => onView(debtor)}
               >
-                {formatCurrency(debtor.total_debt || 0)}
-              </td>
-              <td className="px-4 py-3">
-                {debtor.deletedAt ? (
-                  <span className="px-2 py-1 rounded-full text-xs bg-[var(--status-overdue-bg)] text-[var(--status-overdue)]">
-                    Deleted
+                <td className="py-2.5 px-3" onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    checked={selectedDebtors.includes(debtor.id)}
+                    onChange={() => onToggleSelect(debtor.id)}
+                    className="rounded border-[var(--border-color)] cursor-pointer"
+                  />
+                </td>
+                <td className="py-2.5 px-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[var(--primary-color)] to-[var(--primary-hover)] flex items-center justify-center text-white text-xs font-medium">
+                      {getInitials(debtor.name)}
+                    </div>
+                    <div>
+                      <div className="text-[var(--text-primary)] font-medium text-sm">
+                        {debtor.name}
+                      </div>
+                      {debtor.address && (
+                        <div className="flex items-center gap-0.5 text-[var(--text-tertiary)] text-[10px]">
+                          <MapPin className="w-2.5 h-2.5" />
+                          <span className="truncate max-w-[100px]">{debtor.address}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </td>
+                <td className="py-2.5 px-3">
+                  <div className="flex items-center gap-1 text-[var(--text-secondary)] text-sm">
+                    <Phone className="w-3 h-3 text-[var(--text-tertiary)]" />
+                    <span>{debtor.contact || "—"}</span>
+                  </div>
+                </td>
+                <td className="py-2.5 px-3">
+                  <div className="flex items-center gap-1 text-[var(--text-secondary)] text-sm">
+                    <Mail className="w-3 h-3 text-[var(--text-tertiary)]" />
+                    <span className="truncate max-w-[120px]">{debtor.email || "—"}</span>
+                  </div>
+                </td>
+                <td className="py-2.5 px-3">
+                  <span className="font-semibold text-sm" style={{ color: "var(--debt-high)" }}>
+                    {formatCurrency(debtor.total_debt || 0)}
                   </span>
-                ) : (
-                  <span className="px-2 py-1 rounded-full text-xs bg-[var(--status-paid-bg)] text-[var(--status-paid)]">
-                    Active
-                  </span>
-                )}
-              </td>
-              <td className="px-4 py-3 text-right">
-                <div className="flex justify-end gap-2">
-                  <button
-                    onClick={(e) =>{e.stopPropagation(); onView(debtor)}}
-                    className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors"
-                    title="View Details"
-                  >
-                    <Eye className="w-4 h-4 text-[var(--accent-blue)]" />
-                  </button>
-                  {!debtor.deletedAt ? (
-                    <>
-                      <button
-                        onClick={(e) =>{e.stopPropagation(); onEdit(debtor)}}
-                        className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors"
-                        title="Edit"
-                      >
-                        <Edit className="w-4 h-4 text-[var(--accent-amber)]" />
-                      </button>
-                      <button
-                        onClick={(e) =>{e.stopPropagation(); onDelete(debtor)}}
-                        className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors"
-                        title="Soft Delete"
-                      >
-                        <Trash2 className="w-4 h-4 text-[var(--danger-color)]" />
-                      </button>
-                    </>
+                </td>
+                <td className="py-2.5 px-3">
+                  {isDeleted ? (
+                    <span className="px-2 py-0.5 text-xs rounded-full bg-[var(--status-overdue-bg)] text-[var(--status-overdue-text)]">
+                      Deleted
+                    </span>
                   ) : (
-                    onRestore && (
-                      <button
-                        onClick={(e) =>{e.stopPropagation(); onRestore(debtor)}}
-                        className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors"
-                        title="Restore"
-                      >
-                        <RefreshCw className="w-4 h-4 text-[var(--success-color)]" />
-                      </button>
-                    )
+                    <span className="px-2 py-0.5 text-xs rounded-full bg-[var(--status-success-bg)] text-[var(--status-success-text)]">
+                      Active
+                    </span>
                   )}
-                </div>
-              </td>
-            </tr>
-          ))}
+                </td>
+                <td className="py-2.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex justify-center gap-1">
+                    <button
+                      onClick={() => onView(debtor)}
+                      className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors"
+                      title="View Details"
+                    >
+                      <Eye className="w-4 h-4 text-[var(--accent-blue)]" />
+                    </button>
+                    {!isDeleted ? (
+                      <>
+                        <button
+                          onClick={() => onEdit(debtor)}
+                          className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors"
+                          title="Edit"
+                        >
+                          <Edit className="w-4 h-4 text-yellow-500" />
+                        </button>
+                        <button
+                          onClick={() => onDelete(debtor)}
+                          className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4 text-[var(--danger-color)]" />
+                        </button>
+                      </>
+                    ) : (
+                      onRestore && (
+                        <button
+                          onClick={() => onRestore(debtor)}
+                          className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors"
+                          title="Restore"
+                        >
+                          <RefreshCw className="w-4 h-4 text-[var(--success-color)]" />
+                        </button>
+                      )
+                    )}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

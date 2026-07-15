@@ -1,6 +1,6 @@
 // src/renderer/pages/payments/amortization/types.ts
 
-export type PaymentFrequency = 'monthly' | 'quarterly' | 'semi-annual' | 'annual';
+export type PaymentFrequency = 'weekly' | 'monthly' | 'quarterly' | 'semi-annual' | 'annual';
 
 export interface AmortizationEntry {
   period: number;

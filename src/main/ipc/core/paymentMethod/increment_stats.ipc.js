@@ -11,14 +11,22 @@ module.exports = async (params, queryRunner) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.post(`/api/v1/payment-methods/${methodId}/increment-stats`, { amount });
+    const response = await onlineClient.post(`/api/v1/payment-methods/${methodId}/increment-stats/`, { amount });
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    return { status: true, message: "Payment method stats updated on server", data: null };
+    return {
+      status: true,
+      message: "Payment method stats updated on server",
+      data: null,
+    };
   } else {
     await paymentMethodService.incrementPaymentMethodStats(methodId, amount, queryRunner);
-    return { status: true, message: "Payment method stats updated locally", data: null };
+    return {
+      status: true,
+      message: "Payment method stats updated locally",
+      data: null,
+    };
   }
 };

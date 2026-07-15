@@ -5,8 +5,8 @@ import { dialogs } from "../../../utils/dialogs";
 import { useVersion } from "../../../hooks/useVersion";
 import handshakeAPI from "../../../api/utils/handshake";
 import Switch from "../../../components/UI/Switch";
-import Button from "../../../components/UI/Button";
 import Select from "../../../components/UI/Select";
+import { ServerModal } from "./ServerModal";
 
 const TIMEZONES = [
   { value: "Asia/Manila", label: "Asia/Manila (UTC+8)" },
@@ -56,6 +56,7 @@ const GeneralTab: React.FC<Props> = ({ settings, onUpdate }) => {
         onUpdate("server_url", tempServerUrl);
         dialogs.success("Connected to server", "Online mode activated.");
         setShowServerModal(false);
+        window.location.reload();
       } else {
         dialogs.error(
           "Handshake failed",
@@ -69,40 +70,42 @@ const GeneralTab: React.FC<Props> = ({ settings, onUpdate }) => {
     }
   };
 
+  const inputStyle = {
+    backgroundColor: "var(--input-bg)",
+    borderColor: "var(--input-border)",
+    color: "var(--text-primary)",
+  };
+
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold text-[var(--text-primary)]">General Settings</h3>
-        <p className="text-sm text-[var(--text-secondary)]">Basic system preferences and branding</p>
+        <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>General Settings</h3>
+        <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Basic system preferences and branding</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-            Company Name
-          </label>
+          <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Company Name</label>
           <input
             type="text"
             value={settings.company_name || ""}
             onChange={(e) => onUpdate("company_name", e.target.value)}
-            className="windows-input w-full"
+            className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]"
+            style={inputStyle}
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-            Branch Location
-          </label>
+          <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Branch Location</label>
           <input
             type="text"
             value={settings.branch_location || ""}
             onChange={(e) => onUpdate("branch_location", e.target.value)}
-            className="windows-input w-full"
+            className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]"
+            style={inputStyle}
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-            Timezone
-          </label>
+          <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Timezone</label>
           <Select
             value={settings.default_timezone || "Asia/Manila"}
             onChange={(val) => onUpdate("default_timezone", val)}
@@ -111,20 +114,17 @@ const GeneralTab: React.FC<Props> = ({ settings, onUpdate }) => {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-            Currency
-          </label>
+          <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Currency</label>
           <input
             type="text"
             value={settings.currency || "PHP"}
             onChange={(e) => onUpdate("currency", e.target.value)}
-            className="windows-input w-full"
+            className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]"
+            style={inputStyle}
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-            Language
-          </label>
+          <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Language</label>
           <Select
             value={settings.language || "en"}
             onChange={(val) => onUpdate("language", val)}
@@ -133,103 +133,88 @@ const GeneralTab: React.FC<Props> = ({ settings, onUpdate }) => {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-            Auto Logout (minutes)
-          </label>
+          <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Auto Logout (minutes)</label>
           <input
             type="number"
             value={settings.auto_logout_minutes || 30}
-            onChange={(e) =>
-              onUpdate("auto_logout_minutes", parseInt(e.target.value, 10) || 0)
-            }
-            className="windows-input w-full"
+            onChange={(e) => onUpdate("auto_logout_minutes", parseInt(e.target.value, 10) || 0)}
+            className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]"
+            style={inputStyle}
             min="0"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-            Date Format
-          </label>
+          <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Date Format</label>
           <input
             type="text"
             value={settings.date_format || "YYYY-MM-DD"}
             onChange={(e) => onUpdate("date_format", e.target.value)}
-            className="windows-input w-full"
+            className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]"
+            style={inputStyle}
             placeholder="YYYY-MM-DD"
           />
         </div>
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-            Receipt Footer Message
-          </label>
+          <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Receipt Footer Message</label>
           <textarea
             value={settings.receipt_footer_message || ""}
             onChange={(e) => onUpdate("receipt_footer_message", e.target.value)}
             rows={2}
-            className="windows-input w-full"
+            className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)] resize-none"
+            style={inputStyle}
           />
         </div>
       </div>
 
-      {/* Sync Mode (unchanged) */}
-      <div className="border-t border-[var(--border-color)] pt-5">
-        <h4 className="text-md font-medium text-[var(--text-primary)] mb-3">Sync Mode</h4>
+      {/* Sync Mode */}
+      <div className="border-t pt-5" style={{ borderColor: "var(--border-color)" }}>
+        <h4 className="text-md font-medium mb-3" style={{ color: "var(--text-primary)" }}>Sync Mode</h4>
         <div className="flex flex-col sm:flex-row gap-4">
-          <label className="flex items-center gap-2">
+          <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="radio"
               name="sync_mode"
               value="offline"
               checked={settings.sync_mode === ("offline" as any)}
               onChange={() => handleSyncModeChange("offline")}
-              className="w-4 h-4 text-[var(--primary-color)] border-[var(--border-color)] focus:ring-[var(--primary-color)]"
+              className="w-4 h-4 accent-[var(--primary-color)]"
             />
-            <span className="text-sm text-[var(--text-primary)]">Offline Mode</span>
-            <span className="text-xs text-[var(--text-tertiary)] ml-1">Work locally, no sync</span>
+            <span className="text-sm" style={{ color: "var(--text-primary)" }}>Offline Mode</span>
+            <span className="text-xs ml-1" style={{ color: "var(--text-tertiary)" }}>Work locally, no sync</span>
           </label>
-          <label className="flex items-center gap-2">
+          <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="radio"
               name="sync_mode"
               value="online"
               checked={settings.sync_mode === ("online" as any)}
               onChange={() => handleSyncModeChange("online")}
-              className="w-4 h-4 text-[var(--primary-color)] border-[var(--border-color)] focus:ring-[var(--primary-color)]"
+              className="w-4 h-4 accent-[var(--primary-color)]"
             />
-            <span className="text-sm text-[var(--text-primary)]">Online Mode</span>
-            <span className="text-xs text-[var(--text-tertiary)] ml-1">Connect to server</span>
+            <span className="text-sm" style={{ color: "var(--text-primary)" }}>Online Mode</span>
+            <span className="text-xs ml-1" style={{ color: "var(--text-tertiary)" }}>Connect to server</span>
           </label>
         </div>
         {settings.sync_mode === ("online" as any) && settings.server_url && (
-          <p className="text-xs text-[var(--text-tertiary)] mt-2">
-            Connected to: <span className="font-mono">{settings.server_url}</span>
-          </p>
+          <div className="mt-3 p-3 rounded-lg" style={{ backgroundColor: "var(--status-success-bg)", border: "1px solid var(--success-color)" }}>
+            <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+              Connected to: <span className="font-mono" style={{ color: "var(--text-primary)" }}>{settings.server_url}</span>
+            </p>
+          </div>
         )}
       </div>
 
-      {/* Modal for server URL (unchanged) */}
-      {showServerModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
-          <div className="bg-[var(--card-bg)] rounded-xl p-6 w-full max-w-md shadow-2xl border border-[var(--border-color)]">
-            <h3 className="text-lg font-semibold mb-4 text-[var(--text-primary)]">Connect to Server</h3>
-            <input
-              type="url"
-              value={tempServerUrl}
-              onChange={(e) => setTempServerUrl(e.target.value)}
-              placeholder="https://your-server.com/api"
-              className="windows-input w-full mb-4"
-            />
-            <div className="flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => setShowServerModal(false)}>
-                Cancel
-              </Button>
-              <Button variant="primary" onClick={connectServer} loading={connecting}>
-                Connect
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Server URL Modal */}
+      <ServerModal
+        isOpen={showServerModal}
+        onClose={() => setShowServerModal(false)}
+        serverUrl={tempServerUrl}
+        onServerUrlChange={setTempServerUrl}
+        onConnect={connectServer}
+        connecting={connecting}
+        onUpdate={onUpdate}
+        currentServerUrl={settings.server_url || ""}
+      />
     </div>
   );
 };

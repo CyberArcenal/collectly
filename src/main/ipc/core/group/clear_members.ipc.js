@@ -11,14 +11,25 @@ module.exports = async (params, queryRunner) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.delete(`/api/v1/groups/${groupId}/members`);
-    if (!response.ok) {
+
+    // Endpoint: DELETE /api/v1/groups/{group_id}/clear-members/
+    const response = await onlineClient.delete(`/api/v1/groups/${groupId}/clear-members/`);
+    if (!response.ok && response.status !== 204) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    return { status: true, message: "Group members cleared on server", data: null };
+
+    return {
+      status: true,
+      message: "Group members cleared on server",
+      data: null,
+    };
   } else {
     await groupService.clearGroupMembers(groupId, user, queryRunner);
-    return { status: true, message: "Group members cleared locally", data: null };
+    return {
+      status: true,
+      message: "Group members cleared locally",
+      data: null,
+    };
   }
 };

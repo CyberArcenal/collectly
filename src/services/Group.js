@@ -86,7 +86,9 @@ class GroupService {
    */
   async getAllGroups(page = 1, limit = 10) {
     const { group: groupRepo } = await this.getRepositories();
-    const qb = groupRepo.createQueryBuilder("group").orderBy("group.name", "ASC");
+    const qb = groupRepo
+      .createQueryBuilder("group")
+      .orderBy("group.name", "ASC");
     const result = await paginateQueryBuilder(qb, { page, limit });
     await auditLogger.logView("DebtorGroup", null, "system");
     return result;
@@ -229,26 +231,47 @@ class GroupService {
     return saved;
   }
 
-  /**
-   * Delete a group (cascade removes all members)
-   * @param {number} id
-   * @param {string} user
-   * @param {import("typeorm").QueryRunner | null} qr
-   */
-  async deleteGroup(id, user = "system", qr = null) {
-    const { removeDb } = require("../utils/dbUtils/dbActions");
-    const DebtorGroup = require("../entities/DebtorGroup");
-    const groupRepo = this._getRepo(qr, DebtorGroup);
+ /**
+ * Delete a group (cascade removes all members)
+ * @param {number} id
+ * @param {string} user
+ * @param {import("typeorm").QueryRunner | null} qr
+ */
+async deleteGroup(id, user = "system", qr = null) {
+  const { removeDb } = require("../utils/dbUtils/dbActions");
+  const DebtorGroup = require("../entities/DebtorGroup");
+  const DebtorGroupMember = require("../entities/DebtorGroupMember");
+  const groupRepo = this._getRepo(qr, DebtorGroup);
+  const memberRepo = this._getRepo(qr, DebtorGroupMember);
 
+  try {
+    // 1. Find the group first
     const group = await groupRepo.findOne({ where: { id } });
     if (!group) {
       throw new Error(`Group with ID ${id} not found`);
     }
 
+    const groupName = group.name || `Group #${id}`;
+
+    // 2. 🔒 Check if group has members
+    const memberCount = await memberRepo.count({
+      where: { groupId: id, deletedAt: null },
+    });
+    if (memberCount > 0) {
+      throw new Error(
+        `Cannot delete group "${groupName}" because it has ${memberCount} member(s). Please remove all members first.`
+      );
+    }
+
+    // 3. Proceed with delete
     await removeDb(groupRepo, group);
     await auditLogger.logDelete("DebtorGroup", id, group, user);
-    console.log(`Group deleted: ${group.name} (ID: ${group.id})`);
+    console.log(`Group deleted: "${groupName}" (ID: ${id})`);
+  } catch (error) {
+    console.error("Failed to delete group:", error.message);
+    throw error;
   }
+}
 
   /**
    * Assign a single debtor to a group
@@ -376,6 +399,95 @@ class GroupService {
       user,
     );
     console.log(`Cleared ${members.length} members from group ${groupId}`);
+  }
+
+  /**
+   * Get overall group statistics.
+   * @param {Object} filters - optional filters (none currently)
+   * @param {import("typeorm").QueryRunner | null} qr
+   * @returns {Promise<Object>}
+   *   {
+   *     totalGroups: number,
+   *     averageMembers: number,
+   *     groupsWithZeroMembers: number,
+   *     groups: Array<{ id, name, memberCount, totalDebt? }> // optional details
+   *   }
+   */
+  async getStatistics(filters = {}, qr = null) {
+    const DebtorGroup = require("../entities/DebtorGroup");
+    const DebtorGroupMember = require("../entities/DebtorGroupMember");
+    const Debt = require("../entities/Debt");
+    const groupRepo = this._getRepo(qr, DebtorGroup);
+    const memberRepo = this._getRepo(qr, DebtorGroupMember);
+    const debtRepo = this._getRepo(qr, Debt);
+
+    // Get all non-deleted groups
+    const groups = await groupRepo
+      .createQueryBuilder("group")
+      .where("group.deletedAt IS NULL")
+      .getMany();
+
+    const totalGroups = groups.length;
+    if (totalGroups === 0) {
+      return {
+        totalGroups: 0,
+        averageMembers: 0,
+        groupsWithZeroMembers: 0,
+        groups: [],
+      };
+    }
+
+    // For each group, count active members (non-deleted)
+    // Also compute total debt for members if desired
+    const groupStats = [];
+    let totalMembers = 0;
+    let zeroMemberCount = 0;
+
+    for (const group of groups) {
+      // Count active members
+      const memberCount = await memberRepo
+        .createQueryBuilder("member")
+        .where("member.groupId = :groupId", { groupId: group.id })
+        .andWhere("member.deletedAt IS NULL")
+        .getCount();
+
+      totalMembers += memberCount;
+      if (memberCount === 0) zeroMemberCount++;
+
+      // (Optional) Get total debt of members
+      // This requires joining through members → debtor → debts
+      // We can compute with a subquery or raw SQL; for simplicity, we'll skip or compute via relation
+      // Since we have `debt.totalAmount` and `debt.remainingAmount`, we can sum remaining amounts.
+      // We'll compute total outstanding debt (remainingAmount) for all debts of members in this group.
+      const totalDebtResult = await debtRepo
+        .createQueryBuilder("debt")
+        .leftJoin("debt.borrower", "borrower")
+        .leftJoin("borrower.groupMemberships", "membership")
+        .where("membership.groupId = :groupId", { groupId: group.id })
+        .andWhere("membership.deletedAt IS NULL")
+        .andWhere("debt.deletedAt IS NULL")
+        .andWhere("borrower.deletedAt IS NULL")
+        .select("SUM(debt.remainingAmount)", "total")
+        .getRawOne();
+
+      const totalDebt = parseFloat(totalDebtResult?.total) || 0;
+
+      groupStats.push({
+        id: group.id,
+        name: group.name,
+        memberCount,
+        totalDebt,
+      });
+    }
+
+    const averageMembers = totalGroups > 0 ? totalMembers / totalGroups : 0;
+
+    return {
+      totalGroups,
+      averageMembers: Math.round(averageMembers * 100) / 100, // round to 2 decimals
+      groupsWithZeroMembers: zeroMemberCount,
+      groups: groupStats, // optional details
+    };
   }
 }
 

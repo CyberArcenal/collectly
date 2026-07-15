@@ -10,10 +10,8 @@ import NotificationsTab from "./components/NotificationsTab";
 import ReportsTab from "./components/ReportsTab";
 import IntegrationsTab from "./components/IntegrationsTab";
 import AuditSecurityTab from "./components/AuditSecurityTab";
-import SystemInfoCard from "./components/SystemInfoCard";
 import type { SettingType } from "../../api/utils/system_config";
 
-// Map category keys to display labels (optional, used only for availableTabs)
 const TAB_LABELS: Record<string, string> = {
   general: "General",
   collections: "Collections",
@@ -49,7 +47,6 @@ const SettingsPage: React.FC = () => {
     testSmsConnection,
   } = useSettings();
 
-  // Determine which tabs to show based on what the API returned
   const availableTabs = Object.keys(groupedConfig).filter(
     (key) => TAB_LABELS[key],
   );
@@ -68,15 +65,19 @@ const SettingsPage: React.FC = () => {
 
   if (loading && !groupedConfig.general) {
     return (
-      <div className="min-h-screen bg-[var(--background-color)] flex items-center justify-center">
-        <div className="text-[var(--text-primary)]">Loading settings...</div>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--background-color)" }}>
+        <div className="flex flex-col items-center gap-3">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2" style={{ borderColor: "var(--primary-color)" }}></div>
+          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Loading settings...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[var(--card-bg)]">
-      <main className="mx-auto px-2 py-2">
+    <div className="min-h-screen p-6" style={{ backgroundColor: "var(--card-bg)" }}>
+      <div className="max-w-6xl mx-auto space-y-6">
+        {/* Header */}
         <SettingsHeader
           onSave={saveSettings}
           onReset={resetToDefaults}
@@ -85,28 +86,25 @@ const SettingsPage: React.FC = () => {
           saving={saving}
         />
 
+        {/* Messages */}
         {error && (
-          <div className="mb-4 p-4 bg-red-500/10 border border-red-500/30 rounded-lg flex items-center gap-2 text-red-400">
-            <span>{error}</span>
-            <button onClick={() => setError(null)} className="ml-auto underline">
-              Dismiss
-            </button>
+          <div className="p-4 rounded-xl flex items-center gap-3" style={{ backgroundColor: "var(--status-overdue-bg)", border: "1px solid var(--danger-color)" }}>
+            <span className="text-sm" style={{ color: "var(--danger-color)" }}>{error}</span>
+            <button onClick={() => setError(null)} className="ml-auto text-sm underline" style={{ color: "var(--danger-color)" }}>Dismiss</button>
           </div>
         )}
         {successMessage && (
-          <div className="mb-4 p-4 bg-green-500/10 border border-green-500/30 rounded-lg flex items-center gap-2 text-green-400">
-            <span>{successMessage}</span>
-            <button onClick={() => setSuccessMessage(null)} className="ml-auto underline">
-              Dismiss
-            </button>
+          <div className="p-4 rounded-xl flex items-center gap-3" style={{ backgroundColor: "var(--status-success-bg)", border: "1px solid var(--success-color)" }}>
+            <span className="text-sm" style={{ color: "var(--success-color)" }}>{successMessage}</span>
+            <button onClick={() => setSuccessMessage(null)} className="ml-auto text-sm underline" style={{ color: "var(--success-color)" }}>Dismiss</button>
           </div>
         )}
 
-        {/* {systemInfo && <SystemInfoCard info={systemInfo} />} */}
-
+        {/* Tabs */}
         <SettingsTabs activeTab={activeTab as SettingType} onTabChange={setActiveTab} />
 
-        <div className="bg-[var(--card-bg)] border border-[var(--border-color)]/20 rounded-lg p-6">
+        {/* Tab Content */}
+        <div className="rounded-xl border shadow-sm p-6" style={{ backgroundColor: "var(--card-bg)", borderColor: "var(--border-color)" }}>
           {activeTab === "general" && (
             <GeneralTab settings={groupedConfig.general} onUpdate={updateGeneral} />
           )}
@@ -134,7 +132,7 @@ const SettingsPage: React.FC = () => {
             <AuditSecurityTab settings={groupedConfig.audit_security} onUpdate={updateAuditSecurity} />
           )}
         </div>
-      </main>
+      </div>
     </div>
   );
 };

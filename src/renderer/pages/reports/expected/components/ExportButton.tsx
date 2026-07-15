@@ -1,8 +1,8 @@
 // src/renderer/pages/reports/expected/components/ExportButton.tsx
 import React from "react";
 import { Download } from "lucide-react";
-import { dialogs } from "../../../../utils/dialogs";
 import type { ExpectedReport } from "../types";
+import { dialogs } from "../../../../utils/dialogs";
 
 interface ExportButtonProps {
   report: ExpectedReport;
@@ -18,7 +18,9 @@ const ExportButton: React.FC<ExportButtonProps> = ({ report }) => {
       [],
       ["Period", "Expected Amount", "Debtors", "Debts"],
     ];
-    report.data.forEach(item => rows.push([item.date, item.amount.toString(), item.debtorCount.toString(), item.debtCount.toString()]));
+    report.data.forEach(item => {
+      rows.push([item.date, item.amount.toString(), item.debtorCount.toString(), item.debtCount.toString()]);
+    });
     rows.push([], ["Detailed Breakdown"]);
     report.data.forEach(item => {
       rows.push([`${item.date} - Details:`]);
@@ -36,9 +38,21 @@ const ExportButton: React.FC<ExportButtonProps> = ({ report }) => {
     URL.revokeObjectURL(url);
     dialogs.success("Export completed");
   };
+
   return (
-    <button onClick={handleExport} className="px-3 py-2 rounded flex items-center gap-1" style={{ backgroundColor: "var(--primary-color)", color: "white" }}>
-      <Download className="w-4 h-4" /> Export CSV
+    <button
+      onClick={handleExport}
+      className="px-3 py-1.5 rounded-lg text-sm font-medium text-white transition-colors flex items-center gap-1.5"
+      style={{ backgroundColor: "var(--success-color)" }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.backgroundColor = "var(--btn-success-hover)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = "var(--success-color)";
+      }}
+    >
+      <Download className="w-4 h-4" />
+      Export CSV
     </button>
   );
 };

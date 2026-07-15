@@ -2,6 +2,22 @@
 const loanApplicationService = require("../../../../../services/LoanApplication");
 const onlineClient = require("../../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
+const { transformPaginatedResult } = require("../../../../../utils/responseTransformer");
+
+function mapApplicationParams(params) {
+  const mapped = {};
+  if (params.page) mapped.page = params.page;
+  if (params.limit) mapped.page_size = params.limit;
+  if (params.search) mapped.search = params.search;
+  if (params.status) mapped.status = params.status;
+  if (params.debtorId) mapped.debtor_id = params.debtorId;
+  if (params.fromDate) mapped.from_date = params.fromDate;
+  if (params.toDate) mapped.to_date = params.toDate;
+  if (params.sortBy) mapped.sort_by = params.sortBy;
+  if (params.sortOrder) mapped.sort_order = params.sortOrder;
+  if (params.includeDeleted !== undefined) mapped.include_deleted = params.includeDeleted;
+  return mapped;
+}
 
 module.exports = async (params) => {
   const mode = await syncMode();
@@ -10,15 +26,25 @@ module.exports = async (params) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.get("/api/v1/loan-applications", { params });
+
+    const query = mapApplicationParams(params); // ✅ Only map for online
+    const response = await onlineClient.get('/api/v1/loan_applications/', { params: query });
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    const result = await response.json();
-    return { status: true, message: "Loan applications retrieved from server", data: result };
+    const serverResult = await response.json();
+    return transformPaginatedResult(serverResult);
   } else {
+    // ✅ Offline passes original camelCase params
     const result = await loanApplicationService.getAllApplications(params);
-    return { status: true, message: "Loan applications retrieved locally", data: result };
+    return {
+      status: true,
+      message: "Loan applications retrieved locally",
+      data: {
+        data: result.data,
+        pagination: result.pagination,
+      },
+    };
   }
 };

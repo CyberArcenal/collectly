@@ -42,6 +42,38 @@ export interface DefaultPaymentMethodResponse {
   data: PaymentMethod | null;
 }
 
+export interface PaymentMethodAllStats {
+  id: number;
+  methodName: string;
+  transactionCount: number;
+  totalAmount: number;
+  averageTransaction: number;
+}
+
+export interface PaymentMethodStatsItem {
+  id: number;
+  name: string;
+  icon: string;
+  isDefault: boolean;
+  transactionCount: number;
+  totalAmount: number;
+  averageTransaction: number;
+}
+
+export interface PaymentMethodDefaultInfo {
+  id: number;
+  name: string;
+  icon: string;
+}
+
+export interface PaymentMethodOverallStats {
+  totalMethods: number;
+  totalTransactions: number;
+  totalAmountCollected: number;
+  defaultMethod: PaymentMethodDefaultInfo | null;
+  methods: PaymentMethodStatsItem[];
+}
+
 
 // ----------------------------------------------------------------------
 // 📨 Response Interfaces (mirror IPC response format)
@@ -59,6 +91,12 @@ export interface PaymentMethodsResponse {
   data: PaginatedResult<PaymentMethod>;
 }
 
+export interface PaymentMethodAllStatsResponse {
+  status: boolean;
+  message: string;
+  data: PaymentMethodAllStats[];
+}
+
 export interface PaymentMethodStatsResponse {
   status: boolean;
   message: string;
@@ -68,6 +106,12 @@ export interface PaymentMethodStatsResponse {
 export interface DeleteResponse {
   status: boolean;
   message: string;
+}
+
+export interface PaymentMethodOverallStatsResponse {
+  status: boolean;
+  message: string;
+  data: PaymentMethodOverallStats;
 }
 
 // ----------------------------------------------------------------------
@@ -122,6 +166,22 @@ class PaymentMethodsAPI {
     });
     if (response.status) return response;
     throw new Error(response.message || "Failed to fetch payment method stats");
+  }
+
+  /**
+   * Get overall summary statistics for all payment methods.
+   * Returns aggregated totals and per-method breakdown.
+   */
+  async getAllStats(): Promise<PaymentMethodOverallStatsResponse> {
+    if (!window.backendAPI?.paymentMethod) {
+      throw new Error("Electron API (paymentMethod) not available");
+    }
+    const response = await window.backendAPI.paymentMethod({
+      method: "getAllStats",
+      params: {},
+    });
+    if (response.status) return response;
+    throw new Error(response.message || "Failed to fetch payment method statistics");
   }
 
   // --------------------------------------------------------------------

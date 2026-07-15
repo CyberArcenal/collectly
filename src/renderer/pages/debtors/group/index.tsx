@@ -1,14 +1,16 @@
 // src/renderer/pages/debtors/group/index.tsx
 import React, { useState } from "react";
-import { Users, Layers } from "lucide-react";
+import { Layers, RefreshCw, Users } from "lucide-react";
 import useDebtorGroups from "./hooks/useDebtorGroups";
 import GroupList from "./components/GroupList";
 import GroupMembers from "./components/GroupMembers";
 import GroupFormDialog from "./components/GroupFormDialog";
-import Pagination from "../../../components/Shared/Pagination";
+import GroupSummaryCards from "./components/GroupSummaryCards"; // NEW
 import { dialogs } from "../../../utils/dialogs";
 import DebtorViewDialog from "../components/DebtorViewDialog";
 import DebtorFormDialog from "../components/DebtorFormDialog";
+import LoadingSpinner from "../../../components/Shared/LoadingSpinner";
+import { showError } from "../../../utils/notification";
 
 const DebtorGroupsPage: React.FC = () => {
   const {
@@ -39,28 +41,51 @@ const DebtorGroupsPage: React.FC = () => {
     removeDebtor,
     bulkAssign,
     refresh,
+    stats, // NEW
+    loadingStats, // NEW
   } = useDebtorGroups();
 
   const [viewOpen, setViewOpen] = useState(false);
   const [viewingDebtor, setViewingDebtor] = useState<any>(null);
 
-  const openView = (debtor: any) => {
-    // console.log(debtor);
+  const openView = async (debtor: any) => {
+    if (!debtor.id) {
+      showError("Ops! Something went wrong.");
+      return;
+    }
     setViewingDebtor(debtor);
     setViewOpen(true);
   };
+
   return (
-    <div className="m-1 h-full flex flex-col">
-      <div className="flex items-center gap-2 mb-4">
-        <Layers className="w-6 h-6 text-[var(--primary-color)]" />
-        <h1
-          className="text-xl font-bold"
-          style={{ color: "var(--sidebar-text)" }}
+    <div className="p-4 space-y-4 h-full flex flex-col">
+      {/* Header */}
+      <div className="flex justify-between items-center flex-shrink-0">
+        <div>
+          <h1 className="text-xl font-bold text-[var(--text-primary)] flex items-center gap-2">
+            <Layers className="w-5 h-5 text-[var(--primary-color)]" />
+            Debtor Groups / Segments
+          </h1>
+          <p className="text-sm text-[var(--text-secondary)] mt-0.5">
+            Organize debtors into groups for targeted collections and reporting
+          </p>
+        </div>
+        <button
+          onClick={refresh}
+          disabled={loadingGroups}
+          className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors disabled:opacity-50"
+          title="Refresh"
         >
-          Debtor Groups / Segments
-        </h1>
+          <RefreshCw
+            className={`w-4 h-4 ${loadingGroups ? "animate-spin" : ""}`}
+          />
+        </button>
       </div>
 
+      {/* Summary Cards - NEW */}
+      <GroupSummaryCards stats={stats} loading={loadingStats} />
+
+      {/* Main Grid */}
       <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 min-h-0">
         {/* Left: Group List */}
         <div className="md:col-span-1 min-h-0">
@@ -79,12 +104,14 @@ const DebtorGroupsPage: React.FC = () => {
         <div className="md:col-span-2 min-h-0 flex flex-col">
           {selectedGroup ? (
             <>
-              <div className="flex-1 overflow-auto">
+              <div className="flex-1 overflow-hidden">
                 <GroupMembers
                   groupName={selectedGroup.name}
+                  groupColor={selectedGroup.color}
                   members={groupMembers}
                   loading={loadingMembers}
                   availableDebtors={availableDebtors}
+                  loadingDebtors={loadingDebtors}
                   onView={openView}
                   onAssign={assignDebtor}
                   onRemove={async (debtorId: number) => {
@@ -92,41 +119,31 @@ const DebtorGroupsPage: React.FC = () => {
                       await dialogs.confirm({
                         title: "Remove Member",
                         message:
-                          "Are you sure do you want to remove this member?",
+                          "Are you sure you want to remove this member from the group?",
                       })
                     ) {
                       removeDebtor(debtorId);
                     }
                   }}
                   onBulkAssign={bulkAssign}
+                  onRefresh={refresh}
                 />
               </div>
               {/* Pagination for members */}
               {membersPagination.totalPages > 1 && (
-                <div className="mt-4">
-                  <Pagination
-                    currentPage={membersCurrentPage}
-                    totalItems={membersPagination.totalItems}
-                    pageSize={membersPageSize}
-                    onPageChange={setMembersCurrentPage}
-                    onPageSizeChange={setMembersPageSize}
-                    pageSizeOptions={[10, 20, 50]}
-                    showPageSize={true}
-                  />
+                <div className="mt-3 flex-shrink-0">
+                  {/* Will use the global pagination or inline */}
                 </div>
               )}
             </>
           ) : (
-            <div
-              className="rounded-md border h-full flex items-center justify-center"
-              style={{
-                backgroundColor: "var(--card-secondary-bg)",
-                borderColor: "var(--border-color)",
-              }}
-            >
+            <div className="flex-1 rounded-xl border border-[var(--border-color)] bg-[var(--card-bg)] flex items-center justify-center">
               <div className="text-center text-[var(--text-tertiary)]">
-                <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p>Select a group to view its members</p>
+                <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p className="text-sm font-medium">No Group Selected</p>
+                <p className="text-xs mt-1">
+                  Select a group from the left panel to view its members
+                </p>
               </div>
             </div>
           )}
@@ -146,9 +163,12 @@ const DebtorGroupsPage: React.FC = () => {
         mode="edit"
         group={editingGroup}
         onClose={closeEditGroupModal}
-        onSubmit={(data) =>
-          editingGroup && handleUpdateGroup(editingGroup.id, data)
-        }
+        onSubmit={(data) => {
+          if (editingGroup) {
+            return handleUpdateGroup(editingGroup.id, data);
+          }
+          return Promise.resolve();
+        }}
       />
 
       <DebtorViewDialog

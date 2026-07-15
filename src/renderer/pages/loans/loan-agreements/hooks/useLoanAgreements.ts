@@ -1,6 +1,6 @@
 // src/renderer/pages/loans/agreements/hooks/useLoanAgreements.ts
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { LoanAgreement } from "../../../../api/core/loan_agreement";
+import type { LoanAgreement, LoanAgreementStatistics } from "../../../../api/core/loan_agreement";
 import loanAgreementsAPI from "../../../../api/core/loan_agreement";
 
 interface Filters {
@@ -10,6 +10,10 @@ interface Filters {
   lenderName?: string;
   dateFrom?: string;
   dateTo?: string;
+}
+
+interface Stats extends LoanAgreementStatistics{
+  signed?: number;
 }
 
 export const useLoanAgreements = () => {
@@ -27,13 +31,32 @@ export const useLoanAgreements = () => {
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [sortConfig, setSortConfig] = useState({ key: "agreementDate", direction: "desc" as "asc" | "desc" });
+  const [sortConfig, setSortConfig] = useState({
+    key: "agreementDate",
+    direction: "desc" as "asc" | "desc",
+  });
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [selectedAgreements, setSelectedAgreements] = useState<number[]>([]);
 
   const mountedRef = useRef(true);
 
   useEffect(() => {
     mountedRef.current = true;
-    return () => { mountedRef.current = false; };
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const fetchStats = useCallback(async () => {
+    try {
+      const response = await loanAgreementsAPI.getStatistics();
+      console.log("Loan agreement stats: ", response)
+      if (response.status) {
+        setStats(response.data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch agreement stats:", err);
+    }
   }, []);
 
   const fetchAgreements = useCallback(async () => {
@@ -70,20 +93,29 @@ export const useLoanAgreements = () => {
     fetchAgreements();
   }, [fetchAgreements]);
 
-  const reload = useCallback(() => fetchAgreements(), [fetchAgreements]);
+  const reload = useCallback(() => {
+    fetchAgreements();
+  }, [fetchAgreements]);
 
   const handleFilterChange = (key: keyof Filters, value: any) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+    setFilters((prev) => ({ ...prev, [key]: value }));
     setCurrentPage(1);
   };
 
   const resetFilters = () => {
-    setFilters({ search: "", status: "all", debtId: undefined, lenderName: "", dateFrom: "", dateTo: "" });
+    setFilters({
+      search: "",
+      status: "all",
+      debtId: undefined,
+      lenderName: "",
+      dateFrom: "",
+      dateTo: "",
+    });
     setCurrentPage(1);
   };
 
   const handleSort = (key: string) => {
-    setSortConfig(prev => ({
+    setSortConfig((prev) => ({
       key,
       direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
     }));
@@ -95,6 +127,18 @@ export const useLoanAgreements = () => {
     setCurrentPage(1);
   };
 
+  const toggleAgreementSelection = (id: number) => {
+    setSelectedAgreements((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedAgreements((prev) =>
+      prev.length === agreements.length ? [] : agreements.map((a) => a.id)
+    );
+  };
+
   return {
     agreements,
     loading,
@@ -104,11 +148,17 @@ export const useLoanAgreements = () => {
     pageSize,
     filters,
     sortConfig,
+    selectedAgreements,
+    setSelectedAgreements,
     setCurrentPage,
     setPageSize: setPageSizeHandler,
     handleFilterChange,
     resetFilters,
     handleSort,
     reload,
+    stats,
+    fetchStats,
+    toggleAgreementSelection,
+    toggleSelectAll,
   };
 };

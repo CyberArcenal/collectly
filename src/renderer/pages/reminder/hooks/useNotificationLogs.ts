@@ -61,8 +61,9 @@ export const useNotificationLogs = (
       }
 
       if (response.status) {
-        setLogs(response.data.items);
-        setTotalItems(response.data.total);
+        console.log(response)
+        setLogs(response.data.data);
+        setTotalItems(response.data.pagination.total);
       } else {
         throw new Error(response.message);
       }

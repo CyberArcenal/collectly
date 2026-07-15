@@ -18,35 +18,30 @@ const PeriodTabs: React.FC<PeriodTabsProps> = ({ value, onChange, disabled = fal
     { label: 'Yearly', value: 'yearly', icon: <CalendarPlus className="w-4 h-4" /> },
   ];
 
-  const getTabStyle = (tabValue: PeriodType) => {
-    if (value === tabValue) {
-      return {
-        backgroundColor: 'var(--primary-color)',
-        color: 'white',
-        borderColor: 'var(--primary-color)',
-      };
-    }
-    return {
-      backgroundColor: 'var(--card-secondary-bg)',
-      color: 'var(--text-primary)',
-      borderColor: 'var(--border-color)',
-    };
-  };
-
   return (
-    <div className="flex flex-wrap gap-1 border rounded-md p-1" style={{ borderColor: 'var(--border-color)' }}>
-      {tabs.map((tab) => (
-        <button
-          key={tab.value}
-          onClick={() => !disabled && onChange(tab.value)}
-          disabled={disabled}
-          className="px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          style={getTabStyle(tab.value)}
-        >
-          {tab.icon}
-          {tab.label}
-        </button>
-      ))}
+    <div className="flex flex-wrap gap-1.5">
+      {tabs.map((tab) => {
+        const isActive = value === tab.value;
+        return (
+          <button
+            key={tab.value}
+            onClick={() => !disabled && onChange(tab.value)}
+            disabled={disabled}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed ${
+              isActive
+                ? "text-white"
+                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-color)]"
+            }`}
+            style={{
+              backgroundColor: isActive ? "var(--primary-color)" : "var(--card-secondary-bg)",
+              borderColor: isActive ? "var(--primary-color)" : "var(--border-color)",
+            }}
+          >
+            {tab.icon}
+            {tab.label}
+          </button>
+        );
+      })}
     </div>
   );
 };

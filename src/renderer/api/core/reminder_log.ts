@@ -1,4 +1,7 @@
 // src/renderer/api/reminder_log.ts
+
+import type { PaginatedResult } from "./common";
+
 export interface NotificationLogEntry {
   id: number;
   recipient_email: string;
@@ -14,14 +17,6 @@ export interface NotificationLogEntry {
   updated_at: string;
 }
 
-export interface PaginatedNotifications {
-  items: NotificationLogEntry[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-}
-
 export interface NotificationStats {
   total: number;
   byStatus: Record<string, number>;
@@ -29,10 +24,11 @@ export interface NotificationStats {
   last24h: number;
 }
 
+// Response interfaces using the standard PaginatedResult pattern
 export interface NotificationsResponse {
   status: boolean;
   message: string;
-  data: PaginatedNotifications;
+  data: PaginatedResult<NotificationLogEntry>;
 }
 
 export interface NotificationResponse {
@@ -65,153 +61,143 @@ class ReminderLogAPI {
     return response as T;
   }
 
-  private normalizeResponse<T extends { status: boolean; message?: string }>(
-    response: T
-  ): T & { message: string } {
-    return { ...response, message: response.message ?? "" };
-  }
-
-  private toPaginatedResponse(raw: any): PaginatedNotifications {
-    if (raw && raw.items && raw.total !== undefined) {
-      return raw;
-    }
-    const items = Array.isArray(raw.data) ? raw.data : [];
-    const pagination = raw.pagination || {};
-    return {
-      items,
-      page: pagination.page || 1,
-      limit: pagination.limit || 50,
-      total: pagination.total || 0,
-      totalPages: pagination.pages || 0,
-    };
-  }
-
   // --------------------------------------------------------------------
-  // 🔎 READ-ONLY METHODS (reminder-specific names)
+  // 🔎 READ-ONLY METHODS (returning the raw IPC response – already transformed)
   // --------------------------------------------------------------------
 
-  async getAllReminders(params?: {
+  async getAll(params?: {
     page?: number;
     limit?: number;
     status?: string;
+    recipient_email?: string;
     startDate?: string;
     endDate?: string;
+    search?: string;
     sortBy?: string;
     sortOrder?: "ASC" | "DESC";
   }): Promise<NotificationsResponse> {
-    const raw = await this.callRaw<any>("getAllReminders", params || {});
-    const normalized = this.normalizeResponse(raw);
-    const paginatedData = this.toPaginatedResponse(normalized);
-    return { ...normalized, data: paginatedData };
+    // The IPC handler already returns { status, message, data: { data, pagination } }
+    const raw = await this.callRaw<NotificationsResponse>("getAllLogs", params || {});
+    // raw already matches NotificationsResponse; no extra transformation needed
+    return raw;
   }
 
-  async getReminderById(id: number): Promise<NotificationResponse> {
-    const raw = await this.callRaw<any>("getReminderById", { id });
-    return this.normalizeResponse(raw);
+  async getById(id: number): Promise<NotificationResponse> {
+    const raw = await this.callRaw<NotificationResponse>("getLogById", { id });
+    return raw;
   }
 
-  async getRemindersByRecipient(params: {
+  async getByRecipient(params: {
     recipient_email: string;
     page?: number;
     limit?: number;
   }): Promise<NotificationsResponse> {
-    const raw = await this.callRaw<any>("getRemindersByRecipient", params);
-    const normalized = this.normalizeResponse(raw);
-    const paginatedData = this.toPaginatedResponse(normalized);
-    return { ...normalized, data: paginatedData };
+    const raw = await this.callRaw<NotificationsResponse>("getLogsByRecipient", params);
+    return raw;
   }
 
-  async searchReminders(params: {
+  async search(params: {
     keyword: string;
     page?: number;
     limit?: number;
   }): Promise<NotificationsResponse> {
-    const raw = await this.callRaw<any>("searchReminders", params);
-    const normalized = this.normalizeResponse(raw);
-    const paginatedData = this.toPaginatedResponse(normalized);
-    return { ...normalized, data: paginatedData };
+    const raw = await this.callRaw<NotificationsResponse>("searchLogs", params);
+    return raw;
   }
 
-  async getReminderStats(params?: {
+  async getStats(params?: {
     startDate?: string;
     endDate?: string;
   }): Promise<NotificationStatsResponse> {
-    const raw = await this.callRaw<any>("getReminderStats", params || {});
-    return this.normalizeResponse(raw);
+    const raw = await this.callRaw<NotificationStatsResponse>("getLogStats", params || {});
+    return raw;
   }
 
   // --------------------------------------------------------------------
   // ✏️ WRITE OPERATIONS
   // --------------------------------------------------------------------
 
-  async createReminder(data: { to: string; subject: string; html?: string; text?: string }, user = "system"): Promise<NotificationActionResponse> {
-    const raw = await this.callRaw<any>("createReminder", { data, user });
-    return this.normalizeResponse(raw);
+  async create(data: { 
+    to: string; 
+    subject?: string; 
+    html?: string; 
+    text?: string; 
+    status?: "queued" | "sent" | "failed" | "resend";
+  }, user = "system"): Promise<NotificationActionResponse> {
+    const raw = await this.callRaw<NotificationActionResponse>("createLog", { data, user });
+    return raw;
   }
 
-  async updateReminderStatus(params: {
+  async updateStatus(params: {
     id: number;
     status: string;
     errorMessage?: string | null;
     user?: string;
   }): Promise<NotificationActionResponse> {
-    const raw = await this.callRaw<any>("updateReminderStatus", params);
-    return this.normalizeResponse(raw);
+    const raw = await this.callRaw<NotificationActionResponse>("updateLogStatus", params);
+    return raw;
   }
 
-  async deleteReminder(id: number, user = "system"): Promise<NotificationActionResponse> {
-    const raw = await this.callRaw<any>("deleteReminder", { id, user });
-    return this.normalizeResponse(raw);
+  async delete(id: number, user = "system"): Promise<NotificationActionResponse> {
+    const raw = await this.callRaw<NotificationActionResponse>("deleteLog", { id, user });
+    return raw;
   }
 
-  async retryReminder(id: number, user = "system"): Promise<NotificationActionResponse> {
-    const raw = await this.callRaw<any>("retryReminder", { id, user });
-    return this.normalizeResponse(raw);
+  async retry(id: number, user = "system"): Promise<NotificationActionResponse> {
+    const raw = await this.callRaw<NotificationActionResponse>("retryLog", { id, user });
+    return raw;
   }
 
-  async retryAllFailedReminders(filters?: { recipient_email?: string; createdBefore?: string }, user = "system"): Promise<NotificationActionResponse> {
-    const raw = await this.callRaw<any>("retryAllFailedReminders", { filters, user });
-    return this.normalizeResponse(raw);
+  async retryAllFailed(filters?: { 
+    recipient_email?: string; 
+    createdBefore?: string 
+  }, user = "system"): Promise<NotificationActionResponse> {
+    const raw = await this.callRaw<NotificationActionResponse>("retryAllFailedLogs", { filters, user });
+    return raw;
   }
 
-  async resendReminder(id: number, user = "system"): Promise<NotificationActionResponse> {
-    const raw = await this.callRaw<any>("resendReminder", { id, user });
-    return this.normalizeResponse(raw);
+  async resend(id: number, user = "system"): Promise<NotificationActionResponse> {
+    const raw = await this.callRaw<NotificationActionResponse>("resendLog", { id, user });
+    return raw;
   }
 
   // --------------------------------------------------------------------
-  // 🧰 UTILITY METHODS (for backward compatibility, can be removed later)
+  // 🧰 UTILITY METHODS (backward compatibility – keep but adapt)
   // --------------------------------------------------------------------
 
-  async getAll(params?: any): Promise<NotificationsResponse> {
-    return this.getAllReminders(params);
+  // These methods now simply call the primary methods; they are kept for legacy.
+  async getAllReminders(params?: any): Promise<NotificationsResponse> {
+    return this.getAll(params);
   }
-  async getById(id: number): Promise<NotificationResponse> {
-    return this.getReminderById(id);
+  async getReminderById(id: number): Promise<NotificationResponse> {
+    return this.getById(id);
   }
-  async getByRecipient(params: any): Promise<NotificationsResponse> {
-    return this.getRemindersByRecipient(params);
+  async getRemindersByRecipient(params: any): Promise<NotificationsResponse> {
+    return this.getByRecipient(params);
   }
-  async search(params: any): Promise<NotificationsResponse> {
-    return this.searchReminders(params);
+  async searchReminders(params: any): Promise<NotificationsResponse> {
+    return this.search(params);
   }
-  async getStats(params?: any): Promise<NotificationStatsResponse> {
-    return this.getReminderStats(params);
+  async getReminderStats(params?: any): Promise<NotificationStatsResponse> {
+    return this.getStats(params);
   }
-  async delete(id: number): Promise<NotificationActionResponse> {
-    return this.deleteReminder(id);
+  async createReminder(data: any, user?: string): Promise<NotificationActionResponse> {
+    return this.create(data, user);
   }
-  async updateStatus(params: any): Promise<NotificationActionResponse> {
-    return this.updateReminderStatus(params);
+  async updateReminderStatus(params: any): Promise<NotificationActionResponse> {
+    return this.updateStatus(params);
   }
-  async retryFailed(id: number): Promise<NotificationActionResponse> {
-    return this.retryReminder(id);
+  async deleteReminder(id: number, user?: string): Promise<NotificationActionResponse> {
+    return this.delete(id, user);
   }
-  async retryAllFailed(params?: any): Promise<NotificationActionResponse> {
-    return this.retryAllFailedReminders(params?.filters, params?.user);
+  async retryReminder(id: number, user?: string): Promise<NotificationActionResponse> {
+    return this.retry(id, user);
   }
-  async resend(id: number): Promise<NotificationActionResponse> {
-    return this.resendReminder(id);
+  async retryAllFailedReminders(params?: any, user?: string): Promise<NotificationActionResponse> {
+    return this.retryAllFailed(params?.filters, user);
+  }
+  async resendReminder(id: number, user?: string): Promise<NotificationActionResponse> {
+    return this.resend(id, user);
   }
 
   isAvailable(): boolean {

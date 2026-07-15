@@ -1,8 +1,10 @@
 // src/main/ipc/audit/get/by_user.ipc.js
+//@ts-check
 const { AuditLog } = require("../../../../../entities/AuditLog");
 const { AppDataSource } = require("../../../../db/data-source");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
 const onlineClient = require("../../../../../utils/onlineClient");
+const { transformPaginatedResult } = require("../../../../../utils/responseTransformer");
 
 module.exports = async (params) => {
   const mode = await syncMode();
@@ -11,13 +13,16 @@ module.exports = async (params) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.get('/api/v1/audit/user', { params });
+    const query = { user: params.user };
+    if (params.page) query.page = params.page;
+    if (params.limit) query.page_size = params.limit;
+    const response = await onlineClient.get('/api/v1/audit/user/', { params: query });
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    const result = await response.json();
-    return { status: true, message: "Audit logs by user retrieved from server", data: result.data };
+    const serverResult = await response.json();
+    return transformPaginatedResult(serverResult);
   } else {
     const { user, page = 1, limit = 50 } = params;
     const repo = AppDataSource.getRepository(AuditLog);
@@ -31,7 +36,7 @@ module.exports = async (params) => {
     return {
       status: true,
       message: "Audit logs by user retrieved locally",
-      data: { items, total, page, limit, totalPages: Math.ceil(total / limit) },
+      data: { data: items, total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
 };

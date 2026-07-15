@@ -11,15 +11,24 @@ module.exports = async (params, queryRunner) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.delete(`/api/v1/penalty-transactions/${id}`, { data: { user } });
-    if (!response.ok) {
+
+    const response = await onlineClient.delete(`/api/v1/payments/penalties/${id}/`);
+    if (!response.ok && response.status !== 204) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    const result = await response.json();
-    return { status: true, message: "Penalty soft deleted on server", data: result };
+
+    return {
+      status: true,
+      message: "Penalty soft deleted on server",
+      data: null,
+    };
   } else {
     const result = await penaltyTransactionService.delete(id, user, queryRunner);
-    return { status: true, message: "Penalty soft deleted locally", data: result };
+    return {
+      status: true,
+      message: "Penalty soft deleted locally",
+      data: result,
+    };
   }
 };

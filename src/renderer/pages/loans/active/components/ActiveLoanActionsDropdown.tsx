@@ -1,11 +1,12 @@
 // src/renderer/pages/loans/active/components/ActiveLoanActionsDropdown.tsx
 import React, { useRef, useEffect, useState } from "react";
-import { Eye, CreditCard, Calendar, Gift, MoreVertical, FileText } from "lucide-react";
+import { Eye, CreditCard, Calendar, Gift, MoreVertical, FileText, Edit } from "lucide-react";
 import type { Debt } from "../../../../api/core/debt";
 
 interface ActiveLoanActionsDropdownProps {
   loan: Debt;
   onView: (loan: Debt) => void;
+  onEdit: (loan: Debt) => void;
   onRecordPayment: (loan: Debt) => void;
   onViewSchedule: (loan: Debt) => void;
   onForgiveness: (loan: Debt) => void;
@@ -15,6 +16,7 @@ interface ActiveLoanActionsDropdownProps {
 const ActiveLoanActionsDropdown: React.FC<ActiveLoanActionsDropdownProps> = ({
   loan,
   onView,
+  onEdit,
   onRecordPayment,
   onViewSchedule,
   onForgiveness,
@@ -48,7 +50,7 @@ const ActiveLoanActionsDropdown: React.FC<ActiveLoanActionsDropdownProps> = ({
   const getDropdownPosition = () => {
     if (!buttonRef.current) return {};
     const rect = buttonRef.current.getBoundingClientRect();
-    const dropdownHeight = 200;
+    const dropdownHeight = 260;
     const windowHeight = window.innerHeight;
     if (rect.bottom + dropdownHeight > windowHeight) {
       return { bottom: `${windowHeight - rect.top + 5}px`, right: `${window.innerWidth - rect.right}px` };
@@ -57,7 +59,7 @@ const ActiveLoanActionsDropdown: React.FC<ActiveLoanActionsDropdownProps> = ({
   };
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div ref={dropdownRef} className="inline-block">
       <button
         ref={buttonRef}
         onClick={(e) => { e.stopPropagation(); handleToggle(); }}
@@ -68,46 +70,57 @@ const ActiveLoanActionsDropdown: React.FC<ActiveLoanActionsDropdownProps> = ({
       </button>
       {isOpen && (
         <div
-          className="fixed z-50 bg-[var(--card-bg)] rounded-lg shadow-xl border border-[var(--border-color)] w-48"
-          style={getDropdownPosition()}
+          className="fixed z-50 rounded-lg shadow-xl border w-48"
+          style={{
+            backgroundColor: "var(--card-bg)",
+            borderColor: "var(--border-color)",
+            ...getDropdownPosition(),
+          }}
         >
           <div className="py-1">
             <button
               onClick={() => handleAction(() => onView(loan))}
-              className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-[var(--card-hover-bg)]"
+              className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-[var(--card-hover-bg)] transition-colors text-[var(--text-primary)]"
             >
               <Eye className="w-4 h-4 text-[var(--accent-blue)]" />
-              <span>View Details</span>
+              View Details
+            </button>
+            <button
+              onClick={() => handleAction(() => onEdit(loan))}
+              className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-[var(--card-hover-bg)] transition-colors text-[var(--text-primary)] hidden"
+            >
+              <Edit className="w-4 h-4 text-yellow-500" />
+              Edit Loan
             </button>
             <button
               onClick={() => handleAction(() => onRecordPayment(loan))}
-              className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-[var(--card-hover-bg)]"
+              className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-[var(--card-hover-bg)] transition-colors text-[var(--text-primary)]"
             >
               <CreditCard className="w-4 h-4 text-[var(--success-color)]" />
-              <span>Record Payment</span>
+              Record Payment
             </button>
             <button
               onClick={() => handleAction(() => onViewSchedule(loan))}
-              className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-[var(--card-hover-bg)]"
+              className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-[var(--card-hover-bg)] transition-colors text-[var(--text-primary)]"
             >
               <Calendar className="w-4 h-4 text-[var(--accent-purple)]" />
-              <span>Payment Schedule</span>
+              Payment Schedule
             </button>
             {loan.remainingAmount > 0 && (
               <button
                 onClick={() => handleAction(() => onForgiveness(loan))}
-                className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-[var(--card-hover-bg)]"
+                className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-[var(--card-hover-bg)] transition-colors text-[var(--text-primary)]"
               >
-                <Gift className="w-4 h-4 text-[var(--accent-amber)]" />
-                <span>Apply Forgiveness</span>
+                <Gift className="w-4 h-4 text-[var(--warning-color)]" />
+                Apply Forgiveness
               </button>
             )}
             <button
               onClick={() => handleAction(() => onViewAgreement(loan))}
-              className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-[var(--card-hover-bg)]"
+              className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-[var(--card-hover-bg)] transition-colors text-[var(--text-primary)]"
             >
               <FileText className="w-4 h-4 text-[var(--accent-blue)]" />
-              <span>View Agreement</span>
+              View Agreement
             </button>
           </div>
         </div>

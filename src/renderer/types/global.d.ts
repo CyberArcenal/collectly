@@ -23,6 +23,7 @@ declare global {
         data: any;
       }>;
       handshake: (payload: any) => Promise<any>;
+      tokenStorage: (payload: { method: string; params?: any }) => Promise<any>;
 
       // ========== DEBT MANAGEMENT MODULES ==========
       borrower: (payload: any) => Promise<any>;
@@ -93,6 +94,28 @@ declare global {
       getRecentExports: (exportDir, limit) => Promise<any>;
       deleteFile: (filePath) => Promise<any>;
       copyFileToClipboard: (filePath) => Promise<any>;
+
+      // ========== USER MODULE (online-only) ==========
+      user: (payload: { method: string; params?: any }) => Promise<{
+        status: boolean;
+        message: string;
+        data: any;
+        pagination?: {
+          next: string | null;
+          previous: string | null;
+          count: number;
+          current_page: number;
+          total_pages: number;
+          page_size: number;
+        };
+      }>;
+      // ========== AUTHENTICATION & SECURITY MODULE ==========
+      auth: (payload: { method: string; params?: any }) => Promise<{
+        status: boolean;
+        message: string;
+        data: any;
+        pagination?: any;
+      }>;
 
       // ========== LOGGING ==========
       log: {

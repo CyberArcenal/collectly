@@ -60,12 +60,20 @@ class DashboardHandler {
         case "getPaymentMethods":
           return await this.getPaymentMethods(params);
         default:
-          return { status: false, message: `Unknown dashboard method: ${method}`, data: null };
+          return {
+            status: false,
+            message: `Unknown dashboard method: ${method}`,
+            data: null,
+          };
       }
     } catch (error) {
       console.error("DashboardHandler error:", error);
       logger?.error("DashboardHandler error:", error);
-      return { status: false, message: error.message || "Internal server error", data: null };
+      return {
+        status: false,
+        message: error.message || "Internal server error",
+        data: null,
+      };
     }
   }
 }

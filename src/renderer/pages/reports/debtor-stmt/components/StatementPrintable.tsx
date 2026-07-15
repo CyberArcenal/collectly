@@ -12,7 +12,7 @@ const StatementPrintable: React.FC<StatementPrintableProps> = ({ statement, comp
   return (
     <div
       id="statement-print-area"
-      className="p-8 print:p-0"
+      className="p-6 print:p-8"
       style={{
         fontFamily: "'Segoe UI', Arial, sans-serif",
         backgroundColor: "var(--card-bg)",
@@ -20,126 +20,160 @@ const StatementPrintable: React.FC<StatementPrintableProps> = ({ statement, comp
       }}
     >
       {/* Header */}
-      <div className="text-center mb-8 border-b pb-4" style={{ borderColor: "var(--border-color)" }}>
-        <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>{companyName}</h1>
-        <p style={{ color: "var(--text-secondary)" }}>Debtor Statement of Account</p>
-        <p className="text-sm mt-2" style={{ color: "var(--text-tertiary)" }}>As of {new Date().toLocaleDateString()}</p>
+      <div className="text-center mb-6 border-b pb-4" style={{ borderColor: "var(--border-color)" }}>
+        <h1 className="text-2xl font-bold text-[var(--text-primary)]">{companyName}</h1>
+        <p className="text-sm text-[var(--text-secondary)]">Debtor Statement of Account</p>
+        <p className="text-xs text-[var(--text-tertiary)] mt-1">
+          As of {new Date().toLocaleDateString()}
+        </p>
       </div>
 
       {/* Debtor Info */}
-      <div className="mb-6 p-3 rounded" style={{ backgroundColor: "var(--card-secondary-bg)" }}>
-        <h2 className="font-semibold text-lg" style={{ color: "var(--text-primary)" }}>{statement.debtor.name}</h2>
-        <div className="grid grid-cols-2 gap-2 text-sm mt-1">
+      <div className="mb-4 p-3 rounded-lg" style={{ backgroundColor: "var(--card-secondary-bg)" }}>
+        <h2 className="font-semibold text-base text-[var(--text-primary)]">{statement.debtor.name}</h2>
+        <div className="grid grid-cols-2 gap-1 text-sm mt-1">
           {statement.debtor.contact && (
-            <div><span style={{ color: "var(--text-secondary)" }}>Contact:</span> <span style={{ color: "var(--text-primary)" }}>{statement.debtor.contact}</span></div>
+            <div>
+              <span className="text-[var(--text-tertiary)]">Contact:</span>
+              <span className="ml-1 text-[var(--text-primary)]">{statement.debtor.contact}</span>
+            </div>
           )}
           {statement.debtor.email && (
-            <div><span style={{ color: "var(--text-secondary)" }}>Email:</span> <span style={{ color: "var(--text-primary)" }}>{statement.debtor.email}</span></div>
+            <div>
+              <span className="text-[var(--text-tertiary)]">Email:</span>
+              <span className="ml-1 text-[var(--text-primary)]">{statement.debtor.email}</span>
+            </div>
           )}
           {statement.debtor.address && (
-            <div className="col-span-2"><span style={{ color: "var(--text-secondary)" }}>Address:</span> <span style={{ color: "var(--text-primary)" }}>{statement.debtor.address}</span></div>
+            <div className="col-span-2">
+              <span className="text-[var(--text-tertiary)]">Address:</span>
+              <span className="ml-1 text-[var(--text-primary)]">{statement.debtor.address}</span>
+            </div>
           )}
         </div>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-4 gap-3 mb-8">
-        <div className="p-3 rounded text-center" style={{ backgroundColor: "var(--accent-blue-light)" }}>
-          <div className="text-xs" style={{ color: "var(--text-secondary)" }}>Total Borrowed</div>
-          <div className="font-bold" style={{ color: "var(--accent-blue)" }}>{formatCurrency(statement.summary.totalBorrowed)}</div>
+      <div className="grid grid-cols-4 gap-2 mb-4">
+        <div className="p-2.5 rounded-lg text-center" style={{ backgroundColor: "var(--accent-blue-light)" }}>
+          <div className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">Total Borrowed</div>
+          <div className="font-bold text-sm" style={{ color: "var(--accent-blue)" }}>
+            {formatCurrency(statement.summary.totalBorrowed)}
+          </div>
         </div>
-        <div className="p-3 rounded text-center" style={{ backgroundColor: "var(--accent-green-light)" }}>
-          <div className="text-xs" style={{ color: "var(--text-secondary)" }}>Total Paid</div>
-          <div className="font-bold" style={{ color: "var(--success-color)" }}>{formatCurrency(statement.summary.totalPaid)}</div>
+        <div className="p-2.5 rounded-lg text-center" style={{ backgroundColor: "var(--accent-green-light)" }}>
+          <div className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">Total Paid</div>
+          <div className="font-bold text-sm" style={{ color: "var(--success-color)" }}>
+            {formatCurrency(statement.summary.totalPaid)}
+          </div>
         </div>
-        <div className="p-3 rounded text-center" style={{ backgroundColor: "var(--accent-red-light)" }}>
-          <div className="text-xs" style={{ color: "var(--text-secondary)" }}>Penalties</div>
-          <div className="font-bold" style={{ color: "var(--danger-color)" }}>{formatCurrency(statement.summary.totalPenalties)}</div>
+        <div className="p-2.5 rounded-lg text-center" style={{ backgroundColor: "var(--accent-red-light)" }}>
+          <div className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">Penalties</div>
+          <div className="font-bold text-sm" style={{ color: "var(--danger-color)" }}>
+            {formatCurrency(statement.summary.totalPenalties)}
+          </div>
         </div>
-        <div className="p-3 rounded text-center" style={{ backgroundColor: "var(--accent-purple-light)" }}>
-          <div className="text-xs" style={{ color: "var(--text-secondary)" }}>Outstanding</div>
-          <div className="font-bold" style={{ color: "var(--accent-purple)" }}>{formatCurrency(statement.summary.outstanding)}</div>
+        <div className="p-2.5 rounded-lg text-center" style={{ backgroundColor: "var(--accent-purple-light)" }}>
+          <div className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">Outstanding</div>
+          <div className="font-bold text-sm" style={{ color: "var(--accent-purple)" }}>
+            {formatCurrency(statement.summary.outstanding)}
+          </div>
         </div>
       </div>
 
       {/* Debts Table */}
-      <h3 className="font-semibold text-lg mt-6 mb-2" style={{ color: "var(--text-primary)" }}>Loan Details</h3>
-      <table className="min-w-full border mb-6" style={{ borderColor: "var(--border-color)" }}>
-        <thead style={{ backgroundColor: "var(--card-secondary-bg)" }}>
-          <tr>
-            <th className="px-3 py-2 text-left text-sm" style={{ color: "var(--text-secondary)" }}>Debt Name</th>
-            <th className="px-3 py-2 text-right text-sm" style={{ color: "var(--text-secondary)" }}>Total Amount</th>
-            <th className="px-3 py-2 text-right text-sm" style={{ color: "var(--text-secondary)" }}>Paid</th>
-            <th className="px-3 py-2 text-right text-sm" style={{ color: "var(--text-secondary)" }}>Remaining</th>
-            <th className="px-3 py-2 text-left text-sm" style={{ color: "var(--text-secondary)" }}>Due Date</th>
-          </tr>
-        </thead>
-        <tbody>
-          {statement.debts.map(d => (
-            <tr key={d.id} className="border-t" style={{ borderColor: "var(--border-color)" }}>
-              <td className="px-3 py-1" style={{ color: "var(--text-primary)" }}>{d.name}</td>
-              <td className="px-3 py-1 text-right" style={{ color: "var(--text-primary)" }}>{formatCurrency(d.totalAmount)}</td>
-              <td className="px-3 py-1 text-right" style={{ color: "var(--text-primary)" }}>{formatCurrency(d.paidAmount)}</td>
-              <td className="px-3 py-1 text-right" style={{ color: "var(--debt-high)" }}>{formatCurrency(d.remainingAmount)}</td>
-              <td className="px-3 py-1" style={{ color: "var(--text-primary)" }}>{formatDate(d.dueDate)}</td>
+      <h3 className="font-semibold text-sm text-[var(--text-primary)] mt-4 mb-1.5">Loan Details</h3>
+      <div className="overflow-x-auto rounded-lg border" style={{ borderColor: "var(--border-color)" }}>
+        <table className="w-full text-sm">
+          <thead style={{ backgroundColor: "var(--card-secondary-bg)" }}>
+            <tr>
+              <th className="px-3 py-1.5 text-left text-[10px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider">Debt Name</th>
+              <th className="px-3 py-1.5 text-right text-[10px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider">Total</th>
+              <th className="px-3 py-1.5 text-right text-[10px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider">Paid</th>
+              <th className="px-3 py-1.5 text-right text-[10px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider">Remaining</th>
+              <th className="px-3 py-1.5 text-left text-[10px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider">Due Date</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {statement.debts.map((d) => (
+              <tr key={d.id} className="border-t" style={{ borderColor: "var(--border-color)" }}>
+                <td className="px-3 py-1 text-[var(--text-primary)]">{d.name}</td>
+                <td className="px-3 py-1 text-right text-[var(--text-primary)]">{formatCurrency(d.totalAmount)}</td>
+                <td className="px-3 py-1 text-right text-[var(--text-primary)]">{formatCurrency(d.paidAmount)}</td>
+                <td className="px-3 py-1 text-right font-semibold" style={{ color: "var(--debt-high)" }}>
+                  {formatCurrency(d.remainingAmount)}
+                </td>
+                <td className="px-3 py-1 text-[var(--text-primary)]">{formatDate(d.dueDate)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {/* Payments Table */}
-      <h3 className="font-semibold text-lg mt-6 mb-2" style={{ color: "var(--text-primary)" }}>Payment History</h3>
-      <table className="min-w-full border mb-6" style={{ borderColor: "var(--border-color)" }}>
-        <thead style={{ backgroundColor: "var(--card-secondary-bg)" }}>
-          <tr>
-            <th className="px-3 py-2 text-left text-sm" style={{ color: "var(--text-secondary)" }}>Date</th>
-            <th className="px-3 py-2 text-left text-sm" style={{ color: "var(--text-secondary)" }}>Debt</th>
-            <th className="px-3 py-2 text-right text-sm" style={{ color: "var(--text-secondary)" }}>Amount</th>
-            <th className="px-3 py-2 text-left text-sm" style={{ color: "var(--text-secondary)" }}>Reference</th>
-          </tr>
-        </thead>
-        <tbody>
-          {statement.payments.map(p => (
-            <tr key={p.id} className="border-t" style={{ borderColor: "var(--border-color)" }}>
-              <td className="px-3 py-1" style={{ color: "var(--text-primary)" }}>{formatDate(p.paymentDate)}</td>
-              <td className="px-3 py-1" style={{ color: "var(--text-primary)" }}>{p.debt?.name || "—"}</td>
-              <td className="px-3 py-1 text-right font-medium" style={{ color: "var(--success-color)" }}>{formatCurrency(p.amount)}</td>
-              <td className="px-3 py-1" style={{ color: "var(--text-primary)" }}>{p.reference || "—"}</td>
+      <h3 className="font-semibold text-sm text-[var(--text-primary)] mt-4 mb-1.5">Payment History</h3>
+      <div className="overflow-x-auto rounded-lg border" style={{ borderColor: "var(--border-color)" }}>
+        <table className="w-full text-sm">
+          <thead style={{ backgroundColor: "var(--card-secondary-bg)" }}>
+            <tr>
+              <th className="px-3 py-1.5 text-left text-[10px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider">Date</th>
+              <th className="px-3 py-1.5 text-left text-[10px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider">Debt</th>
+              <th className="px-3 py-1.5 text-right text-[10px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider">Amount</th>
+              <th className="px-3 py-1.5 text-left text-[10px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider">Reference</th>
             </tr>
-          ))}
-          {statement.payments.length === 0 && (
-            <tr><td colSpan={4} className="text-center py-2" style={{ color: "var(--text-tertiary)" }}>No payments recorded.</td></tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {statement.payments.map((p) => (
+              <tr key={p.id} className="border-t" style={{ borderColor: "var(--border-color)" }}>
+                <td className="px-3 py-1 text-[var(--text-primary)]">{formatDate(p.paymentDate)}</td>
+                <td className="px-3 py-1 text-[var(--text-primary)]">{p.debt?.name || "—"}</td>
+                <td className="px-3 py-1 text-right font-medium text-[var(--success-color)]">
+                  {formatCurrency(p.amount)}
+                </td>
+                <td className="px-3 py-1 text-[var(--text-primary)]">{p.reference || "—"}</td>
+              </tr>
+            ))}
+            {statement.payments.length === 0 && (
+              <tr>
+                <td colSpan={4} className="text-center py-2 text-[var(--text-tertiary)] text-xs">No payments recorded.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
       {/* Penalties Table */}
-      <h3 className="font-semibold text-lg mt-6 mb-2" style={{ color: "var(--text-primary)" }}>Penalties Incurred</h3>
-      <table className="min-w-full border" style={{ borderColor: "var(--border-color)" }}>
-        <thead style={{ backgroundColor: "var(--card-secondary-bg)" }}>
-          <tr>
-            <th className="px-3 py-2 text-left text-sm" style={{ color: "var(--text-secondary)" }}>Date</th>
-            <th className="px-3 py-2 text-left text-sm" style={{ color: "var(--text-secondary)" }}>Debt</th>
-            <th className="px-3 py-2 text-right text-sm" style={{ color: "var(--text-secondary)" }}>Amount</th>
-            <th className="px-3 py-2 text-left text-sm" style={{ color: "var(--text-secondary)" }}>Reason</th>
-          </tr>
-        </thead>
-        <tbody>
-          {statement.penalties.map(p => (
-            <tr key={p.id} className="border-t" style={{ borderColor: "var(--border-color)" }}>
-              <td className="px-3 py-1" style={{ color: "var(--text-primary)" }}>{formatDate(p.penaltyDate)}</td>
-              <td className="px-3 py-1" style={{ color: "var(--text-primary)" }}>{p.debt?.name || "—"}</td>
-              <td className="px-3 py-1 text-right" style={{ color: "var(--danger-color)" }}>{formatCurrency(p.amount)}</td>
-              <td className="px-3 py-1" style={{ color: "var(--text-primary)" }}>{p.reason || "—"}</td>
+      <h3 className="font-semibold text-sm text-[var(--text-primary)] mt-4 mb-1.5">Penalties Incurred</h3>
+      <div className="overflow-x-auto rounded-lg border" style={{ borderColor: "var(--border-color)" }}>
+        <table className="w-full text-sm">
+          <thead style={{ backgroundColor: "var(--card-secondary-bg)" }}>
+            <tr>
+              <th className="px-3 py-1.5 text-left text-[10px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider">Date</th>
+              <th className="px-3 py-1.5 text-left text-[10px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider">Debt</th>
+              <th className="px-3 py-1.5 text-right text-[10px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider">Amount</th>
+              <th className="px-3 py-1.5 text-left text-[10px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider">Reason</th>
             </tr>
-          ))}
-          {statement.penalties.length === 0 && (
-            <tr><td colSpan={4} className="text-center py-2" style={{ color: "var(--text-tertiary)" }}>No penalties recorded.</td></tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {statement.penalties.map((p) => (
+              <tr key={p.id} className="border-t" style={{ borderColor: "var(--border-color)" }}>
+                <td className="px-3 py-1 text-[var(--text-primary)]">{formatDate(p.penaltyDate)}</td>
+                <td className="px-3 py-1 text-[var(--text-primary)]">{p.debt?.name || "—"}</td>
+                <td className="px-3 py-1 text-right text-[var(--danger-color)]">{formatCurrency(p.amount)}</td>
+                <td className="px-3 py-1 text-[var(--text-primary)]">{p.reason || "—"}</td>
+              </tr>
+            ))}
+            {statement.penalties.length === 0 && (
+              <tr>
+                <td colSpan={4} className="text-center py-2 text-[var(--text-tertiary)] text-xs">No penalties recorded.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
-      <div className="text-center text-xs mt-8 pt-4 border-t" style={{ color: "var(--text-tertiary)", borderColor: "var(--border-color)" }}>
+      {/* Footer */}
+      <div className="text-center text-[10px] mt-6 pt-3 border-t" style={{ color: "var(--text-tertiary)", borderColor: "var(--border-color)" }}>
         Generated by Collectly • {new Date().toLocaleString()}
       </div>
 

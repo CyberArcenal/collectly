@@ -14,6 +14,7 @@ class LoanApplicationHandler {
     // 📋 READ-ONLY
     this.getAllApplications = this.importHandler("./get/all.ipc");
     this.getApplicationById = this.importHandler("./get/by_id.ipc");
+    this.getStatistics = this.importHandler("./get/statistics.ipc");
 
     // ✏️ WRITE (with transaction)
     this.createApplication = this.importHandler("./create.ipc");
@@ -22,7 +23,9 @@ class LoanApplicationHandler {
     this.rejectApplication = this.importHandler("./reject.ipc");
     this.deleteApplication = this.importHandler("./delete.ipc");
     this.restoreApplication = this.importHandler("./restore.ipc");
-    this.permanentlyDeleteApplication = this.importHandler("./permanent_delete.ipc");
+    this.permanentlyDeleteApplication = this.importHandler(
+      "./permanent_delete.ipc",
+    );
   }
 
   importHandler(path) {
@@ -30,7 +33,10 @@ class LoanApplicationHandler {
       const fullPath = require.resolve(`./${path}`, { paths: [__dirname] });
       return require(fullPath);
     } catch (error) {
-      console.warn(`[LoanApplicationHandler] Failed to load handler: ${path}`, error.message);
+      console.warn(
+        `[LoanApplicationHandler] Failed to load handler: ${path}`,
+        error.message,
+      );
       return async () => ({
         status: false,
         message: `Handler not implemented: ${path}`,
@@ -47,31 +53,66 @@ class LoanApplicationHandler {
       logger?.info(`LoanApplicationHandler: ${method}`, { params });
 
       switch (method) {
+        // 📋 READ-ONLY
         case "getAllApplications":
           return await this.getAllApplications(params);
         case "getApplicationById":
           return await this.getApplicationById(params);
+        case "getStatistics":
+          return await this.getStatistics(params);
+
+        // ✏️ WRITE (with transaction)
         case "createApplication":
-          return await this.handleWithTransaction(this.createApplication, params);
+          return await this.handleWithTransaction(
+            this.createApplication,
+            params,
+          );
         case "updateApplication":
-          return await this.handleWithTransaction(this.updateApplication, params);
+          return await this.handleWithTransaction(
+            this.updateApplication,
+            params,
+          );
         case "approveApplication":
-          return await this.handleWithTransaction(this.approveApplication, params);
+          return await this.handleWithTransaction(
+            this.approveApplication,
+            params,
+          );
         case "rejectApplication":
-          return await this.handleWithTransaction(this.rejectApplication, params);
+          return await this.handleWithTransaction(
+            this.rejectApplication,
+            params,
+          );
         case "deleteApplication":
-          return await this.handleWithTransaction(this.deleteApplication, params);
+          return await this.handleWithTransaction(
+            this.deleteApplication,
+            params,
+          );
         case "restoreApplication":
-          return await this.handleWithTransaction(this.restoreApplication, params);
+          return await this.handleWithTransaction(
+            this.restoreApplication,
+            params,
+          );
         case "permanentlyDeleteApplication":
-          return await this.handleWithTransaction(this.permanentlyDeleteApplication, params);
+          return await this.handleWithTransaction(
+            this.permanentlyDeleteApplication,
+            params,
+          );
+
         default:
-          return { status: false, message: `Unknown method: ${method}`, data: null };
+          return {
+            status: false,
+            message: `Unknown method: ${method}`,
+            data: null,
+          };
       }
     } catch (error) {
       console.error("LoanApplicationHandler error:", error);
       logger?.error("LoanApplicationHandler error:", error);
-      return { status: false, message: error.message || "Internal server error", data: null };
+      return {
+        status: false,
+        message: error.message || "Internal server error",
+        data: null,
+      };
     }
   }
 
@@ -96,7 +137,10 @@ class LoanApplicationHandler {
 const loanApplicationHandler = new LoanApplicationHandler();
 ipcMain.handle(
   "loanApplication",
-  withErrorHandling(loanApplicationHandler.handleRequest.bind(loanApplicationHandler), "IPC:loanApplication"),
+  withErrorHandling(
+    loanApplicationHandler.handleRequest.bind(loanApplicationHandler),
+    "IPC:loanApplication",
+  ),
 );
 
 module.exports = { LoanApplicationHandler, loanApplicationHandler };

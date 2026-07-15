@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld("backendAPI", {
   notification: (payload) => ipcRenderer.invoke("notification", payload),
   updater: (payload) => ipcRenderer.invoke("updater", payload),
   handshake: (payload) => ipcRenderer.invoke("handshake", payload),
+  tokenStorage: (payload) => ipcRenderer.invoke("token-storage", payload),
   // ========== CORE DEBT MANAGEMENT MODULES ==========
   borrower: (payload) => ipcRenderer.invoke("borrower", payload),
   debt: (payload) => ipcRenderer.invoke("debt", payload),
@@ -87,6 +88,9 @@ contextBridge.exposeInMainWorld("backendAPI", {
   deleteFile: (filePath) => ipcRenderer.invoke("deleteFile", filePath),
   copyFileToClipboard: (filePath) =>
     ipcRenderer.invoke("copyFileToClipboard", filePath),
+
+  user: (payload) => ipcRenderer.invoke("user", payload),
+  auth: (payload) => ipcRenderer.invoke("auth", payload),
 
   // ========== LOGGING ==========
   log: {

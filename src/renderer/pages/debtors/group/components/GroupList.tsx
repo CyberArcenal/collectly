@@ -1,6 +1,6 @@
 // src/renderer/pages/debtors/group/components/GroupList.tsx
 import React from "react";
-import { Plus, Edit, Trash2, Users } from "lucide-react";
+import { Plus, Edit, Trash2, Layers, Users, ChevronRight } from "lucide-react";
 import type { DebtorGroup } from "../types";
 
 interface GroupListProps {
@@ -23,58 +23,98 @@ const GroupList: React.FC<GroupListProps> = ({
   loading,
 }) => {
   return (
-    <div className="rounded-md border h-full flex flex-col" style={{ backgroundColor: "var(--card-secondary-bg)", borderColor: "var(--border-color)" }}>
-      <div className="p-3 border-b flex justify-between items-center" style={{ borderColor: "var(--border-color)" }}>
-        <h3 className="font-semibold" style={{ color: "var(--sidebar-text)" }}>Groups</h3>
+    <div className="rounded-xl border border-[var(--border-color)] bg-[var(--card-bg)] h-full flex flex-col shadow-sm">
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 py-2.5 border-b border-[var(--border-color)]">
+        <h3 className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider flex items-center gap-1.5">
+          <Layers className="w-3.5 h-3.5" />
+          Groups
+          <span className="text-[var(--text-tertiary)] font-normal ml-1">
+            ({groups.length})
+          </span>
+        </h3>
         <button
           onClick={onAddGroup}
-          className="p-1 rounded hover:bg-[var(--card-hover-bg)] text-[var(--primary-color)]"
+          className="p-1 rounded hover:bg-[var(--card-hover-bg)] transition-colors text-[var(--primary-color)]"
           title="Add Group"
         >
           <Plus className="w-4 h-4" />
         </button>
       </div>
-      <div className="flex-1 overflow-y-auto">
+
+      {/* List */}
+      <div className="flex-1 overflow-y-auto p-1.5">
         {loading ? (
-          <div className="p-4 text-center text-[var(--text-tertiary)]">Loading groups...</div>
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin h-5 w-5 border-2 border-[var(--primary-color)] border-t-transparent rounded-full" />
+          </div>
         ) : groups.length === 0 ? (
-          <div className="p-4 text-center text-[var(--text-tertiary)]">No groups yet. Click + to add.</div>
+          <div className="text-center py-8 text-[var(--text-tertiary)]">
+            <Users className="w-8 h-8 mx-auto mb-2 opacity-40" />
+            <p className="text-sm">No groups yet</p>
+            <p className="text-xs mt-0.5">Click + to create one</p>
+          </div>
         ) : (
-          <ul>
-            {groups.map((group) => (
-              <li
-                key={group.id}
-                className={`p-3 border-b cursor-pointer transition-colors hover:bg-[var(--card-hover-bg)] ${
-                  selectedGroup?.id === group.id ? "bg-[var(--primary-color)]/10 border-l-4 border-l-[var(--primary-color)]" : ""
-                }`}
-                style={{ borderColor: "var(--border-color)" }}
-                onClick={() => onSelectGroup(group)}
-              >
-                <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: group.color }}></div>
-                    <span className="font-medium">{group.name}</span>
+          <ul className="space-y-1">
+            {groups.map((group) => {
+              const isSelected = selectedGroup?.id === group.id;
+              return (
+                <li
+                  key={group.id}
+                  className={`group-item rounded-lg cursor-pointer transition-all ${
+                    isSelected
+                      ? "bg-[var(--primary-color)]/10 border-l-3 border-l-[var(--primary-color)]"
+                      : "hover:bg-[var(--card-hover-bg)]"
+                  }`}
+                  style={{
+                    borderLeft: isSelected ? `3px solid var(--primary-color)` : "3px solid transparent",
+                  }}
+                  onClick={() => onSelectGroup(group)}
+                >
+                  <div className="flex items-center justify-between px-3 py-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: group.color || "#3b82f6" }}
+                      />
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-[var(--text-primary)] truncate">
+                          {group.name}
+                        </div>
+                        {group.description && (
+                          <div className="text-xs text-[var(--text-tertiary)] truncate">
+                            {group.description}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-0.5 flex-shrink-0 ml-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEditGroup(group);
+                        }}
+                        className="p-1 rounded hover:bg-[var(--card-hover-bg)] transition-colors opacity-0 group-hover:opacity-100"
+                      >
+                        <Edit className="w-3.5 h-3.5 text-yellow-500" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteGroup(group.id);
+                        }}
+                        className="p-1 rounded hover:bg-[var(--card-hover-bg)] transition-colors opacity-0 group-hover:opacity-100"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-[var(--danger-color)]" />
+                      </button>
+                      {isSelected && (
+                        <ChevronRight className="w-4 h-4 text-[var(--primary-color)]" />
+                      )}
+                    </div>
                   </div>
-                  <div className="flex gap-1">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onEditGroup(group); }}
-                      className="p-1 rounded hover:bg-[var(--card-bg)]"
-                    >
-                      <Edit className="w-3 h-3 text-[var(--accent-amber)]" />
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onDeleteGroup(group.id); }}
-                      className="p-1 rounded hover:bg-[var(--card-bg)]"
-                    >
-                      <Trash2 className="w-3 h-3 text-[var(--danger-color)]" />
-                    </button>
-                  </div>
-                </div>
-                {group.description && (
-                  <div className="text-xs text-[var(--text-tertiary)] mt-1">{group.description}</div>
-                )}
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

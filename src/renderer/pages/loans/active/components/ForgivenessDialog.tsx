@@ -1,6 +1,7 @@
-// src/renderer/components/Shared/ForgivenessDialog.tsx
+// src/renderer/pages/loans/active/components/ForgivenessDialog.tsx
 import React, { useState, useEffect } from "react";
-import { X } from "lucide-react";
+import { X, Gift, AlertCircle } from "lucide-react";
+import { formatCurrency } from "../../../../utils/formatters";
 
 interface ForgivenessDialogProps {
   isOpen: boolean;
@@ -30,84 +31,143 @@ export const ForgivenessDialog: React.FC<ForgivenessDialogProps> = ({
   if (!isOpen) return null;
 
   const handleConfirm = () => {
-    if (amount <= 0) {
-      // maybe show inline error
-      return;
-    }
-    if (amount > remainingBalance) {
-      return;
-    }
+    if (amount <= 0 || amount > remainingBalance) return;
     onConfirm(amount, reason.trim() || undefined);
   };
 
   const isValid = amount > 0 && amount <= remainingBalance;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-[var(--card-bg)] rounded-lg shadow-xl w-full max-w-md p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold text-[var(--text-primary)]">Apply Forgiveness</h2>
-          <button onClick={onClose} className="p-1 hover:bg-[var(--card-hover-bg)] rounded">
-            <X className="w-5 h-5 text-[var(--text-tertiary)]" />
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div
+        className="rounded-xl w-full max-w-md shadow-xl border"
+        style={{
+          backgroundColor: "var(--card-bg)",
+          borderColor: "var(--border-color)",
+        }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-color)]">
+          <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+            <Gift className="w-4 h-4 text-[var(--warning-color)]" />
+            Apply Forgiveness
+          </h3>
+          <button
+            onClick={onClose}
+            className="p-1 rounded hover:bg-[var(--card-hover-bg)] transition-colors text-[var(--text-tertiary)]"
+          >
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="space-y-4">
+        <div className="p-4 space-y-4">
+          {/* Info */}
+          <div className="flex items-start gap-2 p-3 rounded-lg" style={{ backgroundColor: "var(--card-secondary-bg)" }}>
+            <AlertCircle className="w-4 h-4 text-[var(--warning-color)] flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm text-[var(--text-secondary)]">
+                Forgiving a portion of this loan will permanently reduce the remaining balance.
+              </p>
+              <p className="text-xs text-[var(--text-tertiary)] mt-1">
+                Current remaining: <span className="font-medium" style={{ color: "var(--debt-high)" }}>
+                  {formatCurrency(remainingBalance)}
+                </span>
+              </p>
+            </div>
+          </div>
+
+          {/* Amount */}
           <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-              Amount to forgive *
+            <label className="block text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-1">
+              Amount to Forgive *
             </label>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)]">₱</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] text-sm">₱</span>
               <input
                 type="number"
                 step="0.01"
-                min="0"
+                min="0.01"
                 max={remainingBalance}
-                value={amount.toFixed(2)}
+                value={amount || ""}
                 onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
-                className="w-full pl-8 pr-3 py-2 bg-[var(--input-bg)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-blue)]"
+                className="w-full pl-8 pr-3 py-1.5 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]"
+                style={{
+                  backgroundColor: "var(--input-bg)",
+                  borderColor: "var(--input-border)",
+                  color: "var(--text-primary)",
+                }}
               />
             </div>
-            <p className="text-xs text-[var(--text-tertiary)] mt-1">
-              Max: ₱{remainingBalance.toFixed(2)}
-            </p>
-            {(amount <= 0 || amount > remainingBalance) && (
-              <p className="text-xs text-red-500 mt-1">
-                Amount must be between 0.01 and {remainingBalance.toFixed(2)}
+            <p className="text-xs text-[var(--text-tertiary)] mt-1">Max: {formatCurrency(remainingBalance)}</p>
+            {(!isValid || amount <= 0) && (
+              <p className="text-xs text-[var(--danger-color)] mt-1">
+                Amount must be between 0.01 and {formatCurrency(remainingBalance)}
               </p>
             )}
           </div>
 
+          {/* Reason */}
           <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+            <label className="block text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-1">
               Reason (optional)
             </label>
             <textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="e.g., Good payer, hardship, etc."
+              placeholder="e.g., Good payer, hardship, promo discount, etc."
               rows={3}
-              className="w-full px-3 py-2 bg-[var(--input-bg)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-blue)] resize-none"
+              className="w-full px-3 py-1.5 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)] resize-none"
+              style={{
+                backgroundColor: "var(--input-bg)",
+                borderColor: "var(--input-border)",
+                color: "var(--text-primary)",
+              }}
             />
           </div>
-        </div>
 
-        <div className="flex justify-end gap-2 mt-6">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-[var(--text-primary)] bg-[var(--card-hover-bg)] rounded-lg hover:bg-[var(--border-color)]"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleConfirm}
-            disabled={!isValid || isLoading}
-            className="px-4 py-2 bg-[var(--accent-blue)] text-white rounded-lg hover:bg-[var(--accent-blue-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isLoading ? "Applying..." : "Apply Forgiveness"}
-          </button>
+          {/* Actions */}
+          <div className="flex justify-end gap-2 pt-2 border-t border-[var(--border-color)]">
+            <button
+              onClick={onClose}
+              className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors"
+              style={{
+                backgroundColor: "var(--btn-secondary-bg)",
+                color: "var(--btn-secondary-text)",
+                border: "1px solid var(--btn-secondary-border)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--btn-secondary-hover)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--btn-secondary-bg)";
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirm}
+              disabled={!isValid || isLoading}
+              className="px-4 py-1.5 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              style={{ backgroundColor: "var(--warning-color)" }}
+              onMouseEnter={(e) => {
+                if (!e.currentTarget.disabled) {
+                  e.currentTarget.style.backgroundColor = "var(--btn-warning-hover)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--warning-color)";
+              }}
+            >
+              {isLoading ? (
+                <>
+                  <span className="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full" />
+                  Applying...
+                </>
+              ) : (
+                "Apply Forgiveness"
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

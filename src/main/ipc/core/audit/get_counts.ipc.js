@@ -1,9 +1,9 @@
-// src/main/ipc/audit/get_counts.ipc.js
+// src/main/ipc/core/audit/get_counts.ipc.js
 const { AuditLog } = require("../../../../entities/AuditLog");
 const { AppDataSource } = require("../../../db/data-source");
 const { syncMode, serverUrl } = require("../../../../utils/system");
 const onlineClient = require("../../../../utils/onlineClient");
-
+const { transformPaginatedResult, extractData } = require("../../../../utils/responseTransformer");
 module.exports = async (params) => {
   const mode = await syncMode();
 
@@ -11,13 +11,20 @@ module.exports = async (params) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.get('/api/v1/audit/counts', { params });
+    const query = {};
+    if (params.startDate) query.startDate = params.startDate;
+    if (params.endDate) query.endDate = params.endDate;
+    const response = await onlineClient.get('/api/v1/audit/counts/', { params: query });
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    const result = await response.json();
-    return { status: true, message: "Counts retrieved from server", data: result.data };
+    const serverResult = await response.json();
+    return {
+      status: true,
+      message: "Counts retrieved from server",
+      data: extractData(serverResult),
+    };
   } else {
     const { startDate, endDate } = params;
     const repo = AppDataSource.getRepository(AuditLog);

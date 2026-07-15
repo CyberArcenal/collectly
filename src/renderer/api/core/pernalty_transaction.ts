@@ -9,9 +9,10 @@ import type { PaginatedResult } from "./common";
 export interface PenaltyTransaction {
   id: number;
   amount: number;
-  penaltyDate: string;        // ISO date string
+  penaltyDate: string;
   reason: string | null;
-  createdAt: string;          // ISO date string
+  isAuto: boolean;
+  createdAt: string;
   deletedAt: string | null;
   debt?: {
     id: number;
@@ -26,6 +27,7 @@ export interface PenaltyTransaction {
 }
 
 export interface PenaltyStatistics {
+  total_penalty_amount: number;
   totalPenalties: number;
   totalPenaltyAmount: number;
   averagePenaltyAmount: number;
@@ -37,11 +39,17 @@ export interface PenaltyStatistics {
   }>;
 }
 
+export interface AutoPenaltyResult {
+  createdCount: number;
+  totalAmount: number;
+}
+
 export interface PenaltyCreateData {
   amount: number;
-  penaltyDate: string;        // YYYY-MM-DD or ISO string
+  penaltyDate: string;
   reason?: string | null;
   debtId: number;
+  isAuto?: boolean;
 }
 
 export interface PenaltyUpdateData {
@@ -49,6 +57,7 @@ export interface PenaltyUpdateData {
   penaltyDate?: string;
   reason?: string | null;
   debtId?: number;
+  isAuto?: boolean;
 }
 
 export interface BulkCreatePenaltyResult {
@@ -79,7 +88,7 @@ export interface TotalPenaltyForDebt {
 }
 
 // ----------------------------------------------------------------------
-// 📨 Response Interfaces (mirror IPC response format)
+// 📨 Response Interfaces
 // ----------------------------------------------------------------------
 
 export interface PenaltyResponse {
@@ -88,7 +97,6 @@ export interface PenaltyResponse {
   data: PenaltyTransaction;
 }
 
-// ✅ Changed: now uses PaginatedResult for list endpoints
 export interface PenaltiesResponse {
   status: boolean;
   message: string;
@@ -105,6 +113,12 @@ export interface TotalPenaltyForDebtResponse {
   status: boolean;
   message: string;
   data: TotalPenaltyForDebt;
+}
+
+export interface AutoPenaltyResponse {
+  status: boolean;
+  message: string;
+  data: AutoPenaltyResult;
 }
 
 export interface BulkCreatePenaltyResponse {
@@ -164,10 +178,6 @@ class PenaltiesAPI {
     throw new Error(response.message || "Failed to fetch penalty");
   }
 
-  /**
-   * Get all penalty transactions with optional filters and pagination
-   * @returns PenaltiesResponse where data.data is PenaltyTransaction[] and data.pagination contains metadata
-   */
   async getAll(params?: {
     page?: number;
     limit?: number;
@@ -182,6 +192,7 @@ class PenaltiesAPI {
     minAmount?: number;
     maxAmount?: number;
     reason?: string;
+    isAuto?: boolean;
   }): Promise<PenaltiesResponse> {
     if (!window.backendAPI?.penaltyTransaction) {
       throw new Error("Electron API (penaltyTransaction) not available");
@@ -302,6 +313,18 @@ class PenaltiesAPI {
     throw new Error(response.message || "Failed to permanently delete penalty");
   }
 
+  async runAutoPenalty(user = "system"): Promise<AutoPenaltyResponse> {
+    if (!window.backendAPI?.penaltyTransaction) {
+      throw new Error("Electron API (penaltyTransaction) not available");
+    }
+    const response = await window.backendAPI.penaltyTransaction({
+      method: "runAutoPenalty",
+      params: { user },
+    });
+    if (response.status) return response;
+    throw new Error(response.message || "Failed to run auto-penalty");
+  }
+
   // --------------------------------------------------------------------
   // 🔄 BATCH OPERATIONS
   // --------------------------------------------------------------------
@@ -360,7 +383,7 @@ class PenaltiesAPI {
 
   async getByDebtId(debtId: number, includeDeleted = false): Promise<PenaltyTransaction[]> {
     const response = await this.getAll({ debtId, includeDeleted, limit: 1000 });
-    return response.data.data;   // ✅ access nested data array
+    return response.data.data;
   }
 
   async getTotalAmountForDebt(debtId: number, includeDeleted = false): Promise<number> {

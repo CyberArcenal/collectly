@@ -1,8 +1,10 @@
-// src/main/ipc/audit/get_top_activities.ipc.js
+// src/main/ipc/core/audit/get_top_activities.ipc.js
+//@ts-check
 const { AuditLog } = require("../../../../entities/AuditLog");
 const { AppDataSource } = require("../../../db/data-source");
 const { syncMode, serverUrl } = require("../../../../utils/system");
 const onlineClient = require("../../../../utils/onlineClient");
+const { transformPaginatedResult, extractData } = require("../../../../utils/responseTransformer");
 
 module.exports = async (params) => {
   const mode = await syncMode();
@@ -11,13 +13,21 @@ module.exports = async (params) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.get('/api/v1/audit/top-activities', { params });
+    const query = {};
+    if (params.limit) query.limit = params.limit;
+    if (params.startDate) query.startDate = params.startDate;
+    if (params.endDate) query.endDate = params.endDate;
+    const response = await onlineClient.get('/api/v1/audit/top-activities/', { params: query });
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    const result = await response.json();
-    return { status: true, message: "Top activities retrieved from server", data: result.data };
+    const serverResult = await response.json();
+    return {
+      status: true,
+      message: "Top activities retrieved from server",
+      data: extractData(serverResult),
+    };
   } else {
     const { limit = 10, startDate, endDate } = params;
     const repo = AppDataSource.getRepository(AuditLog);

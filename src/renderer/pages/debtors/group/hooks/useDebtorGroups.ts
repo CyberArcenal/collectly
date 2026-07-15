@@ -4,17 +4,42 @@ import { dialogs } from "../../../../utils/dialogs";
 import borrowersAPI from "../../../../api/core/borrower";
 import groupsAPI from "../../../../api/core/group";
 import type { Borrower } from "../../../../api/core/borrower";
-import type { DebtorGroup, GroupMemberWithDebtor } from "../../../../api/core/group";
+import type {
+  DebtorGroup,
+  GroupMemberWithDebtor,
+} from "../../../../api/core/group";
+
+// Add type for group statistics
+interface GroupStatistics {
+  totalGroups: number;
+  averageMembers: number;
+  groupsWithZeroMembers: number;
+  groups: Array<{
+    id: number;
+    name: string;
+    memberCount: number;
+    totalDebt: number;
+  }>;
+}
 
 interface UseDebtorGroupsReturn {
   groups: DebtorGroup[];
   loadingGroups: boolean;
-  groupsPagination: { page: number; totalPages: number; totalItems: number } | null;
+  groupsPagination: {
+    page: number;
+    totalPages: number;
+    totalItems: number;
+  } | null;
   selectedGroup: DebtorGroup | null;
   setSelectedGroup: (group: DebtorGroup | null) => void;
   groupMembers: GroupMemberWithDebtor[];
   loadingMembers: boolean;
-  membersPagination: { page: number; totalPages: number; totalItems: number; pageSize: number };
+  membersPagination: {
+    page: number;
+    totalPages: number;
+    totalItems: number;
+    pageSize: number;
+  };
   membersCurrentPage: number;
   setMembersCurrentPage: (page: number) => void;
   membersPageSize: number;
@@ -28,38 +53,75 @@ interface UseDebtorGroupsReturn {
   editingGroup: DebtorGroup | null;
   openEditGroupModal: (group: DebtorGroup) => void;
   closeEditGroupModal: () => void;
-  handleCreateGroup: (data: { name: string; description: string; color: string }) => Promise<void>;
+  handleCreateGroup: (data: {
+    name: string;
+    description: string;
+    color: string;
+  }) => Promise<void>;
   handleUpdateGroup: (id: number, data: Partial<DebtorGroup>) => Promise<void>;
   handleDeleteGroup: (id: number) => Promise<void>;
   assignDebtor: (debtorId: number) => Promise<void>;
   removeDebtor: (debtorId: number) => Promise<void>;
   bulkAssign: (debtorIds: number[]) => Promise<void>;
   refresh: () => void;
+  // New stats
+  stats: GroupStatistics | null;
+  loadingStats: boolean;
+  fetchStats: () => Promise<void>;
 }
 
 const useDebtorGroups = (): UseDebtorGroupsReturn => {
   const [groups, setGroups] = useState<DebtorGroup[]>([]);
   const [loadingGroups, setLoadingGroups] = useState(true);
-  const [groupsPagination, setGroupsPagination] = useState<{ page: number; totalPages: number; totalItems: number } | null>(null);
+  const [groupsPagination, setGroupsPagination] = useState<{
+    page: number;
+    totalPages: number;
+    totalItems: number;
+  } | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<DebtorGroup | null>(null);
   const [groupMembers, setGroupMembers] = useState<GroupMemberWithDebtor[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
-  const [membersPagination, setMembersPagination] = useState({ page: 1, totalPages: 1, totalItems: 0, pageSize: 10 });
+  const [membersPagination, setMembersPagination] = useState({
+    page: 1,
+    totalPages: 1,
+    totalItems: 0,
+    pageSize: 10,
+  });
   const [membersCurrentPage, setMembersCurrentPage] = useState(1);
   const [membersPageSize, setMembersPageSize] = useState(10);
   const [availableDebtors, setAvailableDebtors] = useState<Borrower[]>([]);
   const [loadingDebtors, setLoadingDebtors] = useState(false);
 
+  // New stats state
+  const [stats, setStats] = useState<GroupStatistics | null>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+
   const [createGroupModalOpen, setCreateGroupModalOpen] = useState(false);
   const [editGroupModalOpen, setEditGroupModalOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<DebtorGroup | null>(null);
 
-  // Load all groups (with pagination – but groups are usually few, so we can fetch all)
+  // Fetch group statistics
+  const fetchStats = useCallback(async () => {
+    setLoadingStats(true);
+    try {
+      const response = await groupsAPI.getStatistics();
+      if (response.status) {
+        setStats(response.data);
+      } else {
+        console.error("Failed to fetch group stats:", response.message);
+      }
+    } catch (err) {
+      console.error("Failed to fetch group stats:", err);
+    } finally {
+      setLoadingStats(false);
+    }
+  }, []);
+
+  // Load all groups
   const loadGroups = useCallback(async () => {
     setLoadingGroups(true);
     try {
-      // For groups, we can fetch all since typically limited, but we'll support pagination if needed
-      const response = await groupsAPI.getAll(1, 100); // fetch up to 100 groups
+      const response = await groupsAPI.getAll(1, 100);
       if (response.status) {
         setGroups(response.data.data);
         setGroupsPagination({
@@ -68,7 +130,7 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
           totalItems: response.data.pagination.total,
         });
       } else {
-        throw new Error(response.message);
+        throw new Error(response.message || "Failed to load groups");
       }
     } catch (err: any) {
       console.error("Failed to load groups:", err);
@@ -78,41 +140,77 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
     }
   }, []);
 
-  // Load members of the selected group with pagination
-  const loadGroupMembers = useCallback(async (groupId: number, page: number, limit: number) => {
-    setLoadingMembers(true);
-    try {
-      const response = await groupsAPI.getMembers(groupId, page, limit);
-      if (response.status) {
-        setGroupMembers(response.data.data);
-        setMembersPagination({
-          page: response.data.pagination.page,
-          totalPages: response.data.pagination.pages,
-          totalItems: response.data.pagination.total,
-          pageSize: response.data.pagination.limit,
-        });
-      } else {
-        throw new Error(response.message);
-      }
-    } catch (err: any) {
-      console.error("Failed to load group members:", err);
-      dialogs.error(err.message || "Failed to load group members");
-      setGroupMembers([]);
-      setMembersPagination({ page: 1, totalPages: 1, totalItems: 0, pageSize: limit });
-    } finally {
-      setLoadingMembers(false);
-    }
-  }, []);
+  // Load members of the selected group
+  const loadGroupMembers = useCallback(
+    async (groupId: number, page: number, limit: number) => {
+      setLoadingMembers(true);
+      try {
+        const response = await groupsAPI.getMembers(groupId, page, limit);
+        if (response.status) {
+          const normalizedMembers = response.data.data.map((member) => {
+            if (
+              member.debtor &&
+              typeof member.debtor === "object" &&
+              member.debtor.name
+            ) {
+              return member;
+            }
+            const flat = member as any;
+            const debtorName =
+              flat.debtorName ||
+              flat.name ||
+              flat.debtor_name ||
+              `Debtor #${member.debtorId}`;
+            return {
+              ...member,
+              debtor: {
+                id: member.debtorId,
+                name: debtorName,
+                contact: flat.contact || flat.debtor_contact || null,
+                email: flat.email || flat.debtor_email || null,
+              },
+            };
+          });
 
-  // Load all active debtors for assignment dropdown (use pagination if needed, but fetch up to 1000)
+          setGroupMembers(normalizedMembers);
+          setMembersPagination({
+            page: response.data.pagination.page,
+            totalPages: response.data.pagination.pages,
+            totalItems: response.data.pagination.total,
+            pageSize: response.data.pagination.limit,
+          });
+        } else {
+          throw new Error(response.message || "Failed to load members");
+        }
+      } catch (err: any) {
+        console.error("Failed to load group members:", err);
+        dialogs.error(err.message || "Failed to load group members");
+        setGroupMembers([]);
+        setMembersPagination({
+          page: 1,
+          totalPages: 1,
+          totalItems: 0,
+          pageSize: limit,
+        });
+      } finally {
+        setLoadingMembers(false);
+      }
+    },
+    []
+  );
+
+  // Load all active debtors
   const loadAvailableDebtors = useCallback(async () => {
     setLoadingDebtors(true);
     try {
-      const res = await borrowersAPI.getAll({ includeDeleted: false, limit: 1000 });
+      const res = await borrowersAPI.getAll({
+        includeDeleted: false,
+        limit: 1000,
+      });
       if (res.status) {
         setAvailableDebtors(res.data.data);
       } else {
-        throw new Error(res.message);
+        throw new Error(res.message || "Failed to load debtors");
       }
     } catch (err: any) {
       console.error("Failed to load debtors:", err);
@@ -127,20 +225,30 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
   useEffect(() => {
     loadGroups();
     loadAvailableDebtors();
-  }, [loadGroups, loadAvailableDebtors]);
+    fetchStats(); // Fetch stats on mount
+  }, [loadGroups, loadAvailableDebtors, fetchStats]);
 
-  // Reload members when selected group changes or pagination changes
+  // Reload members when selected group or pagination changes
   useEffect(() => {
     if (selectedGroup) {
       loadGroupMembers(selectedGroup.id, membersCurrentPage, membersPageSize);
     } else {
       setGroupMembers([]);
-      setMembersPagination({ page: 1, totalPages: 1, totalItems: 0, pageSize: membersPageSize });
+      setMembersPagination({
+        page: 1,
+        totalPages: 1,
+        totalItems: 0,
+        pageSize: membersPageSize,
+      });
     }
   }, [selectedGroup, membersCurrentPage, membersPageSize, loadGroupMembers]);
 
-  // --- CRUD operations (unchanged except using updated API responses) ---
-  const handleCreateGroup = async (data: { name: string; description: string; color: string }) => {
+  // --- CRUD operations ---
+  const handleCreateGroup = async (data: {
+    name: string;
+    description: string;
+    color: string;
+  }) => {
     try {
       const response = await groupsAPI.create({
         name: data.name,
@@ -149,9 +257,10 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
       });
       if (response.status) {
         await loadGroups();
+        await fetchStats(); // Refresh stats
         dialogs.success("Group created successfully");
       } else {
-        throw new Error(response.message);
+        throw new Error(response.message || "Creation failed");
       }
     } catch (err: any) {
       dialogs.error(err.message);
@@ -167,12 +276,13 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
       });
       if (response.status) {
         await loadGroups();
+        await fetchStats(); // Refresh stats
         if (selectedGroup?.id === id) {
           setSelectedGroup(response.data);
         }
         dialogs.success("Group updated");
       } else {
-        throw new Error(response.message);
+        throw new Error(response.message || "Update failed");
       }
     } catch (err: any) {
       dialogs.error(err.message);
@@ -190,9 +300,10 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
       if (response.status) {
         if (selectedGroup?.id === id) setSelectedGroup(null);
         await loadGroups();
+        await fetchStats(); // Refresh stats
         dialogs.success("Group deleted");
       } else {
-        throw new Error(response.message);
+        throw new Error(response.message || "Deletion failed");
       }
     } catch (err: any) {
       dialogs.error(err.message);
@@ -205,11 +316,11 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
     try {
       const response = await groupsAPI.assignDebtor(selectedGroup.id, debtorId);
       if (response.status) {
-        // Reload current page of members
         await loadGroupMembers(selectedGroup.id, membersCurrentPage, membersPageSize);
+        await fetchStats(); // Refresh stats
         dialogs.success("Debtor assigned");
       } else {
-        throw new Error(response.message);
+        throw new Error(response.message || "Assignment failed");
       }
     } catch (err: any) {
       dialogs.error(err.message);
@@ -222,9 +333,10 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
       const response = await groupsAPI.removeDebtor(selectedGroup.id, debtorId);
       if (response.status) {
         await loadGroupMembers(selectedGroup.id, membersCurrentPage, membersPageSize);
+        await fetchStats(); // Refresh stats
         dialogs.success("Debtor removed from group");
       } else {
-        throw new Error(response.message);
+        throw new Error(response.message || "Removal failed");
       }
     } catch (err: any) {
       dialogs.error(err.message);
@@ -237,9 +349,10 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
       const response = await groupsAPI.bulkAssign(selectedGroup.id, debtorIds);
       if (response.status) {
         await loadGroupMembers(selectedGroup.id, membersCurrentPage, membersPageSize);
+        await fetchStats(); // Refresh stats
         dialogs.success(`${debtorIds.length} debtor(s) assigned to group`);
       } else {
-        throw new Error(response.message);
+        throw new Error(response.message || "Bulk assignment failed");
       }
     } catch (err: any) {
       dialogs.error(err.message);
@@ -249,7 +362,10 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
   const refresh = () => {
     loadGroups();
     loadAvailableDebtors();
-    if (selectedGroup) loadGroupMembers(selectedGroup.id, membersCurrentPage, membersPageSize);
+    fetchStats(); // Refresh stats
+    if (selectedGroup) {
+      loadGroupMembers(selectedGroup.id, membersCurrentPage, membersPageSize);
+    }
   };
 
   return {
@@ -287,6 +403,10 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
     removeDebtor,
     bulkAssign,
     refresh,
+    // New exports
+    stats,
+    loadingStats,
+    fetchStats,
   };
 };
 

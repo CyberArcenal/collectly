@@ -1,3 +1,4 @@
+// src/main/ipc/core/loanagreement/permanent_delete.ipc.js
 const loanAgreementService = require("../../../../services/LoanAgreement");
 const onlineClient = require("../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../utils/system");
@@ -10,14 +11,27 @@ module.exports = async (params, queryRunner) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.delete(`/api/v1/loan-agreements/permanent/${id}?allowDeleteSigned=${allowDeleteSigned}`);
-    if (!response.ok) {
+
+    // Endpoint: DELETE /api/v1/loan_agreements/{id}/permanent/?allow_delete_signed=<bool>
+    const response = await onlineClient.delete(`/api/v1/loan_agreements/${id}/permanent/`, {
+      params: { allow_delete_signed: allowDeleteSigned }
+    });
+    if (!response.ok && response.status !== 204) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    return { status: true, message: "Loan agreement permanently deleted on server", data: null };
+
+    return {
+      status: true,
+      message: "Loan agreement permanently deleted on server",
+      data: null,
+    };
   } else {
     await loanAgreementService.permanentlyDelete(id, user, queryRunner, allowDeleteSigned);
-    return { status: true, message: "Loan agreement permanently deleted locally", data: null };
+    return {
+      status: true,
+      message: "Loan agreement permanently deleted locally",
+      data: null,
+    };
   }
 };

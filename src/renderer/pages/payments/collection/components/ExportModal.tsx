@@ -1,9 +1,7 @@
 // src/renderer/pages/payments/collection/components/ExportModal.tsx
 
 import React, { useState } from 'react';
-import Modal from '../../../../components/UI/Modal';
-import Button from '../../../../components/UI/Button';
-import { formatCurrency } from '../../../../utils/formatters';
+import { X, Download, FileText, FileJson } from 'lucide-react';
 import type { CollectionScheduleResponse } from '../types';
 
 interface ExportModalProps {
@@ -15,7 +13,7 @@ interface ExportModalProps {
 const ExportModal: React.FC<ExportModalProps> = ({ isOpen, data, onClose }) => {
   const [format, setFormat] = useState<'csv' | 'json'>('csv');
 
-  if (!data) return null;
+  if (!isOpen || !data) return null;
 
   const handleExport = () => {
     if (format === 'csv') {
@@ -49,32 +47,104 @@ const ExportModal: React.FC<ExportModalProps> = ({ isOpen, data, onClose }) => {
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Export Collection Schedule" size="sm">
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
-            Export Format
-          </label>
-          <select
-            value={format}
-            onChange={(e) => setFormat(e.target.value as any)}
-            className="w-full px-3 py-2 border rounded-md"
-            style={{
-              backgroundColor: 'var(--input-bg)',
-              borderColor: 'var(--border-color)',
-              color: 'var(--text-primary)',
-            }}
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div
+        className="rounded-xl w-full max-w-sm shadow-xl border"
+        style={{
+          backgroundColor: "var(--card-bg)",
+          borderColor: "var(--border-color)",
+        }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-color)]">
+          <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+            <Download className="w-4 h-4 text-[var(--primary-color)]" />
+            Export Collection Schedule
+          </h3>
+          <button
+            onClick={onClose}
+            className="p-1 rounded hover:bg-[var(--card-hover-bg)] transition-colors text-[var(--text-tertiary)]"
           >
-            <option value="csv">CSV</option>
-            <option value="json">JSON</option>
-          </select>
+            <X className="w-4 h-4" />
+          </button>
         </div>
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" onClick={handleExport}>Export</Button>
+
+        <div className="p-4 space-y-4">
+          {/* Format Selection */}
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-1.5">
+              Export Format
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setFormat('csv')}
+                className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                  format === 'csv'
+                    ? 'border-[var(--primary-color)] bg-[var(--primary-color)]/10 text-[var(--primary-color)]'
+                    : 'border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                }`}
+              >
+                <FileText className="w-4 h-4" />
+                CSV
+              </button>
+              <button
+                onClick={() => setFormat('json')}
+                className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                  format === 'json'
+                    ? 'border-[var(--primary-color)] bg-[var(--primary-color)]/10 text-[var(--primary-color)]'
+                    : 'border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                }`}
+              >
+                <FileJson className="w-4 h-4" />
+                JSON
+              </button>
+            </div>
+          </div>
+
+          {/* Info */}
+          <div className="text-xs text-[var(--text-tertiary)]">
+            <p>Period: <span className="font-medium text-[var(--text-secondary)]">{data.periodLabel}</span></p>
+            <p>Debtors: <span className="font-medium text-[var(--text-secondary)]">{data.totalDebtors}</span></p>
+            <p>Total Due: <span className="font-medium text-[var(--text-secondary)]">{data.totalDue.toFixed(2)}</span></p>
+          </div>
+
+          {/* Actions */}
+          <div className="flex justify-end gap-2 pt-2 border-t border-[var(--border-color)]">
+            <button
+              onClick={onClose}
+              className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors"
+              style={{
+                backgroundColor: "var(--btn-secondary-bg)",
+                color: "var(--btn-secondary-text)",
+                border: "1px solid var(--btn-secondary-border)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--btn-secondary-hover)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--btn-secondary-bg)";
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleExport}
+              className="px-4 py-1.5 rounded-lg text-sm font-medium text-white transition-colors flex items-center gap-1.5"
+              style={{ backgroundColor: "var(--primary-color)" }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--primary-hover)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--primary-color)";
+              }}
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export
+            </button>
+          </div>
         </div>
       </div>
-    </Modal>
+    </div>
   );
 };
 

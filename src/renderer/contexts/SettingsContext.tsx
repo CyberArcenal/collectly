@@ -1,4 +1,4 @@
-// src/contexts/SettingsContext.tsx
+// src/renderer/contexts/SettingsContext.tsx
 import React, {
   createContext,
   useContext,
@@ -10,13 +10,19 @@ import type {
   GroupedSettingsData,
   SettingType,
   UpdateCategorySettingsData,
+  GeneralSettings,
 } from "../api/utils/system_config";
 import systemConfigAPI from "../api/utils/system_config";
 
-// State shape
-interface SettingsState {
+// ============================================================
+// TYPES
+// ============================================================
+
+export type SyncMode = "offline" | "online" | "offline_first";
+
+export interface SettingsState {
   grouped: GroupedSettingsData | null;
-  flat: Record<string, any>; // e.g., "general.company_name" -> value
+  flat: Record<string, any>;
   loading: boolean;
   error: string | null;
   lastFetched: number | null;
@@ -36,7 +42,10 @@ type SettingsAction =
   | { type: "UPDATE_FLAT"; payload: { key: string; value: any } }
   | { type: "REFRESH" };
 
-// Initial state
+// ============================================================
+// INITIAL STATE
+// ============================================================
+
 const initialState: SettingsState = {
   grouped: null,
   flat: {},
@@ -46,9 +55,7 @@ const initialState: SettingsState = {
 };
 
 // Helper to build flat object from grouped settings
-const buildFlatSettings = (
-  grouped: GroupedSettingsData,
-): Record<string, any> => {
+const buildFlatSettings = (grouped: GroupedSettingsData): Record<string, any> => {
   const flat: Record<string, any> = {};
   if (!grouped?.grouped_settings) return flat;
 
@@ -60,7 +67,6 @@ const buildFlatSettings = (
     }
   });
 
-  // Also include individual settings from the settings array if needed
   grouped.settings?.forEach((setting) => {
     flat[`${setting.setting_type}.${setting.key}`] = setting.value;
   });
@@ -68,11 +74,11 @@ const buildFlatSettings = (
   return flat;
 };
 
-// Reducer
-function settingsReducer(
-  state: SettingsState,
-  action: SettingsAction,
-): SettingsState {
+// ============================================================
+// REDUCER
+// ============================================================
+
+function settingsReducer(state: SettingsState, action: SettingsAction): SettingsState {
   switch (action.type) {
     case "FETCH_START":
       return { ...state, loading: true, error: null };
@@ -94,9 +100,7 @@ function settingsReducer(
         grouped_settings: {
           ...state.grouped.grouped_settings,
           [action.payload.category]: {
-            ...(state.grouped.grouped_settings[
-              action.payload.category
-            ] as object),
+            ...(state.grouped.grouped_settings[action.payload.category] as object),
             ...action.payload.data,
           },
         },
@@ -116,15 +120,15 @@ function settingsReducer(
   }
 }
 
-// Context value
+// ============================================================
+// CONTEXT VALUE
+// ============================================================
+
 interface SettingsContextValue {
   settings: SettingsState;
   getSetting: <T = any>(category: string, key: string, defaultValue?: T) => T;
   getCategory: <T = any>(category: string) => T | null;
-  updateCategory: (
-    category: string,
-    data: Record<string, any>,
-  ) => Promise<void>;
+  updateCategory: (category: string, data: Record<string, any>) => Promise<void>;
   updateSetting: (
     category: string,
     key: string,
@@ -132,13 +136,49 @@ interface SettingsContextValue {
     description?: string,
   ) => Promise<void>;
   refreshSettings: () => Promise<void>;
+
+  // ============================================================
+  // 🆕 SYNC MODE SPECIFIC METHODS
+  // ============================================================
+
+  /**
+   * Get the current sync mode from settings
+   * @returns SyncMode - 'offline' | 'online' | 'offline_first'
+   */
+  getSyncMode: () => SyncMode;
+
+  /**
+   * Check if the app is in online mode
+   * @returns boolean - true if sync_mode is 'online' or 'offline_first'
+   */
+  isOnlineMode: () => boolean;
+
+  /**
+   * Check if the app is in strict online mode
+   * @returns boolean - true if sync_mode is 'online'
+   */
+  isStrictOnlineMode: () => boolean;
+
+  /**
+   * Check if the app is in offline mode
+   * @returns boolean - true if sync_mode is 'offline'
+   */
+  isOfflineMode: () => boolean;
+
+  /**
+   * Update the sync mode setting
+   * @param mode - The new sync mode
+   * @param serverUrl - Optional server URL (required when mode is 'online')
+   */
+  setSyncMode: (mode: SyncMode, serverUrl?: string) => Promise<void>;
 }
 
-const SettingsContext = createContext<SettingsContextValue | undefined>(
-  undefined,
-);
+const SettingsContext = createContext<SettingsContextValue | undefined>(undefined);
 
-// Provider component
+// ============================================================
+// PROVIDER
+// ============================================================
+
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
@@ -169,6 +209,10 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     fetchSettings();
   }, [fetchSettings]);
 
+  // ============================================================
+  // BASE SETTINGS METHODS
+  // ============================================================
+
   const getSetting = useCallback(
     <T = any,>(category: string, key: string, defaultValue?: T): T => {
       const flatKey = `${category}.${key}`;
@@ -195,13 +239,11 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
         const payload: UpdateCategorySettingsData = { [category]: data };
         const response = await systemConfigAPI.updateGroupedConfig(payload);
         if (response.status && response.data) {
-          // Update local state optimistically
           dispatch({
             type: "UPDATE_CATEGORY",
             payload: { category: category as any, data },
           });
         } else {
-          // Optionally refetch on error
           await fetchSettings();
           throw new Error(response.message || "Update failed");
         }
@@ -216,27 +258,21 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
   const updateSetting = useCallback(
     async (category: string, key: string, value: any, description?: string) => {
       try {
-        // Use setValueByKey to create or update the setting
         const response = await systemConfigAPI.setValueByKey(key, value, {
           setting_type: category as SettingType,
           description,
           isPublic: false,
         });
         if (response.status) {
-          // Update flat state
           dispatch({
             type: "UPDATE_FLAT",
             payload: { key: `${category}.${key}`, value },
           });
-          // Also update grouped if possible (but we'd need to know the category shape)
-          // For simplicity, we can refresh the whole settings or just trust that subsequent gets will be correct
-          // Optionally update category state if we know the structure
           if (
             state.grouped?.grouped_settings[
               category as keyof typeof state.grouped.grouped_settings
             ]
           ) {
-            // Optimistically update the category
             dispatch({
               type: "UPDATE_CATEGORY",
               payload: {
@@ -261,6 +297,80 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     await fetchSettings();
   }, [fetchSettings]);
 
+  // ============================================================
+  // 🆕 SYNC MODE METHODS
+  // ============================================================
+
+  /**
+   * Get the current sync mode from settings
+   * Defaults to 'offline' if not set or invalid
+   */
+  const getSyncMode = useCallback((): SyncMode => {
+    const mode = getSetting<string>("general", "sync_mode", "offline");
+    // Validate that the mode is one of the allowed values
+    if (mode === "online" || mode === "offline_first" || mode === "offline") {
+      return mode as SyncMode;
+    }
+    return "offline";
+  }, [getSetting]);
+
+  /**
+   * Check if the app is in online mode
+   * Returns true for 'online' and 'offline_first' modes
+   */
+  const isOnlineMode = useCallback((): boolean => {
+    const mode = getSyncMode();
+    return mode === "online" || mode === "offline_first";
+  }, [getSyncMode]);
+
+  /**
+   * Check if the app is in strict online mode
+   * Returns true only for 'online' mode
+   */
+  const isStrictOnlineMode = useCallback((): boolean => {
+    return getSyncMode() === "online";
+  }, [getSyncMode]);
+
+  /**
+   * Check if the app is in offline mode
+   */
+  const isOfflineMode = useCallback((): boolean => {
+    return getSyncMode() === "offline";
+  }, [getSyncMode]);
+
+  /**
+   * Update the sync mode setting
+   * @param mode - The new sync mode
+   * @param serverUrl - Optional server URL (required when mode is 'online')
+   */
+  const setSyncMode = useCallback(
+    async (mode: SyncMode, serverUrl?: string): Promise<void> => {
+      // Validate: if mode is 'online', serverUrl must be provided
+      if (mode === "online" && !serverUrl) {
+        throw new Error("Server URL is required when switching to online mode");
+      }
+
+      // Update the sync mode
+      await updateSetting("general", "sync_mode", mode, "Sync mode: offline/online/offline_first");
+
+      // If online mode, also update the server URL
+      if (mode === "online" && serverUrl) {
+        await updateSetting("general", "server_url", serverUrl, "Server URL for online sync");
+      } else if (mode === "offline") {
+        // Optionally clear server URL when going offline
+        // await updateSetting("general", "server_url", "", "Server URL (cleared for offline)");
+      }
+
+      // Refresh settings to ensure consistency
+      await refreshSettings();
+    },
+    [updateSetting, refreshSettings],
+  );
+
+  // ============================================================
+  // CONTEXT VALUE
+  // ============================================================
+
   const value: SettingsContextValue = {
     settings: state,
     getSetting,
@@ -268,14 +378,20 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     updateCategory,
     updateSetting,
     refreshSettings,
+    // Sync mode methods
+    getSyncMode,
+    isOnlineMode,
+    isStrictOnlineMode,
+    isOfflineMode,
+    setSyncMode,
   };
 
-  return (
-    <SettingsContext.Provider value={value}>
-      {children}
-    </SettingsContext.Provider>
-  );
+  return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 };
+
+// ============================================================
+// HOOK
+// ============================================================
 
 export const useSettings = () => {
   const context = useContext(SettingsContext);
@@ -284,3 +400,5 @@ export const useSettings = () => {
   }
   return context;
 };
+
+export default SettingsContext;

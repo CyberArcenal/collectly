@@ -83,7 +83,7 @@ class AuditHandler {
           return await this.getAuditLogsByDateRange(enrichedParams);
         case "getAuditLogSummary":
           return await this.getAuditLogSummary(enrichedParams);
-        case "getAuditLogStats":
+        case "getStats":
           return await this.getAuditLogStats(enrichedParams);
         case "searchAuditLogs":
           return await this.searchAuditLogs(enrichedParams);

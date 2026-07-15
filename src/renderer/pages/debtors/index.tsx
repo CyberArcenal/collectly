@@ -1,6 +1,15 @@
 // src/renderer/pages/debtors/index.tsx
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Plus, Users, RefreshCw } from "lucide-react";
+import { 
+  Plus, 
+  RefreshCw, 
+  Filter, 
+  Eye, 
+  EyeOff,
+  Download,
+  UserPlus,
+  X
+} from "lucide-react";
 import Button from "../../components/UI/Button";
 import { dialogs } from "../../utils/dialogs";
 import { showSuccess, showError } from "../../utils/notification";
@@ -10,8 +19,11 @@ import FilterBar from "./components/FilterBar";
 import DebtorTable from "./components/DebtorTable";
 import DebtorFormDialog from "./components/DebtorFormDialog";
 import DebtorViewDialog from "./components/DebtorViewDialog";
+import BulkActionsBar from "./components/BulkActionsBar";
 import borrowersAPI from "../../api/core/borrower";
 import { usePagination } from "../../contexts/PaginationContext";
+import LoadingSpinner from "../../components/Shared/LoadingSpinner";
+import DebtorSummaryCards from "./components/DebtorSummaryCards";
 
 const DebtorDirectory: React.FC = () => {
   const {
@@ -33,6 +45,8 @@ const DebtorDirectory: React.FC = () => {
     toggleDebtorSelection,
     toggleSelectAll,
     handleSort,
+    stats,
+    fetchStats,
   } = useDebtors();
 
   const [formOpen, setFormOpen] = useState(false);
@@ -40,8 +54,13 @@ const DebtorDirectory: React.FC = () => {
   const [editingDebtor, setEditingDebtor] = useState<any>(null);
   const [viewOpen, setViewOpen] = useState(false);
   const [viewingDebtor, setViewingDebtor] = useState<any>(null);
+  const [showStats, setShowStats] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const { setPagination, clearPagination } = usePagination();
+
+  const hasFilters = !!(filters.search || filters.status !== "active");
 
   // Stable pagination handlers
   const handlePageChange = useCallback(
@@ -120,6 +139,7 @@ const DebtorDirectory: React.FC = () => {
       await borrowersAPI.delete(debtor.id);
       showSuccess("Debtor deleted successfully");
       reload();
+      fetchStats();
     } catch (err: any) {
       showError(err.message);
     }
@@ -135,6 +155,7 @@ const DebtorDirectory: React.FC = () => {
       await borrowersAPI.restore(debtor.id);
       showSuccess("Debtor restored");
       reload();
+      fetchStats();
     } catch (err: any) {
       showError(err.message);
     }
@@ -152,95 +173,180 @@ const DebtorDirectory: React.FC = () => {
       showSuccess(`${selectedDebtors.length} debtors deleted`);
       setSelectedDebtors([]);
       reload();
+      fetchStats();
     } catch (err: any) {
       showError(err.message);
     }
   };
 
+  const handleBulkExport = async () => {
+    if (selectedDebtors.length === 0) return;
+    setExporting(true);
+    try {
+      const response = await borrowersAPI.export("csv", {
+        ids: selectedDebtors,
+      });
+      if (response.status && response.data?.data) {
+        const csvData = typeof response.data.data === "string" ? response.data.data : JSON.stringify(response.data.data);
+        const blob = new Blob([csvData], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = response.data.filename || `debtors_export_${new Date().toISOString().slice(0, 19)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showSuccess("Export completed");
+      }
+    } catch (err: any) {
+      showError(err.message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportAll = async () => {
+    setExporting(true);
+    try {
+      const response = await borrowersAPI.export("csv", {
+        search: filters.search || undefined,
+        includeDeleted: filters.status === "deleted" || filters.status === "all",
+      });
+      if (response.status && response.data?.data) {
+        const csvData = typeof response.data.data === "string"
+          ? response.data.data
+          : JSON.stringify(response.data.data);
+        const blob = new Blob([csvData], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = response.data.filename || `all_debtors_${new Date().toISOString().slice(0, 19)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showSuccess("Export completed");
+      }
+    } catch (err: any) {
+      showError(err.message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
-    <div
-      className="rounded-md shadow-md border p-4 m-1"
-      style={{
-        backgroundColor: "var(--card-bg)",
-        borderColor: "var(--border-color)",
-      }}
-    >
+    <div className="p-4 space-y-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+      <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-lg font-semibold" style={{ color: "var(--sidebar-text)" }}>
+          <h1 className="text-xl font-bold text-[var(--text-primary)]">
             Debtor Directory
-          </h2>
-          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+          </h1>
+          <p className="text-sm text-[var(--text-secondary)] mt-0.5">
             Manage all borrowers, their contact details, and outstanding debts
           </p>
         </div>
         <div className="flex gap-2">
           <button
+            onClick={() => setShowStats(!showStats)}
+            className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors"
+            title={showStats ? "Hide summary" : "Show summary"}
+          >
+            {showStats ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors"
+            title={showFilters ? "Hide filters" : "Show filters"}
+          >
+            <Filter className="w-4 h-4" />
+          </button>
+          <button
             onClick={reload}
             disabled={loading}
-            className="px-3 py-2 rounded-md flex items-center gap-1 transition-all"
-            style={{
-              backgroundColor: "var(--card-secondary-bg)",
-              color: "var(--sidebar-text)",
-            }}
+            className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors disabled:opacity-50"
+            title="Refresh"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-            Refresh
           </button>
-          <Button onClick={openAddForm} variant="success" icon={Plus}>
+          <button
+            onClick={handleExportAll}
+            disabled={exporting || debtors.length === 0}
+            className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors disabled:opacity-50"
+            title="Export all"
+          >
+            <Download className="w-4 h-4" />
+          </button>
+          <Button
+            variant="primary"
+            size="sm"
+            icon={UserPlus}
+            onClick={openAddForm}
+          >
             Add Debtor
           </Button>
         </div>
       </div>
 
-      <FilterBar
-        filters={filters}
-        onFilterChange={handleFilterChange}
-        onReset={resetFilters}
-      />
+      {/* Summary Cards */}
+      {showStats && stats && (
+        <DebtorSummaryCards
+          total={stats.total}
+          active={stats.active}
+          deleted={stats.deleted}
+          withEmail={stats.withEmail}
+          withContact={stats.withContact}
+        />
+      )}
 
-      {selectedDebtors.length > 0 && (
-        <div
-          className="mb-4 p-3 rounded-md flex items-center justify-between"
-          style={{
-            backgroundColor: "var(--accent-blue-light)",
-            border: "1px solid var(--accent-blue)",
-          }}
-        >
-          <span className="text-sm font-medium">
-            {selectedDebtors.length} debtor(s) selected
-          </span>
-          <button
-            onClick={handleBulkDelete}
-            className="px-3 py-1 rounded-md text-white bg-red-600 hover:bg-red-700"
-          >
-            Delete Selected
-          </button>
+      {/* Filters Bar */}
+      {showFilters && (
+        <div className="bg-[var(--card-bg)] rounded-xl p-4 border border-[var(--border-color)] space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-[var(--text-secondary)] flex items-center gap-2">
+              <Filter className="w-4 h-4" /> Filters
+            </span>
+            {hasFilters && (
+              <button
+                onClick={resetFilters}
+                className="text-xs text-[var(--primary-color)] hover:underline flex items-center gap-1"
+              >
+                <X className="w-3 h-3" /> Clear all
+              </button>
+            )}
+          </div>
+          <FilterBar
+            filters={filters}
+            onFilterChange={handleFilterChange}
+          />
         </div>
       )}
 
+      {/* Bulk Actions */}
+      {selectedDebtors.length > 0 && (
+        <BulkActionsBar
+          selectedCount={selectedDebtors.length}
+          onDelete={handleBulkDelete}
+          onExport={handleBulkExport}
+          onClearSelection={() => setSelectedDebtors([])}
+          exporting={exporting}
+        />
+      )}
+
       {/* Loading / Error */}
-      {(loading || error) && (
-        <div className="flex-1 flex items-center justify-center min-h-[400px]">
-          {loading && (
-            <div className="flex flex-col items-center gap-3">
-              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[var(--primary-color)]"></div>
-              <p className="text-sm text-[var(--text-secondary)]">Loading debtors...</p>
-            </div>
-          )}
-          {error && (
-            <div className="text-center">
-              <div className="text-red-500 mb-2">⚠️</div>
-              <p className="text-red-500">Error: {error}</p>
-              <button
-                onClick={reload}
-                className="mt-3 px-4 py-2 bg-[var(--primary-color)] text-white rounded-md text-sm"
-              >
-                Retry
-              </button>
-            </div>
-          )}
+      {loading && (
+        <div className="flex justify-center py-12">
+          <LoadingSpinner size="medium" />
+        </div>
+      )}
+
+      {error && !loading && (
+        <div className="text-center py-8 text-[var(--danger-color)] border border-[var(--border-color)] rounded-xl bg-[var(--card-bg)]">
+          <p className="text-sm">Error: {error}</p>
+          <button
+            onClick={reload}
+            className="mt-3 px-4 py-1.5 rounded-lg text-sm font-medium text-white"
+            style={{ backgroundColor: "var(--primary-color)" }}
+          >
+            Retry
+          </button>
         </div>
       )}
 
@@ -260,34 +366,37 @@ const DebtorDirectory: React.FC = () => {
           />
 
           {debtors.length === 0 && (
-            <div
-              className="text-center py-12 border rounded-md"
-              style={{ borderColor: "var(--border-color)" }}
-            >
-              <Users className="w-12 h-12 mx-auto mb-3 text-[var(--text-tertiary)]" />
-              <p className="text-lg font-medium">No debtors found</p>
-              <p className="text-sm text-[var(--text-tertiary)] mt-1">
-                {filters.search || filters.status !== "active"
-                  ? "Try adjusting your filters"
-                  : "Start by adding your first debtor"}
+            <div className="text-center py-8 text-[var(--text-tertiary)] border border-[var(--border-color)] rounded-xl bg-[var(--card-bg)] text-sm">
+              <UserPlus className="w-8 h-8 mx-auto mb-2 text-[var(--text-tertiary)]" />
+              <p>No debtors found</p>
+              <p className="text-xs text-[var(--text-tertiary)] mt-1">
+                {hasFilters ? "Try adjusting your filters" : "Start by adding your first debtor"}
               </p>
-              <div className="mt-4">
-                <Button onClick={openAddForm} variant="primary">
+              {!hasFilters && (
+                <button
+                  onClick={openAddForm}
+                  className="mt-3 px-4 py-1.5 rounded-lg text-sm font-medium text-white"
+                  style={{ backgroundColor: "var(--primary-color)" }}
+                >
                   Add Debtor
-                </Button>
-              </div>
+                </button>
+              )}
             </div>
           )}
         </>
       )}
 
+      {/* Modals */}
       <DebtorFormDialog
         isOpen={formOpen}
         mode={formMode}
         debtorId={editingDebtor?.id || null}
         initialData={editingDebtor}
         onClose={() => setFormOpen(false)}
-        onSuccess={reload}
+        onSuccess={() => {
+          reload();
+          fetchStats();
+        }}
       />
       <DebtorViewDialog
         debtorId={viewingDebtor?.id}

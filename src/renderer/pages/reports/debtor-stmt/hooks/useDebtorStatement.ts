@@ -1,10 +1,9 @@
 // src/renderer/pages/reports/debtor-stmt/hooks/useDebtorStatement.ts
 import { useState, useCallback } from "react";
-import borrowersAPI from "../../../../api/core/borrower";
-import debtsAPI from "../../../../api/core/debt";
 import type { StatementData } from "../types";
-import penaltiesAPI from "../../../../api/core/pernalty_transaction";
+import debtsAPI from "../../../../api/core/debt";
 import paymentsAPI from "../../../../api/core/payment_transaction";
+import penaltiesAPI from "../../../../api/core/pernalty_transaction";
 
 const useDebtorStatement = () => {
   const [selectedDebtor, setSelectedDebtor] = useState<any>(null);
@@ -18,7 +17,7 @@ const useDebtorStatement = () => {
     try {
       const debtsRes = await debtsAPI.getAll({ borrowerId: debtor.id, limit: 1000 });
       if (!debtsRes.status) throw new Error(debtsRes.message);
-      const debts = debtsRes.data.data; // ✅ access nested data array
+      const debts = debtsRes.data.data;
 
       let allPayments: any[] = [];
       for (const debt of debts) {
@@ -65,6 +64,7 @@ const useDebtorStatement = () => {
   const clearSelection = useCallback(() => {
     setSelectedDebtor(null);
     setStatement(null);
+    setError(null);
   }, []);
 
   return {

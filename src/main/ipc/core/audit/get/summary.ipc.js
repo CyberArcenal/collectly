@@ -1,9 +1,10 @@
-// src/main/ipc/audit/get/summary.ipc.js
-
+// src/main/ipc/core/audit/get/summary.ipc.js
+//@ts-check
 const { AuditLog } = require("../../../../../entities/AuditLog");
 const onlineClient = require("../../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
 const { AppDataSource } = require("../../../../db/data-source");
+const { extractData, transformKeysToCamelCase } = require("../../../../../utils/responseTransformer");
 
 module.exports = async (params) => {
   const mode = await syncMode();
@@ -12,13 +13,22 @@ module.exports = async (params) => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.get('/api/v1/audit/summary', { params });
+    const query = {};
+    if (params.startDate) query.startDate = params.startDate;
+    if (params.endDate) query.endDate = params.endDate;
+    const response = await onlineClient.get('/api/v1/audit/summary/', { params: query });
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    const result = await response.json();
-    return { status: true, message: "Audit summary retrieved from server", data: result.data };
+    const serverResult = await response.json();
+    const stats = transformKeysToCamelCase(serverResult);
+    console.log("Retrieved statistics from server:", stats);
+    return {
+      status: true,
+      message: stats.message || "Statistics retrieved from server",
+      data: stats.data,
+    };
   } else {
     const { startDate, endDate } = params;
     const repo = AppDataSource.getRepository(AuditLog);

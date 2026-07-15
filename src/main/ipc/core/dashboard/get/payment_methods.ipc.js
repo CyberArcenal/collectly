@@ -3,6 +3,7 @@ const PaymentTransaction = require("../../../../../entities/PaymentTransaction")
 const { AppDataSource } = require("../../../../db/data-source");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
 const onlineClient = require("../../../../../utils/onlineClient");
+const { extractData } = require("../../../../../utils/responseTransformer");
 
 module.exports = async () => {
   const mode = await syncMode();
@@ -11,13 +12,18 @@ module.exports = async () => {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
-    const response = await onlineClient.get('/api/v1/dashboard/payment-methods');
+
+    const response = await onlineClient.get('/api/v1/analytics/dashboard/payment-methods/');
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
     const result = await response.json();
-    return { status: true, message: "Payment methods retrieved from server", data: result.data };
+    return {
+      status: true,
+      message: "Payment methods retrieved from server",
+      data: extractData(result),
+    };
   } else {
     const repo = AppDataSource.getRepository(PaymentTransaction);
     const methods = await repo
