@@ -5,10 +5,12 @@ import useDebtorGroups from "./hooks/useDebtorGroups";
 import GroupList from "./components/GroupList";
 import GroupMembers from "./components/GroupMembers";
 import GroupFormDialog from "./components/GroupFormDialog";
+import GroupSummaryCards from "./components/GroupSummaryCards"; // NEW
 import { dialogs } from "../../../utils/dialogs";
 import DebtorViewDialog from "../components/DebtorViewDialog";
 import DebtorFormDialog from "../components/DebtorFormDialog";
 import LoadingSpinner from "../../../components/Shared/LoadingSpinner";
+import { showError } from "../../../utils/notification";
 
 const DebtorGroupsPage: React.FC = () => {
   const {
@@ -39,12 +41,18 @@ const DebtorGroupsPage: React.FC = () => {
     removeDebtor,
     bulkAssign,
     refresh,
+    stats, // NEW
+    loadingStats, // NEW
   } = useDebtorGroups();
 
   const [viewOpen, setViewOpen] = useState(false);
   const [viewingDebtor, setViewingDebtor] = useState<any>(null);
 
-  const openView = (debtor: any) => {
+  const openView = async (debtor: any) => {
+    if (!debtor.id) {
+      showError("Ops! Something went wrong.");
+      return;
+    }
     setViewingDebtor(debtor);
     setViewOpen(true);
   };
@@ -68,9 +76,14 @@ const DebtorGroupsPage: React.FC = () => {
           className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors disabled:opacity-50"
           title="Refresh"
         >
-          <RefreshCw className={`w-4 h-4 ${loadingGroups ? "animate-spin" : ""}`} />
+          <RefreshCw
+            className={`w-4 h-4 ${loadingGroups ? "animate-spin" : ""}`}
+          />
         </button>
       </div>
+
+      {/* Summary Cards - NEW */}
+      <GroupSummaryCards stats={stats} loading={loadingStats} />
 
       {/* Main Grid */}
       <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 min-h-0">
@@ -105,7 +118,8 @@ const DebtorGroupsPage: React.FC = () => {
                     if (
                       await dialogs.confirm({
                         title: "Remove Member",
-                        message: "Are you sure you want to remove this member from the group?",
+                        message:
+                          "Are you sure you want to remove this member from the group?",
                       })
                     ) {
                       removeDebtor(debtorId);
@@ -127,7 +141,9 @@ const DebtorGroupsPage: React.FC = () => {
               <div className="text-center text-[var(--text-tertiary)]">
                 <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
                 <p className="text-sm font-medium">No Group Selected</p>
-                <p className="text-xs mt-1">Select a group from the left panel to view its members</p>
+                <p className="text-xs mt-1">
+                  Select a group from the left panel to view its members
+                </p>
               </div>
             </div>
           )}
@@ -147,11 +163,10 @@ const DebtorGroupsPage: React.FC = () => {
         mode="edit"
         group={editingGroup}
         onClose={closeEditGroupModal}
-       onSubmit={(data) => {
+        onSubmit={(data) => {
           if (editingGroup) {
             return handleUpdateGroup(editingGroup.id, data);
           }
-          // Return a resolved promise or just return undefined
           return Promise.resolve();
         }}
       />

@@ -1,10 +1,10 @@
 // src/renderer/pages/loans/applications/components/ApplicationDetailModal.tsx
 import React, { useState, useEffect } from "react";
 import { X, User, Calendar, DollarSign, FileText, CreditCard, TrendingUp } from "lucide-react";
-import type { LoanApplication } from "../types";
 import type { Debt } from "../../../../api/core/debt";
 import debtsAPI from "../../../../api/core/debt";
 import { formatCurrency, formatDate } from "../../../../utils/formatters";
+import type { LoanApplication } from "../../../../api/core/loan_application";
 
 interface ApplicationDetailModalProps {
   isOpen: boolean;

@@ -18,6 +18,7 @@ class GroupHandler {
     this.getGroupsForDebtor = this.importHandler("./get/by_debtor.ipc");
     this.getGroupStats = this.importHandler("./get/stats.ipc");
     this.searchGroups = this.importHandler("./search.ipc");
+    this.getStatistics = this.importHandler("./get/statistics.ipc");
 
     // ✏️ WRITE OPERATION HANDLERS
     this.createGroup = this.importHandler("./create.ipc");
@@ -67,6 +68,8 @@ class GroupHandler {
           return await this.getGroupStats(params);
         case "searchGroups":
           return await this.searchGroups(params);
+          case "getStatistics":
+  return await this.getStatistics(params);
 
         // ✏️ WRITE (with transaction)
         case "createGroup":

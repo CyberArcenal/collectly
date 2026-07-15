@@ -32,10 +32,14 @@ export interface AuditLogSummary {
 
 export interface AuditLogStats {
   total: number;
+  totalToday: number;
+  uniqueUsers: number;
   avgPerDay: number;
   mostActiveDay: { day: string; count: number } | null;
-  uniqueUsers: number;
   dateRange?: { start: string; end: string } | null;
+  byAction: Array<{ action: string; count: number }>;
+  byEntity: Array<{ entity: string; count: number }>;
+  byUser: Array<{ user: string; count: number }>;
 }
 
 export interface AuditLogCounts {
@@ -272,17 +276,17 @@ class AuditAPI {
    * @param params.startDate - Optional start date
    * @param params.endDate - Optional end date
    */
-  async getStats(params?: { startDate?: string; endDate?: string }): Promise<AuditLogStatsResponse> {
-    if (!window.backendAPI?.auditLog) {
-      throw new Error("Electron API (auditLog) not available");
-    }
-    const response = await window.backendAPI.auditLog({
-      method: "getAuditLogStats",
-      params: params || {},
-    });
-    if (response.status) return response;
-    throw new Error(response.message || "Failed to fetch audit stats");
+async getStats(params?: { days?: number }): Promise<AuditLogStatsResponse> {
+  if (!window.backendAPI?.auditLog) {
+    throw new Error("Electron API (auditLog) not available");
   }
+  const response = await window.backendAPI.auditLog({
+    method: "getStats",
+    params: params || {},
+  });
+  if (response.status) return response;
+  throw new Error(response.message || "Failed to fetch audit stats");
+}
 
   /**
    * Flexible search across audit logs

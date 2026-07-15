@@ -5,6 +5,7 @@ import useCreditCheck from "./hooks/useCreditCheck";
 import CreditScoreDisplay from "./components/CreditScoreDisplay";
 import CreditReportPreview from "./components/CreditReportPreview";
 import PreviousChecksLog from "./components/PreviousChecksLog";
+import CreditCheckSummaryCards from "./components/CreditCheckSummaryCards";
 import BorrowerSelect from "../../../components/Selects/Borrower";
 
 const CreditCheckPage: React.FC = () => {
@@ -20,6 +21,8 @@ const CreditCheckPage: React.FC = () => {
     loadingLogs,
     hasMoreLogs,
     loadMoreLogs,
+    stats,
+    loadingStats,
   } = useCreditCheck();
 
   return (
@@ -59,6 +62,9 @@ const CreditCheckPage: React.FC = () => {
           {checkingCredit ? "Checking..." : "Run Credit Check"}
         </button>
       </div>
+
+      {/* Summary Cards - NEW */}
+      <CreditCheckSummaryCards stats={stats} loading={loadingStats} />
 
       {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

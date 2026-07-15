@@ -5,6 +5,18 @@ import type { Borrower } from "../../../../api/core/borrower";
 import type { CreditScore, CreditReport } from "../types";
 import creditCheckAPI, { type CreditCheckLog } from "../../../../api/core/credit_check";
 
+// Add type for statistics
+interface CreditCheckStats {
+  totalChecks: number;
+  averageScore: number;
+  riskLevelDistribution: {
+    Low: number;
+    Medium: number;
+    High: number;
+  };
+  lastCheckDate: string | null;
+}
+
 const generateReportFromScore = (debtor: Borrower, score: CreditScore): CreditReport => {
   return {
     debtorId: debtor.id,
@@ -30,9 +42,43 @@ const useCreditCheck = () => {
   const [previousChecks, setPreviousChecks] = useState<CreditCheckLog[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [hasMoreLogs, setHasMoreLogs] = useState(false);
+  
+  // New state for statistics
+  const [stats, setStats] = useState<CreditCheckStats | null>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
 
   const currentPageRef = useRef(1);
   const logsLimit = 10;
+
+  // Fetch statistics
+  const fetchStats = useCallback(async () => {
+    setLoadingStats(true);
+    try {
+      const response = await creditCheckAPI.getStatistics();
+      console.log(response)
+      if (response.status) {
+        setStats({
+          totalChecks: response.data.totalChecks || 0,
+          averageScore: response.data.averageScore || 0,
+          riskLevelDistribution: {
+            Low: response.data.riskLevelDistribution?.Low || 0,
+            Medium: response.data.riskLevelDistribution?.Medium || 0,
+            High: response.data.riskLevelDistribution?.High || 0,
+          },
+          lastCheckDate: response.data.lastCheckDate || null,
+        });
+      }
+    } catch (err) {
+      console.error("[CreditCheck] Failed to fetch stats:", err);
+    } finally {
+      setLoadingStats(false);
+    }
+  }, []);
+
+  // Fetch stats on mount
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
 
   // Helper to load logs for a specific page
   const loadLogsPage = useCallback(
@@ -108,6 +154,8 @@ const useCreditCheck = () => {
           await loadLogsPage(debtor.id, debtor.name, 1, true);
           const newReport = generateReportFromScore(debtor, score);
           setReport(newReport);
+          // Refresh stats after new check
+          await fetchStats();
         } else {
           throw new Error(response.message);
         }
@@ -117,7 +165,7 @@ const useCreditCheck = () => {
         setCheckingCredit(false);
       }
     },
-    [loadLogsPage]
+    [loadLogsPage, fetchStats]
   );
 
   const downloadReport = useCallback(() => {
@@ -155,6 +203,10 @@ Recommendations: ${report.recommendations}
     loadingLogs,
     hasMoreLogs,
     loadMoreLogs,
+    // New exports
+    stats,
+    loadingStats,
+    fetchStats,
   };
 };
 

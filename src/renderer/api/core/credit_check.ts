@@ -120,6 +120,27 @@ class CreditCheckAPI {
     throw new Error(response.message || "Failed to fetch credit check stats");
   }
 
+  /**
+   * Get aggregated statistics for credit checks.
+   * @param params - optional date range
+   */
+  async getStatistics(params?: {
+    startDate?: string;
+    endDate?: string;
+  }): Promise<CreditCheckStatsResponse> {
+    if (!window.backendAPI?.creditCheck) {
+      throw new Error("Electron API (creditCheck) not available");
+    }
+    const response = await window.backendAPI.creditCheck({
+      method: "getStatistics",
+      params: params || {},
+    });
+    if (response.status) return response;
+    throw new Error(
+      response.message || "Failed to fetch credit check statistics",
+    );
+  }
+
   async isAvailable(): Promise<boolean> {
     return !!window.backendAPI?.creditCheck;
   }

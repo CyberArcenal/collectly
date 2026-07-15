@@ -1,8 +1,8 @@
 // src/renderer/pages/loans/applications/components/ApprovalConfirmationModal.tsx
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { X, CheckCircle, XCircle, AlertTriangle, Loader2 } from "lucide-react";
-import type { LoanApplication } from "../types";
 import { formatCurrency } from "../../../../utils/formatters";
+import type { LoanApplication } from "../../../../api/core/loan_application";
 
 interface ApprovalConfirmationModalProps {
   isOpen: boolean;

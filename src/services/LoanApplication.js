@@ -246,7 +246,7 @@ class LoanApplicationService {
       debtorContact = savedBorrower.contact;
       debtorEmail = savedBorrower.email;
       debtorAddress = savedBorrower.address;
-    // @ts-ignore
+      // @ts-ignore
     } else if (data.debtorId) {
       const borrowerRepo = this._getRepo(qr, require("../entities/Borrower"));
       const debtor = await borrowerRepo.findOne({
@@ -495,22 +495,39 @@ class LoanApplicationService {
     const LoanApplication = require("../entities/LoanApplication");
     const appRepo = this._getRepo(qr, LoanApplication);
 
-    const app = await appRepo.findOne({ where: { id, deletedAt: null } });
-    if (!app) {
-      throw new Error(`Application with ID ${id} not found`);
-    }
-    if (app.status !== "pending") {
-      throw new Error(`Cannot delete application with status ${app.status}`);
-    }
+    try {
+      // 1. Find application
+      const app = await appRepo.findOne({
+        where: { id, deletedAt: null },
+        relations: ["debtor"],
+      });
+      if (!app) {
+        throw new Error(`Loan application with ID ${id} not found`);
+      }
 
-    const oldData = { ...app };
-    app.deletedAt = new Date();
-    app.updatedAt = new Date();
+      const applicantName =
+        app.debtor?.name || app.debtorName || `Applicant #${id}`;
 
-    // @ts-ignore
-    const saved = await updateDb(appRepo, app, { queryRunner: qr });
-    await auditLogger.logDelete("LoanApplication", id, oldData, user);
-    return saved;
+      // 2. 🔒 Cannot delete approved or rejected applications
+      if (app.status !== "pending") {
+        throw new Error(
+          `Cannot delete "${applicantName}'s" loan application because it is already ${app.status}. Only pending applications can be deleted.`,
+        );
+      }
+
+      // 3. Proceed with soft delete
+      const oldData = { ...app };
+      app.deletedAt = new Date();
+      app.updatedAt = new Date();
+
+      const saved = await updateDb(appRepo, app, { queryRunner: qr });
+      await auditLogger.logDelete("LoanApplication", id, oldData, user);
+      console.log(`Loan application soft deleted: #${id} for ${applicantName}`);
+      return saved;
+    } catch (error) {
+      console.error("Failed to delete loan application:", error.message);
+      throw error;
+    }
   }
 
   /**
@@ -566,6 +583,103 @@ class LoanApplicationService {
     await removeDb(appRepo, app);
     await auditLogger.logDelete("LoanApplication", id, app, user);
     console.log(`Application ${id} permanently deleted`);
+  }
+
+  /**
+   * Get comprehensive loan application statistics.
+   * @param {Object} filters - optional filters (none currently)
+   * @param {import("typeorm").QueryRunner | null} qr
+   * @returns {Promise<Object>}
+   *   {
+   *     total: number,
+   *     pending: number,
+   *     approved: number,
+   *     rejected: number,
+   *     totalRequestedAmount: number,
+   *     averageRequestedAmount: number,
+   *     minRequestedAmount: number,
+   *     maxRequestedAmount: number,
+   *     applicationsLast30Days: number
+   *   }
+   */
+  async getStatistics(filters = {}, qr = null) {
+    const LoanApplication = require("../entities/LoanApplication");
+    const appRepo = this._getRepo(qr, LoanApplication);
+
+    const qb = appRepo.createQueryBuilder("app").where("app.deletedAt IS NULL");
+
+    // Apply date filters if provided
+    if (filters.startDate) {
+      qb.andWhere("app.createdAt >= :startDate", {
+        startDate: new Date(filters.startDate),
+      });
+    }
+    if (filters.endDate) {
+      qb.andWhere("app.createdAt <= :endDate", {
+        endDate: new Date(filters.endDate),
+      });
+    }
+
+    // Total count
+    const total = await qb.clone().getCount();
+
+    if (total === 0) {
+      return {
+        total: 0,
+        pending: 0,
+        approved: 0,
+        rejected: 0,
+        totalRequestedAmount: 0,
+        averageRequestedAmount: 0,
+        minRequestedAmount: 0,
+        maxRequestedAmount: 0,
+        applicationsLast30Days: 0,
+      };
+    }
+
+    // Status counts
+    const statusCounts = await qb
+      .clone()
+      .select("app.status", "status")
+      .addSelect("COUNT(*)", "count")
+      .groupBy("app.status")
+      .getRawMany();
+
+    const pending =
+      statusCounts.find((s) => s.status === "pending")?.count || 0;
+    const approved =
+      statusCounts.find((s) => s.status === "approved")?.count || 0;
+    const rejected =
+      statusCounts.find((s) => s.status === "rejected")?.count || 0;
+
+    // Amount statistics
+    const amountStats = await qb
+      .clone()
+      .select("SUM(app.requestedAmount)", "total")
+      .addSelect("AVG(app.requestedAmount)", "avg")
+      .addSelect("MIN(app.requestedAmount)", "min")
+      .addSelect("MAX(app.requestedAmount)", "max")
+      .getRawOne();
+
+    // Last 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const applicationsLast30Days = await qb
+      .clone()
+      .andWhere("app.createdAt >= :thirtyDaysAgo", { thirtyDaysAgo })
+      .getCount();
+
+    return {
+      total,
+      pending: parseInt(pending) || 0,
+      approved: parseInt(approved) || 0,
+      rejected: parseInt(rejected) || 0,
+      totalRequestedAmount: parseFloat(amountStats?.total) || 0,
+      averageRequestedAmount: parseFloat(amountStats?.avg) || 0,
+      minRequestedAmount: parseFloat(amountStats?.min) || 0,
+      maxRequestedAmount: parseFloat(amountStats?.max) || 0,
+      applicationsLast30Days,
+    };
   }
 }
 

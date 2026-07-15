@@ -5,6 +5,17 @@ import debtsAPI from "../../../../api/core/debt";
 import paymentsAPI from "../../../../api/core/payment_transaction";
 import type { ScheduledPayment, PaymentScheduleFilters } from "../types";
 
+// Add type for debt statistics
+interface DebtStats {
+  totalDebts: number;
+  totalActive: number;
+  totalPaid: number;
+  totalOverdue: number;
+  totalDefaulted: number;
+  totalAmountOwed: number;
+  totalRemainingBalance: number;
+}
+
 interface UsePaymentScheduleReturn {
   payments: ScheduledPayment[];
   loading: boolean;
@@ -18,6 +29,9 @@ interface UsePaymentScheduleReturn {
   limit: number;
   setLimit: (limit: number) => void;
   totalItems: number;
+  // New stats
+  debtStats: DebtStats | null;
+  loadingStats: boolean;
 }
 
 const usePaymentSchedule = (): UsePaymentScheduleReturn => {
@@ -31,7 +45,35 @@ const usePaymentSchedule = (): UsePaymentScheduleReturn => {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
+  
+  // New stats state
+  const [debtStats, setDebtStats] = useState<DebtStats | null>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
 
+  // Fetch overall debt statistics
+  const fetchDebtStats = useCallback(async () => {
+    setLoadingStats(true);
+    try {
+      const response = await debtsAPI.getStatistics();
+      if (response.status) {
+        setDebtStats({
+          totalDebts: response.data.totalDebts || 0,
+          totalActive: response.data.totalActive || 0,
+          totalPaid: response.data.totalPaid || 0,
+          totalOverdue: response.data.totalOverdue || 0,
+          totalDefaulted: response.data.totalDefaulted || 0,
+          totalAmountOwed: response.data.totalAmountOwed || 0,
+          totalRemainingBalance: response.data.totalRemainingBalance || 0,
+        });
+      }
+    } catch (err) {
+      console.error("Failed to fetch debt stats:", err);
+    } finally {
+      setLoadingStats(false);
+    }
+  }, []);
+
+  // Fetch upcoming payments
   const fetchUpcomingPayments = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -55,32 +97,19 @@ const usePaymentSchedule = (): UsePaymentScheduleReturn => {
 
       if (!response.status) throw new Error(response.message || "Failed to fetch debts");
 
-      // Access the data array and pagination
       const debts = response.data.data || [];
       const pagination = response.data.pagination || { total: 0 };
 
-      // Map to ScheduledPayment, safely extracting borrower info
-      const scheduled: ScheduledPayment[] = debts.map((debt: any) => {
-        // Try to get borrower name from different possible fields
-        const borrowerName =
-          debt.borrower?.name ||
-          debt.borrower_name ||
-          debt.borrowerName ||
-          "Unknown";
-
-        const borrowerId = debt.borrower?.id ?? debt.borrower_id ?? 0;
-
-        return {
-          debtId: debt.id,
-          debtName: debt.name || "Unnamed Debt",
-          borrowerId,
-          borrowerName,
-          dueDate: debt.dueDate || new Date().toISOString().split('T')[0],
-          amountDue: debt.remainingAmount ?? debt.remaining_amount ?? 0,
-          contact: debt.borrower?.contact || debt.contact || null,
-          email: debt.borrower?.email || debt.email || null,
-        };
-      });
+      const scheduled: ScheduledPayment[] = debts.map((debt: any) => ({
+        debtId: debt.id,
+        debtName: debt.name || "Unnamed Debt",
+        borrowerId: debt.borrower?.id ?? 0,
+        borrowerName: debt.borrower?.name || debt.borrower_name || "Unknown",
+        dueDate: debt.dueDate || new Date().toISOString().split('T')[0],
+        amountDue: debt.remainingAmount ?? debt.remaining_amount ?? 0,
+        contact: debt.borrower?.contact || null,
+        email: debt.borrower?.email || null,
+      }));
 
       setPayments(scheduled);
       setTotalItems(pagination.total || 0);
@@ -91,9 +120,11 @@ const usePaymentSchedule = (): UsePaymentScheduleReturn => {
     }
   }, [filters.dateRange, page, limit]);
 
+  // Fetch both on mount and when dependencies change
   useEffect(() => {
     fetchUpcomingPayments();
-  }, [fetchUpcomingPayments]);
+    fetchDebtStats();
+  }, [fetchUpcomingPayments, fetchDebtStats]);
 
   const markAsPaid = async (debtId: number, amount: number, paymentDate: string, methodId: number) => {
     try {
@@ -105,14 +136,17 @@ const usePaymentSchedule = (): UsePaymentScheduleReturn => {
         debtId,
         methodId,
       });
-      // Refresh the list after marking paid
       await fetchUpcomingPayments();
+      await fetchDebtStats(); // Refresh stats after payment
     } catch (err: any) {
       throw new Error(err.message || "Failed to record payment");
     }
   };
 
-  const refresh = () => fetchUpcomingPayments();
+  const refresh = () => {
+    fetchUpcomingPayments();
+    fetchDebtStats();
+  };
 
   return {
     payments,
@@ -127,6 +161,9 @@ const usePaymentSchedule = (): UsePaymentScheduleReturn => {
     limit,
     setLimit,
     totalItems,
+    // New exports
+    debtStats,
+    loadingStats,
   };
 };
 

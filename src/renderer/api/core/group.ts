@@ -21,6 +21,7 @@ export interface GroupMember {
 }
 
 export interface GroupMemberWithDebtor extends GroupMember {
+  id: number;
   debtor: {
     id: number;
     name: string;
@@ -49,6 +50,24 @@ export interface GroupUpdateData {
 
 export interface BulkAssignData {
   debtorIds: number[];
+}
+
+export interface GroupStatistics {
+  totalGroups: number;
+  averageMembers: number;
+  groupsWithZeroMembers: number;
+  groups: Array<{
+    id: number;
+    name: string;
+    memberCount: number;
+    totalDebt: number;
+  }>;
+}
+
+export interface GroupStatisticsResponse {
+  status: boolean;
+  message: string;
+  data: GroupStatistics;
 }
 
 // ----------------------------------------------------------------------
@@ -99,7 +118,11 @@ class GroupsAPI {
   // 🔎 READ-ONLY METHODS
   // --------------------------------------------------------------------
 
-  async getAll(page?: number, limit?: number, search?: string): Promise<GroupsResponse> {
+  async getAll(
+    page?: number,
+    limit?: number,
+    search?: string,
+  ): Promise<GroupsResponse> {
     if (!window.backendAPI?.group) {
       throw new Error("Electron API (group) not available");
     }
@@ -123,7 +146,11 @@ class GroupsAPI {
     throw new Error(response.message || "Failed to fetch group");
   }
 
-  async getMembers(groupId: number, page?: number, limit?: number): Promise<GroupMembersResponse> {
+  async getMembers(
+    groupId: number,
+    page?: number,
+    limit?: number,
+  ): Promise<GroupMembersResponse> {
     if (!window.backendAPI?.group) {
       throw new Error("Electron API (group) not available");
     }
@@ -135,7 +162,11 @@ class GroupsAPI {
     throw new Error(response.message || "Failed to fetch group members");
   }
 
-  async getGroupsForDebtor(debtorId: number, page?: number, limit?: number): Promise<GroupsResponse> {
+  async getGroupsForDebtor(
+    debtorId: number,
+    page?: number,
+    limit?: number,
+  ): Promise<GroupsResponse> {
     if (!window.backendAPI?.group) {
       throw new Error("Electron API (group) not available");
     }
@@ -159,7 +190,11 @@ class GroupsAPI {
     throw new Error(response.message || "Failed to fetch group stats");
   }
 
-  async search(searchTerm: string, page?: number, limit?: number): Promise<GroupsResponse> {
+  async search(
+    searchTerm: string,
+    page?: number,
+    limit?: number,
+  ): Promise<GroupsResponse> {
     if (!window.backendAPI?.group) {
       throw new Error("Electron API (group) not available");
     }
@@ -187,7 +222,11 @@ class GroupsAPI {
     throw new Error(response.message || "Failed to create group");
   }
 
-  async update(id: number, data: GroupUpdateData, user = "system"): Promise<GroupResponse> {
+  async update(
+    id: number,
+    data: GroupUpdateData,
+    user = "system",
+  ): Promise<GroupResponse> {
     if (!window.backendAPI?.group) {
       throw new Error("Electron API (group) not available");
     }
@@ -211,7 +250,11 @@ class GroupsAPI {
     throw new Error(response.message || "Failed to delete group");
   }
 
-  async assignDebtor(groupId: number, debtorId: number, user = "system"): Promise<DeleteResponse> {
+  async assignDebtor(
+    groupId: number,
+    debtorId: number,
+    user = "system",
+  ): Promise<DeleteResponse> {
     if (!window.backendAPI?.group) {
       throw new Error("Electron API (group) not available");
     }
@@ -223,7 +266,11 @@ class GroupsAPI {
     throw new Error(response.message || "Failed to assign debtor to group");
   }
 
-  async bulkAssign(groupId: number, debtorIds: number[], user = "system"): Promise<BulkAssignResponse> {
+  async bulkAssign(
+    groupId: number,
+    debtorIds: number[],
+    user = "system",
+  ): Promise<BulkAssignResponse> {
     if (!window.backendAPI?.group) {
       throw new Error("Electron API (group) not available");
     }
@@ -235,7 +282,11 @@ class GroupsAPI {
     throw new Error(response.message || "Failed to bulk assign debtors");
   }
 
-  async removeDebtor(groupId: number, debtorId: number, user = "system"): Promise<DeleteResponse> {
+  async removeDebtor(
+    groupId: number,
+    debtorId: number,
+    user = "system",
+  ): Promise<DeleteResponse> {
     if (!window.backendAPI?.group) {
       throw new Error("Electron API (group) not available");
     }
@@ -247,7 +298,10 @@ class GroupsAPI {
     throw new Error(response.message || "Failed to remove debtor from group");
   }
 
-  async clearMembers(groupId: number, user = "system"): Promise<DeleteResponse> {
+  async clearMembers(
+    groupId: number,
+    user = "system",
+  ): Promise<DeleteResponse> {
     if (!window.backendAPI?.group) {
       throw new Error("Electron API (group) not available");
     }
@@ -266,15 +320,31 @@ class GroupsAPI {
   async isDebtorInGroup(groupId: number, debtorId: number): Promise<boolean> {
     try {
       const members = await this.getMembers(groupId, 1, 100);
-      return members.data.data.some(m => m.debtorId === debtorId);
+      return members.data.data.some((m) => m.debtorId === debtorId);
     } catch (error) {
       console.error("Error checking debtor in group:", error);
       return false;
     }
   }
 
+  /**
+   * Get overall group statistics.
+   * @param params - optional filters (none currently)
+   */
+  async getStatistics(params?: {}): Promise<GroupStatisticsResponse> {
+    if (!window.backendAPI?.group) {
+      throw new Error("Electron API (group) not available");
+    }
+    const response = await window.backendAPI.group({
+      method: "getStatistics",
+      params: params || {},
+    });
+    if (response.status) return response;
+    throw new Error(response.message || "Failed to fetch group statistics");
+  }
+
   async isAvailable(): Promise<boolean> {
-    return !!(window.backendAPI?.group);
+    return !!window.backendAPI?.group;
   }
 }
 

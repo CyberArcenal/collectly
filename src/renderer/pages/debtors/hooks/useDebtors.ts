@@ -85,10 +85,10 @@ const useDebtors = (initialFilters?: Partial<DebtorFilters>): UseDebtorsReturn =
         const data = response.data;
         setStats({
           total: data.total || 0,
-          active: data.total - (data.deleted || 0),
+          active: data.active || 0,
           deleted: data.deleted || 0,
-          withEmail: data.totalWithEmail || data.with_email || 0,
-          withContact: data.totalWithContact || data.with_contact || 0,
+          withEmail: data.totalWithEmail || data.with_email || data.withEmail || 0,
+          withContact: data.totalWithContact || data.with_contact || data.withContact || 0,
         });
       }
     } catch (err) {

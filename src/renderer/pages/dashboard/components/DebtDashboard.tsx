@@ -188,7 +188,7 @@ const AgingBuckets: React.FC<{
                   color: "var(--text-secondary)",
                 }}
               >
-                {bucket.percentage.toFixed(1)}%
+                {bucket?.percentage? bucket.percentage.toFixed(1) : 0}%
               </span>
             </div>
           </div>

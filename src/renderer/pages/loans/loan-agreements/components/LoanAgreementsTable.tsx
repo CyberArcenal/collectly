@@ -76,7 +76,8 @@ const LoanAgreementsTable: React.FC<LoanAgreementsTableProps> = ({
     );
   };
 
-  const allSelected = agreements.length > 0 && selectedAgreements.length === agreements.length;
+  const allSelected =
+    agreements.length > 0 && selectedAgreements.length === agreements.length;
   const someSelected = selectedAgreements.length > 0 && !allSelected;
 
   return (
@@ -143,7 +144,10 @@ const LoanAgreementsTable: React.FC<LoanAgreementsTableProps> = ({
                 className="border-b border-[var(--border-color)] hover:bg-[var(--card-hover-bg)] transition-colors cursor-pointer"
                 onClick={() => onView(agreement)}
               >
-                <td className="py-2.5 px-3" onClick={(e) => e.stopPropagation()}>
+                <td
+                  className="py-2.5 px-3"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <input
                     type="checkbox"
                     checked={selectedAgreements.includes(agreement.id)}
@@ -154,7 +158,9 @@ const LoanAgreementsTable: React.FC<LoanAgreementsTableProps> = ({
                 <td className="py-2.5 px-3">
                   <div className="flex items-center gap-1.5 text-[var(--text-secondary)] text-sm">
                     <Calendar className="w-3 h-3 text-[var(--text-tertiary)]" />
-                    {agreement.agreementDate ? formatDate(agreement.agreementDate) : "—"}
+                    {agreement.agreementDate
+                      ? formatDate(agreement.agreementDate)
+                      : "—"}
                   </div>
                 </td>
                 <td className="py-2.5 px-3">
@@ -187,24 +193,34 @@ const LoanAgreementsTable: React.FC<LoanAgreementsTableProps> = ({
                   )}
                 </td>
                 <td className="py-2.5 px-3">
-                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full ${status.bg} ${status.text}`}>
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full ${status.bg} ${status.text}`}
+                  >
                     {status.icon}
-                    {agreement.status.charAt(0).toUpperCase() + agreement.status.slice(1)}
+                    {agreement.status.charAt(0).toUpperCase() +
+                      agreement.status.slice(1)}
                   </span>
                 </td>
                 <td className="py-2.5 px-3">
                   {agreement.signedBy ? (
                     <div>
-                      <div className="text-sm text-[var(--text-primary)]">{agreement.signedBy}</div>
+                      <div className="text-sm text-[var(--text-primary)]">
+                        {agreement.signedBy}
+                      </div>
                       <div className="text-[10px] text-[var(--text-tertiary)]">
-                        {agreement.signedAt ? formatDate(agreement.signedAt) : ""}
+                        {agreement.signedAt
+                          ? formatDate(agreement.signedAt)
+                          : ""}
                       </div>
                     </div>
                   ) : (
                     <span className="text-[var(--text-tertiary)]">—</span>
                   )}
                 </td>
-                <td className="py-2.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                <td
+                  className="py-2.5 px-3 text-center"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <div className="flex justify-center gap-1">
                     <button
                       onClick={() => onView(agreement)}
@@ -240,13 +256,22 @@ const LoanAgreementsTable: React.FC<LoanAgreementsTableProps> = ({
                         <Download className="w-3.5 h-3.5 text-[var(--accent-purple)]" />
                       </button>
                     )}
-                    <button
-                      onClick={() => onDelete(agreement)}
-                      className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors"
-                      title="Delete"
-                    >
-                      <Trash2 className="w-3.5 h-3.5 text-[var(--danger-color)]" />
-                    </button>
+                    {agreement.status === "draft" ? (
+                      <button
+                        onClick={() => onDelete(agreement)}
+                        className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-[var(--danger-color)]" />
+                      </button>
+                    ) : (
+                      <span
+                        className="text-xs text-[var(--text-tertiary)]"
+                        title="Signed agreements cannot be deleted"
+                      >
+                        🔒
+                      </span>
+                    )}
                   </div>
                 </td>
               </tr>

@@ -139,7 +139,7 @@ const LoanApplicationsPage: React.FC = () => {
       setConfirmModal({ open: false, type: "approve", app: null });
       setDetailOpen(false);
     } catch (err: any) {
-      dialogs.error(err.message);
+      dialogs.error("Ops! Something went wrong while approving the application.");
     }
   };
 
@@ -197,7 +197,7 @@ const LoanApplicationsPage: React.FC = () => {
       {/* Summary Cards */}
       {showStats && stats && (
         <ApplicationSummaryCards
-          total={stats.totalApplications}
+          total={stats.total}
           pending={stats.pending}
           approved={stats.approved}
           rejected={stats.rejected}

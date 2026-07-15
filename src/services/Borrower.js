@@ -174,6 +174,15 @@ class BorrowerService {
         throw new Error(`Borrower #${id} is already deleted`);
       }
 
+      // ✅ Use DebtService to check for active debts
+      const debtService = require("./Debt"); // lazy load to avoid circular dependency
+      const activeDebtsCount = await debtService.getActiveDebtCount(id, qr);
+      if (activeDebtsCount > 0) {
+        throw new Error(
+          `Cannot delete borrower ${borrower.name} because they have ${activeDebtsCount} active debt(s) with remaining balance. Please settle or delete all debts first.`,
+        );
+      }
+
       const oldData = { ...borrower };
       borrower.deletedAt = new Date();
       borrower.updatedAt = new Date();
@@ -315,21 +324,49 @@ class BorrowerService {
    */
   async getStatistics() {
     const repo = await this.getRepository();
-    const total = await repo.count({ where: { deletedAt: null } });
-    const totalWithEmail = await repo.count({
-      where: { deletedAt: null, email: { $not: null } },
-    });
-    const totalWithContact = await repo.count({
-      where: { deletedAt: null, contact: { $not: null } },
-    });
-    const recentlyAdded = await repo.count({
-      where: {
-        deletedAt: null,
-        createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
-      },
-    });
+    const qb = repo.createQueryBuilder("borrower");
 
-    return { total, totalWithEmail, totalWithContact, recentlyAdded };
+    // Total active (not deleted)
+    const total = await qb
+      .clone()
+      .where("borrower.deletedAt IS NULL")
+      .getCount();
+
+    // With email (not null and not empty string)
+    const totalWithEmail = await qb
+      .clone()
+      .where("borrower.deletedAt IS NULL")
+      .andWhere("borrower.email IS NOT NULL")
+      .andWhere('borrower.email != ""')
+      .getCount();
+
+    // With contact (not null and not empty string)
+    const totalWithContact = await qb
+      .clone()
+      .where("borrower.deletedAt IS NULL")
+      .andWhere("borrower.contact IS NOT NULL")
+      .andWhere('borrower.contact != ""')
+      .getCount();
+
+    // Recently added (last 30 days)
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const recentlyAdded = await qb
+      .clone()
+      .where("borrower.deletedAt IS NULL")
+      .andWhere("borrower.createdAt >= :thirtyDaysAgo", { thirtyDaysAgo })
+      .getCount();
+
+    return {
+      total,
+      totalWithEmail,
+      totalWithContact,
+      recentlyAdded,
+      // For backward compatibility
+      with_email: totalWithEmail,
+      with_contact: totalWithContact,
+      active: total,
+      deleted: 0,
+    };
   }
 
   /**

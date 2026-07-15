@@ -1,6 +1,6 @@
 // src/renderer/pages/loans/agreements/hooks/useLoanAgreements.ts
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { LoanAgreement } from "../../../../api/core/loan_agreement";
+import type { LoanAgreement, LoanAgreementStatistics } from "../../../../api/core/loan_agreement";
 import loanAgreementsAPI from "../../../../api/core/loan_agreement";
 
 interface Filters {
@@ -12,10 +12,8 @@ interface Filters {
   dateTo?: string;
 }
 
-interface Stats {
-  totalAgreements: number;
+interface Stats extends LoanAgreementStatistics{
   signed?: number;
-  withFiles: number;
 }
 
 export const useLoanAgreements = () => {
@@ -52,6 +50,7 @@ export const useLoanAgreements = () => {
   const fetchStats = useCallback(async () => {
     try {
       const response = await loanAgreementsAPI.getStatistics();
+      console.log("Loan agreement stats: ", response)
       if (response.status) {
         setStats(response.data);
       }

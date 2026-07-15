@@ -141,6 +141,163 @@ class InterestRateChangeLogService {
     await repo.remove(log);
     await auditLogger.logDelete("InterestRateChangeLog", id, log, user);
   }
+
+  /**
+   * Get statistics for interest rate change logs.
+   * @param {Object} filters - optional date filters
+   * @param {string} [filters.startDate] - YYYY-MM-DD
+   * @param {string} [filters.endDate] - YYYY-MM-DD
+   * @param {import("typeorm").QueryRunner | null} qr
+   * @returns {Promise<Object>}
+   *   {
+   *     totalChanges: number,
+   *     mostFrequentSetting: { settingKey: string, count: number } | null,
+   *     changesByUser: Array<{ user: string, count: number }>,
+   *     changesByLoan: Array<{ loanId: number, count: number }>,
+   *     averageChangeMagnitude: number,
+   *     maxChangeMagnitude: number,
+   *     minChangeMagnitude: number,
+   *     changesLast30Days: number
+   *   }
+   */
+  async getStatistics(filters = {}, qr = null) {
+    const InterestRateChangeLog = require("../entities/InterestRateChangeLog");
+    const repo = this._getRepo(qr, InterestRateChangeLog);
+
+    const qb = repo.createQueryBuilder("log").where("log.deletedAt IS NULL");
+
+    // Apply date filters if provided
+    if (filters.startDate) {
+      qb.andWhere("log.changedAt >= :startDate", {
+        startDate: new Date(filters.startDate),
+      });
+    }
+    if (filters.endDate) {
+      qb.andWhere("log.changedAt <= :endDate", {
+        endDate: new Date(filters.endDate),
+      });
+    }
+
+    // Total changes
+    const totalChanges = await qb.clone().getCount();
+
+    if (totalChanges === 0) {
+      return {
+        totalChanges: 0,
+        mostFrequentSetting: null,
+        changesByUser: [],
+        changesByLoan: [],
+        averageChangeMagnitude: 0,
+        maxChangeMagnitude: 0,
+        minChangeMagnitude: 0,
+        changesLast30Days: 0,
+      };
+    }
+
+    // Most frequent setting_key
+    const settingCounts = await qb
+      .clone()
+      .select("log.settingKey", "settingKey")
+      .addSelect("COUNT(*)", "count")
+      .groupBy("log.settingKey")
+      .orderBy("count", "DESC")
+      .limit(1)
+      .getRawOne();
+
+    const mostFrequentSetting = settingCounts
+      ? {
+          settingKey: settingCounts.settingKey,
+          count: parseInt(settingCounts.count),
+        }
+      : null;
+
+    // Changes by user
+    const userCounts = await qb
+      .clone()
+      .select("log.changedBy", "user")
+      .addSelect("COUNT(*)", "count")
+      .groupBy("log.changedBy")
+      .orderBy("count", "DESC")
+      .getRawMany();
+
+    const changesByUser = userCounts.map(({ user, count }) => ({
+      user,
+      count: parseInt(count),
+    }));
+
+    // Changes by loan (only for non-system changes)
+    const loanCounts = await qb
+      .clone()
+      .select("log.loanId", "loanId")
+      .addSelect("COUNT(*)", "count")
+      .where("log.loanId IS NOT NULL")
+      .groupBy("log.loanId")
+      .orderBy("count", "DESC")
+      .getRawMany();
+
+    const changesByLoan = loanCounts.map(({ loanId, count }) => ({
+      loanId: parseInt(loanId),
+      count: parseInt(count),
+    }));
+
+    // Change magnitude statistics (absolute difference between old and new values)
+    // This uses raw SQL because TypeORM doesn't have a built-in ABS function
+    // Alternative: fetch all and compute in JS (less efficient)
+    const magnitudeResult = await qb
+      .clone()
+      .select("AVG(ABS(log.newValue - log.oldValue))", "avgMagnitude")
+      .addSelect("MAX(ABS(log.newValue - log.oldValue))", "maxMagnitude")
+      .addSelect("MIN(ABS(log.newValue - log.oldValue))", "minMagnitude")
+      .where("log.oldValue IS NOT NULL AND log.newValue IS NOT NULL")
+      .getRawOne();
+
+    // For TypeORM with SQLite, we need to handle ABS differently
+    // Using a more compatible approach - fetch all and compute
+    // Since the log table is typically small, this is acceptable
+    const logsWithValues = await qb
+      .clone()
+      .select(["log.oldValue", "log.newValue"])
+      .where("log.oldValue IS NOT NULL AND log.newValue IS NOT NULL")
+      .getRawMany();
+
+    let totalMagnitude = 0;
+    let maxMagnitude = 0;
+    let minMagnitude = Infinity;
+    let countWithValues = 0;
+
+    for (const log of logsWithValues) {
+      const oldVal = parseFloat(log.oldValue);
+      const newVal = parseFloat(log.newValue);
+      const magnitude = Math.abs(newVal - oldVal);
+      totalMagnitude += magnitude;
+      maxMagnitude = Math.max(maxMagnitude, magnitude);
+      minMagnitude = Math.min(minMagnitude, magnitude);
+      countWithValues++;
+    }
+
+    const averageChangeMagnitude =
+      countWithValues > 0 ? totalMagnitude / countWithValues : 0;
+    const minChangeMagnitude = countWithValues > 0 ? minMagnitude : 0;
+
+    // Changes in last 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const changesLast30Days = await qb
+      .clone()
+      .andWhere("log.changedAt >= :thirtyDaysAgo", { thirtyDaysAgo })
+      .getCount();
+
+    return {
+      totalChanges,
+      mostFrequentSetting,
+      changesByUser,
+      changesByLoan,
+      averageChangeMagnitude: Math.round(averageChangeMagnitude * 100) / 100,
+      maxChangeMagnitude: Math.round(maxMagnitude * 100) / 100,
+      minChangeMagnitude: Math.round(minChangeMagnitude * 100) / 100,
+      changesLast30Days,
+    };
+  }
 }
 
 const interestRateChangeLogService = new InterestRateChangeLogService();

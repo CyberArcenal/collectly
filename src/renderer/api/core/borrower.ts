@@ -20,6 +20,9 @@ export interface Borrower {
 }
 
 export interface BorrowerStatistics {
+  active: number;
+  withContact: number;
+  withEmail: number;
   with_contact: number;
   with_email: number;
   with_active_debts: number;

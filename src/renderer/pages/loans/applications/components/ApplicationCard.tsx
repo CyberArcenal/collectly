@@ -1,8 +1,8 @@
 // src/renderer/pages/loans/applications/components/ApplicationCard.tsx
 import React from "react";
 import { Eye, CheckCircle, XCircle, Calendar, DollarSign, FileText, User, ChevronRight, Clock } from "lucide-react";
-import type { LoanApplication } from "../types";
 import { formatCurrency, formatDate } from "../../../../utils/formatters";
+import type { LoanApplication } from "../../../../api/core/loan_application";
 
 interface ApplicationCardProps {
   application: LoanApplication;

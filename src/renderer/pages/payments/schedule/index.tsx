@@ -29,6 +29,9 @@ const PaymentSchedulePage: React.FC = () => {
     limit,
     setLimit,
     totalItems,
+    // New stats
+    debtStats,
+    loadingStats,
   } = usePaymentSchedule();
 
   const { setPagination, clearPagination } = usePagination();
@@ -157,12 +160,14 @@ const PaymentSchedulePage: React.FC = () => {
         </div>
       </div>
 
-      {/* Summary Cards */}
-      {showStats && payments.length > 0 && (
+      {/* Summary Cards - UPDATED with debtStats */}
+      {showStats && (
         <PaymentScheduleSummary
           totalPayments={totalItems}
           totalAmountDue={totalDue}
           dateRange={filters.dateRange}
+          debtStats={debtStats}
+          loadingStats={loadingStats}
         />
       )}
 
@@ -200,7 +205,7 @@ const PaymentSchedulePage: React.FC = () => {
         <div className="text-sm text-[var(--text-secondary)]">
           {totalItems > 0
             ? `Showing ${(page - 1) * limit + 1} to ${Math.min(page * limit, totalItems)} of ${totalItems} payments`
-            : "No payments"}
+            : "No upcoming payments in selected range"}
         </div>
       </div>
 

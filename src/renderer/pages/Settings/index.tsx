@@ -75,7 +75,7 @@ const SettingsPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen p-6" style={{ backgroundColor: "var(--background-color)" }}>
+    <div className="min-h-screen p-6" style={{ backgroundColor: "var(--card-bg)" }}>
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <SettingsHeader

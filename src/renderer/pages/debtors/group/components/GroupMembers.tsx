@@ -146,7 +146,7 @@ const GroupMembers: React.FC<GroupMembersProps> = ({
               <li
                 key={member.debtorId}
                 className="flex items-center justify-between p-2 rounded-lg hover:bg-[var(--card-hover-bg)] transition-colors cursor-pointer group"
-                onClick={() => onView({ id: member.debtorId })}
+                onClick={() => onView({ id: member.debtorId || member.id })}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[var(--primary-color)] to-[var(--primary-hover)] flex items-center justify-center text-white text-[10px] font-medium flex-shrink-0">

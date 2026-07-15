@@ -3,20 +3,24 @@ import React from "react";
 import { 
   Calendar, 
   Users, 
-  Database, 
   Activity,
-  Clock,
-  UserCheck,
-  FileText
+  FileText,
+  Clock
 } from "lucide-react";
 
+interface Stats {
+  total: number;
+  avgPerDay: number;
+  mostActiveDay: { day: string; count: number } | null;
+  uniqueUsers: number;
+  totalToday: number;
+  byAction: Array<{ action: string; count: number }>;
+  byEntity: Array<{ entity: string; count: number }>;
+  byUser: Array<{ user: string; count: number }>;
+}
+
 interface SummaryCardsProps {
-  stats: {
-    total: number;
-    avgPerDay: number;
-    mostActiveDay: { day: string; count: number } | null;
-    uniqueUsers: number;
-  };
+  stats: Stats;
   summary: {
     totalToday: number;
     byAction: Record<string, number>;
@@ -26,33 +30,31 @@ interface SummaryCardsProps {
 }
 
 export const SummaryCards: React.FC<SummaryCardsProps> = ({ stats, summary }) => {
-  // Get top action
-  const topAction = Object.entries(summary.byAction)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 1)[0];
+  // Use stats.totalToday (from API) if available, otherwise fallback to summary.totalToday
+  const totalToday = stats.totalToday || summary.totalToday || 0;
 
   const cards = [
     {
       title: "Total Logs",
-      value: stats?.total?.toLocaleString(),
+      value: stats.total?.toLocaleString() || "0",
       icon: FileText,
       color: "bg-blue-500",
     },
     {
       title: "Today's Actions",
-      value: summary.totalToday,
+      value: totalToday.toLocaleString(),
       icon: Activity,
       color: "bg-green-500",
     },
     {
       title: "Unique Users",
-      value: stats.uniqueUsers,
+      value: stats.uniqueUsers?.toLocaleString() || "0",
       icon: Users,
       color: "bg-purple-500",
     },
     {
       title: "Avg / Day",
-      value: stats?.avgPerDay?.toFixed(1),
+      value: stats.avgPerDay?.toFixed(1) || "0.0",
       icon: Calendar,
       color: "bg-orange-500",
     },
@@ -63,19 +65,19 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({ stats, summary }) =>
       {cards.map((card) => (
         <div
           key={card.title}
-          className="bg-[var(--card-bg)] rounded-xl border border-[var(--border-color)] p-4 shadow-sm"
+          className="bg-[var(--card-bg)] rounded-xl border border-[var(--border-color)] p-3.5 shadow-sm"
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider">
+              <p className="text-[10px] font-medium text-[var(--text-secondary)] uppercase tracking-wider">
                 {card.title}
               </p>
-              <p className="text-xl font-bold text-[var(--text-primary)] mt-1">
+              <p className="text-lg font-bold text-[var(--text-primary)] mt-0.5">
                 {card.value}
               </p>
             </div>
-            <div className={`p-2.5 rounded-full ${card.color} bg-opacity-10`}>
-              <card.icon className={`w-5 h-5 ${card.color.replace("bg-", "text-")}`} />
+            <div className={`p-2 rounded-full ${card.color} bg-opacity-10`}>
+              <card.icon className={`w-4 h-4 ${card.color.replace("bg-", "text-")}`} />
             </div>
           </div>
         </div>

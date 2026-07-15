@@ -8,6 +8,7 @@ import type { PaginatedResult } from "./common";
 // ----------------------------------------------------------------------
 
 export interface LoanApplication {
+  debtor_name: string;
   id: number;
   debtorId: number | null;
   debtorName: string;
@@ -30,13 +31,17 @@ export interface LoanApplication {
 }
 
 export interface LoanApplicationStatistics {
-  totalApplications: number;
+  total: number;
   pending: number;
   approved: number;
   rejected: number;
   totalRequestedAmount: number;
   averageRequestedAmount: number;
+  minRequestedAmount: number;
+  maxRequestedAmount: number;
+  applicationsLast_30Days: number;
 }
+
 
 export interface LoanApplicationCreateData {
   debtorId?: number | null;
@@ -154,18 +159,6 @@ class LoanApplicationsAPI {
     throw new Error(response.message || "Failed to fetch loan application");
   }
 
-  async getStatistics(): Promise<LoanApplicationStatisticsResponse> {
-    if (!window.backendAPI?.loanApplication) {
-      throw new Error("Electron API (loanApplication) not available");
-    }
-    const response = await window.backendAPI.loanApplication({
-      method: "getApplicationStatistics",
-      params: {},
-    });
-    if (response.status) return response;
-    throw new Error(response.message || "Failed to fetch loan application statistics");
-  }
-
   // --------------------------------------------------------------------
   // ✏️ WRITE OPERATIONS
   // --------------------------------------------------------------------
@@ -270,6 +263,23 @@ class LoanApplicationsAPI {
       console.error("Error checking pending application:", error);
       return false;
     }
+  }
+
+
+   /**
+   * Get comprehensive loan application statistics.
+   * @param params - optional date range filters
+   */
+  async getStatistics(params?: { startDate?: string; endDate?: string }): Promise<LoanApplicationStatisticsResponse> {
+    if (!window.backendAPI?.loanApplication) {
+      throw new Error("Electron API (loanApplication) not available");
+    }
+    const response = await window.backendAPI.loanApplication({
+      method: "getStatistics",
+      params: params || {},
+    });
+    if (response.status) return response;
+    throw new Error(response.message || "Failed to fetch loan application statistics");
   }
 
   async isAvailable(): Promise<boolean> {

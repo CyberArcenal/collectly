@@ -23,7 +23,7 @@ const ClosedLoanSummaryCards: React.FC<ClosedLoanSummaryCardsProps> = ({
     },
     {
       title: "Total Amount Paid",
-      value: totalAmountPaid,
+      value: totalAmountPaid||0,
       icon: DollarSign,
       color: "bg-blue-500",
       format: formatCurrency,

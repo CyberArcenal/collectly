@@ -266,37 +266,56 @@ class LoanAgreementService {
   async delete(id, user = "system", qr = null, allowDeleteSigned = false) {
     const { updateDb } = require("../utils/dbUtils/dbActions");
     const LoanAgreement = require("../entities/LoanAgreement");
-    // @ts-ignore
     const agreementRepo = this._getRepo(qr, LoanAgreement);
 
-    const agreement = await agreementRepo.findOne({ where: { id } });
-    if (!agreement) throw new Error(`Loan agreement with ID ${id} not found`);
-    if (agreement.deletedAt)
-      throw new Error(`Loan agreement #${id} is already deleted`);
+    try {
+      // 1. Find agreement with debt & borrower info
+      const agreement = await agreementRepo.findOne({
+        where: { id },
+        relations: ["debt", "debt.borrower"],
+      });
+      if (!agreement) {
+        throw new Error(`Loan agreement with ID ${id} not found`);
+      }
+      if (agreement.deletedAt) {
+        throw new Error(
+          `Loan agreement "${agreement.lenderName || "#" + id}" is already deleted`,
+        );
+      }
 
-    if (agreement.status === "signed" && !allowDeleteSigned) {
-      throw new Error(
-        "Cannot delete a signed loan agreement. Set allowDeleteSigned=true to override.",
+      const agreementName = agreement.lenderName || `Agreement #${id}`;
+      const borrowerName = agreement.debt?.borrower?.name || "Unknown Borrower";
+
+      // 2. 🔒 Cannot delete signed agreements unless explicitly allowed
+      if (agreement.status === "signed" && !allowDeleteSigned) {
+        throw new Error(
+          `Cannot delete signed loan agreement "${agreementName}" for ${borrowerName}. Signed agreements are legally binding.`,
+        );
+      }
+
+      // 3. Delete associated file before soft-deleting record
+      if (agreement.filePath) {
+        await deleteAgreementFile(agreement.filePath);
+      }
+
+      // 4. Proceed with soft delete
+      const oldData = { ...agreement };
+      agreement.deletedAt = new Date();
+      agreement.updatedAt = new Date();
+
+      const saved = await updateDb(agreementRepo, agreement, {
+        queryRunner: qr,
+        skipSignal: true,
+      });
+      await auditLogger.logDelete("LoanAgreement", id, oldData, user);
+      console.log(
+        `Loan agreement soft deleted: "${agreementName}" (ID: ${id})`,
       );
+      return saved;
+    } catch (error) {
+      console.error("Failed to delete loan agreement:", error.message);
+      throw error;
     }
-
-    // Delete associated file before soft-deleting record
-    if (agreement.filePath) {
-      await deleteAgreementFile(agreement.filePath);
-    }
-
-    const oldData = { ...agreement };
-    agreement.deletedAt = new Date();
-    agreement.updatedAt = new Date();
-
-    // @ts-ignore
-    const saved = await updateDb(agreementRepo, agreement, {
-      queryRunner: qr,
-      skipSignal: true,
-    });
-    await auditLogger.logDelete("LoanAgreement", id, oldData, user);
-    console.log(`Loan agreement soft deleted: #${id}`);
-    return saved;
   }
 
   /**
@@ -464,10 +483,10 @@ class LoanAgreementService {
 
   async getStatistics() {
     const { agreement: agreementRepo } = await this.getRepositories();
-    // @ts-ignore
     const qb = agreementRepo
       .createQueryBuilder("agreement")
       .where("agreement.deletedAt IS NULL");
+
     const totalAgreements = await qb.getCount();
     const withFiles = await qb
       .clone()
@@ -477,18 +496,33 @@ class LoanAgreementService {
       .clone()
       .select("COUNT(DISTINCT agreement.lenderName)", "count")
       .getRawOne();
+
+    // ✅ Add draft and signed counts
+    const draftCount = await qb
+      .clone()
+      .andWhere("agreement.status = :status", { status: "draft" })
+      .getCount();
+    const signedCount = await qb
+      .clone()
+      .andWhere("agreement.status = :status", { status: "signed" })
+      .getCount();
+
     const agreementsPerDebt = await qb
       .clone()
       .select("COUNT(agreement.id)", "total")
       .addSelect("agreement.debtId")
       .groupBy("agreement.debtId")
       .getRawMany();
+
     const avgPerDebt = agreementsPerDebt.length
       ? agreementsPerDebt.reduce((sum, row) => sum + parseInt(row.total), 0) /
         agreementsPerDebt.length
       : 0;
+
     return {
       totalAgreements,
+      draftCount, // ✅ new
+      signedCount, // ✅ new
       withFiles,
       uniqueLenders: parseInt(uniqueLenders?.count) || 0,
       averageAgreementsPerDebt: avgPerDebt,
@@ -596,8 +630,8 @@ class LoanAgreementService {
         const agreementData = {
           // @ts-ignore
           agreementDate: record.agreementDate
-            // @ts-ignore
-            ? new Date(record.agreementDate)
+            ? // @ts-ignore
+              new Date(record.agreementDate)
             : new Date(),
           // @ts-ignore
           lenderName: record.lenderName || null,

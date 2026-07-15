@@ -1,8 +1,9 @@
 // src/main/ipc/core/penaltytransaction/get/statistics.ipc.js
+//@ts-check
 const penaltyTransactionService = require("../../../../../services/PenaltyTransaction");
 const onlineClient = require("../../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
-const { extractData } = require("../../../../../utils/responseTransformer");
+const { extractData, transformKeysToCamelCase } = require("../../../../../utils/responseTransformer");
 
 module.exports = async () => {
   const mode = await syncMode();
@@ -18,10 +19,12 @@ module.exports = async () => {
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
     const serverResult = await response.json();
+    const stats = transformKeysToCamelCase(serverResult);
+    console.log("Retrieved statistics from server:", stats);
     return {
       status: true,
-      message: "Statistics retrieved from server",
-      data: extractData(serverResult),
+      message: stats.message || "Statistics retrieved from server",
+      data: stats.data,
     };
   } else {
     const stats = await penaltyTransactionService.getStatistics();

@@ -42,6 +42,8 @@ export interface LoanAgreement {
 
 export interface LoanAgreementStatistics {
   totalAgreements: number;
+  draftCount: number;
+  signedCount: number;
   withFiles: number;
   uniqueLenders: number;
   averageAgreementsPerDebt: number;

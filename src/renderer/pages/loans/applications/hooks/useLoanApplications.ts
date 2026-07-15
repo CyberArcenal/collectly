@@ -1,6 +1,6 @@
 // src/renderer/pages/loans/applications/hooks/useLoanApplications.ts
 import { useState, useEffect, useCallback } from "react";
-import type { LoanApplication } from "../../../../api/core/loan_application";
+import type { LoanApplication, LoanApplicationStatistics } from "../../../../api/core/loan_application";
 import loanApplicationsAPI from "../../../../api/core/loan_application";
 
 interface UseLoanApplicationsReturn {
@@ -17,13 +17,7 @@ interface UseLoanApplicationsReturn {
   approve: (id: number) => Promise<void>;
   reject: (id: number, reason?: string) => Promise<void>;
   remove: (id: number) => Promise<void>;
-  stats: {
-    totalApplications: number;
-    pending: number;
-    approved: number;
-    rejected: number;
-    totalRequestedAmount: number;
-  } | null;
+  stats: LoanApplicationStatistics | null;
   fetchStats: () => Promise<void>;
 }
 
@@ -39,6 +33,7 @@ const useLoanApplications = (initialPageSize = 9): UseLoanApplicationsReturn => 
   const fetchStats = useCallback(async () => {
     try {
       const response = await loanApplicationsAPI.getStatistics();
+      console.log("Application stats: ", response)
       if (response.status) {
         setStats(response.data);
       }
@@ -88,7 +83,7 @@ const useLoanApplications = (initialPageSize = 9): UseLoanApplicationsReturn => 
         await loadApplications();
         await fetchStats();
       } else {
-        throw new Error(response.message);
+        throw new Error("Ops! Something went wrong while approving the application.");
       }
     } catch (err: any) {
       console.error("Approve failed:", err);

@@ -24,6 +24,10 @@ interface Stats {
   avgPerDay: number;
   mostActiveDay: { day: string; count: number } | null;
   uniqueUsers: number;
+  totalToday: number;        // Added for summary cards
+  byAction: Array<{ action: string; count: number }>;
+  byEntity: Array<{ entity: string; count: number }>;
+  byUser: Array<{ user: string; count: number }>;
 }
 
 export const getActionColor = (action: string): string => {
@@ -54,6 +58,10 @@ export const useAuditLogs = (initialFilters: AuditFilters) => {
     avgPerDay: 0,
     mostActiveDay: null,
     uniqueUsers: 0,
+    totalToday: 0,
+    byAction: [],
+    byEntity: [],
+    byUser: [],
   });
 
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
@@ -109,17 +117,25 @@ export const useAuditLogs = (initialFilters: AuditFilters) => {
 
   const fetchStats = useCallback(async () => {
     try {
-      const response = await auditAPI.getStats({
-        startDate: filters.startDate,
-        endDate: filters.endDate,
-      });
+      // Use the enhanced stats endpoint with days parameter
+      const response = await auditAPI.getStats({ days: 7 });
       if (response.status) {
-        setStats(response.data);
+        const data = response.data;
+        setStats({
+          total: data.total || 0,
+          avgPerDay: data.avgPerDay || 0,
+          mostActiveDay: data.mostActiveDay || null,
+          uniqueUsers: data.uniqueUsers || 0,
+          totalToday: data.totalToday || 0,
+          byAction: data.byAction || [],
+          byEntity: data.byEntity || [],
+          byUser: data.byUser || [],
+        });
       }
     } catch (err) {
       console.error("Failed to fetch audit stats:", err);
     }
-  }, [filters.startDate, filters.endDate]);
+  }, []);
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
@@ -164,8 +180,7 @@ export const useAuditLogs = (initialFilters: AuditFilters) => {
 
       if (!response.status) throw new Error(response.message || "Failed to fetch audit logs");
 
-      const items = response.data?.data;
-      console.log("Fetched audit logs:", response);
+      const items = response.data?.data || response.data?.items || [];
       setLogs(items);
       computeSummary(items);
       await fetchStats();

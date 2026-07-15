@@ -213,30 +213,61 @@ class PaymentMethodService {
     return saved;
   }
 
+  /**
+   * Delete a payment method (prevents deletion if it's the default or has transactions)
+   * @param {number} id
+   * @param {string} user
+   * @param {import("typeorm").QueryRunner | null} qr
+   */
   async deletePaymentMethod(id, user = "system", qr = null) {
     const { removeDb } = require("../utils/dbUtils/dbActions");
     const PaymentMethod = require("../entities/PaymentMethod");
     const PaymentMethodStat = require("../entities/PaymentMethodStat");
+    const PaymentTransaction = require("../entities/PaymentTransaction");
     const methodRepo = this._getRepo(qr, PaymentMethod);
     const statRepo = this._getRepo(qr, PaymentMethodStat);
+    const transactionRepo = this._getRepo(qr, PaymentTransaction);
 
-    const method = await methodRepo.findOne({ where: { id } });
-    if (!method) {
-      throw new Error(`Payment method with ID ${id} not found`);
-    }
-    if (method.isDefault) {
-      throw new Error("Cannot delete the default payment method");
-    }
+    try {
+      // 1. Find the payment method
+      const method = await methodRepo.findOne({ where: { id } });
+      if (!method) {
+        throw new Error(`Payment method with ID ${id} not found`);
+      }
 
-    // Delete associated stats (cascade is not set on entity)
-    const stats = await statRepo.findOne({ where: { method: { id } } });
-    if (stats) {
-      await removeDb(statRepo, stats);
-    }
+      const methodName = method.name || `Payment Method #${id}`;
 
-    await removeDb(methodRepo, method);
-    await auditLogger.logDelete("PaymentMethod", id, method, user);
-    console.log(`Payment method deleted: ${method.name}`);
+      // 2. 🔒 Cannot delete default payment method
+      if (method.isDefault) {
+        throw new Error(
+          `Cannot delete "${methodName}" because it is the default payment method. Please set another method as default first.`,
+        );
+      }
+
+      // 3. 🔒 Check if method has been used in any transaction
+      const transactionCount = await transactionRepo.count({
+        where: { methodId: id, deletedAt: null },
+      });
+      if (transactionCount > 0) {
+        throw new Error(
+          `Cannot delete "${methodName}" because it has been used in ${transactionCount} transaction(s).`,
+        );
+      }
+
+      // 4. Delete associated stats
+      const stats = await statRepo.findOne({ where: { method: { id } } });
+      if (stats) {
+        await removeDb(statRepo, stats);
+      }
+
+      // 5. Proceed with delete
+      await removeDb(methodRepo, method);
+      await auditLogger.logDelete("PaymentMethod", id, method, user);
+      console.log(`Payment method deleted: "${methodName}" (ID: ${id})`);
+    } catch (error) {
+      console.error("Failed to delete payment method:", error.message);
+      throw error;
+    }
   }
 
   // Utility method to increment stats – called from payment creation (not part of CRUD)
@@ -279,6 +310,91 @@ class PaymentMethodService {
         await updateDb(methodRepo, method, { queryRunner: qr });
       }
     }
+  }
+
+  /**
+   * Get overall summary statistics for all payment methods.
+   * @param {Object} filters - optional filters (none currently)
+   * @param {import("typeorm").QueryRunner | null} qr
+   * @returns {Promise<Object>}
+   *   {
+   *     totalMethods: number,
+   *     totalTransactions: number,
+   *     totalAmountCollected: number,
+   *     defaultMethod: { id, name, icon } | null,
+   *     methods: Array<{
+   *       id: number,
+   *       name: string,
+   *       icon: string,
+   *       isDefault: boolean,
+   *       transactionCount: number,
+   *       totalAmount: number,
+   *       averageTransaction: number
+   *     }>
+   *   }
+   */
+  async getAllStats(filters = {}, qr = null) {
+    const PaymentMethod = require("../entities/PaymentMethod");
+    const PaymentMethodStat = require("../entities/PaymentMethodStat");
+    const methodRepo = this._getRepo(qr, PaymentMethod);
+    const statRepo = this._getRepo(qr, PaymentMethodStat);
+
+    // Get all non-deleted methods
+    const methods = await methodRepo
+      .createQueryBuilder("method")
+      .where("method.deletedAt IS NULL")
+      .orderBy("method.isDefault", "DESC")
+      .addOrderBy("method.name", "ASC")
+      .getMany();
+
+    const totalMethods = methods.length;
+
+    // Get default method
+    const defaultMethod = methods.find((m) => m.isDefault) || null;
+
+    // Build stats for each method
+    const methodStats = [];
+    let totalTransactions = 0;
+    let totalAmountCollected = 0;
+
+    for (const method of methods) {
+      // Get stats for this method
+      const stats = await statRepo
+        .createQueryBuilder("stat")
+        .where("stat.methodId = :methodId", { methodId: method.id })
+        .getOne();
+
+      const transactionCount = stats?.transactionCount || 0;
+      const totalAmount = parseFloat(stats?.totalAmount) || 0;
+
+      totalTransactions += transactionCount;
+      totalAmountCollected += totalAmount;
+
+      methodStats.push({
+        id: method.id,
+        name: method.name,
+        icon: method.icon,
+        isDefault: method.isDefault,
+        transactionCount,
+        totalAmount,
+        averageTransaction:
+          transactionCount > 0 ? totalAmount / transactionCount : 0,
+      });
+    }
+
+    return {
+      totalMethods,
+      totalTransactions,
+      totalAmountCollected,
+      defaultMethod: defaultMethod
+        ? {
+            id: defaultMethod.id,
+            name: defaultMethod.name,
+            icon: defaultMethod.icon,
+          }
+        : null,
+      methods: methodStats,
+    };
   }
 }
 

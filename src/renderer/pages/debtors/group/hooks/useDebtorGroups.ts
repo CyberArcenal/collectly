@@ -9,6 +9,19 @@ import type {
   GroupMemberWithDebtor,
 } from "../../../../api/core/group";
 
+// Add type for group statistics
+interface GroupStatistics {
+  totalGroups: number;
+  averageMembers: number;
+  groupsWithZeroMembers: number;
+  groups: Array<{
+    id: number;
+    name: string;
+    memberCount: number;
+    totalDebt: number;
+  }>;
+}
+
 interface UseDebtorGroupsReturn {
   groups: DebtorGroup[];
   loadingGroups: boolean;
@@ -51,6 +64,10 @@ interface UseDebtorGroupsReturn {
   removeDebtor: (debtorId: number) => Promise<void>;
   bulkAssign: (debtorIds: number[]) => Promise<void>;
   refresh: () => void;
+  // New stats
+  stats: GroupStatistics | null;
+  loadingStats: boolean;
+  fetchStats: () => Promise<void>;
 }
 
 const useDebtorGroups = (): UseDebtorGroupsReturn => {
@@ -75,9 +92,30 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
   const [availableDebtors, setAvailableDebtors] = useState<Borrower[]>([]);
   const [loadingDebtors, setLoadingDebtors] = useState(false);
 
+  // New stats state
+  const [stats, setStats] = useState<GroupStatistics | null>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+
   const [createGroupModalOpen, setCreateGroupModalOpen] = useState(false);
   const [editGroupModalOpen, setEditGroupModalOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<DebtorGroup | null>(null);
+
+  // Fetch group statistics
+  const fetchStats = useCallback(async () => {
+    setLoadingStats(true);
+    try {
+      const response = await groupsAPI.getStatistics();
+      if (response.status) {
+        setStats(response.data);
+      } else {
+        console.error("Failed to fetch group stats:", response.message);
+      }
+    } catch (err) {
+      console.error("Failed to fetch group stats:", err);
+    } finally {
+      setLoadingStats(false);
+    }
+  }, []);
 
   // Load all groups
   const loadGroups = useCallback(async () => {
@@ -187,7 +225,8 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
   useEffect(() => {
     loadGroups();
     loadAvailableDebtors();
-  }, [loadGroups, loadAvailableDebtors]);
+    fetchStats(); // Fetch stats on mount
+  }, [loadGroups, loadAvailableDebtors, fetchStats]);
 
   // Reload members when selected group or pagination changes
   useEffect(() => {
@@ -218,6 +257,7 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
       });
       if (response.status) {
         await loadGroups();
+        await fetchStats(); // Refresh stats
         dialogs.success("Group created successfully");
       } else {
         throw new Error(response.message || "Creation failed");
@@ -236,6 +276,7 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
       });
       if (response.status) {
         await loadGroups();
+        await fetchStats(); // Refresh stats
         if (selectedGroup?.id === id) {
           setSelectedGroup(response.data);
         }
@@ -259,6 +300,7 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
       if (response.status) {
         if (selectedGroup?.id === id) setSelectedGroup(null);
         await loadGroups();
+        await fetchStats(); // Refresh stats
         dialogs.success("Group deleted");
       } else {
         throw new Error(response.message || "Deletion failed");
@@ -275,6 +317,7 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
       const response = await groupsAPI.assignDebtor(selectedGroup.id, debtorId);
       if (response.status) {
         await loadGroupMembers(selectedGroup.id, membersCurrentPage, membersPageSize);
+        await fetchStats(); // Refresh stats
         dialogs.success("Debtor assigned");
       } else {
         throw new Error(response.message || "Assignment failed");
@@ -290,6 +333,7 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
       const response = await groupsAPI.removeDebtor(selectedGroup.id, debtorId);
       if (response.status) {
         await loadGroupMembers(selectedGroup.id, membersCurrentPage, membersPageSize);
+        await fetchStats(); // Refresh stats
         dialogs.success("Debtor removed from group");
       } else {
         throw new Error(response.message || "Removal failed");
@@ -305,6 +349,7 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
       const response = await groupsAPI.bulkAssign(selectedGroup.id, debtorIds);
       if (response.status) {
         await loadGroupMembers(selectedGroup.id, membersCurrentPage, membersPageSize);
+        await fetchStats(); // Refresh stats
         dialogs.success(`${debtorIds.length} debtor(s) assigned to group`);
       } else {
         throw new Error(response.message || "Bulk assignment failed");
@@ -317,6 +362,7 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
   const refresh = () => {
     loadGroups();
     loadAvailableDebtors();
+    fetchStats(); // Refresh stats
     if (selectedGroup) {
       loadGroupMembers(selectedGroup.id, membersCurrentPage, membersPageSize);
     }
@@ -357,6 +403,10 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
     removeDebtor,
     bulkAssign,
     refresh,
+    // New exports
+    stats,
+    loadingStats,
+    fetchStats,
   };
 };
 

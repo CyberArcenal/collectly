@@ -20,6 +20,38 @@ export interface CreateInterestRateLogData {
   reason?: string | null;
 }
 
+export interface MostFrequentSetting {
+  settingKey: string;
+  count: number;
+}
+
+export interface UserChangeCount {
+  user: string;
+  count: number;
+}
+
+export interface LoanChangeCount {
+  loanId: number;
+  count: number;
+}
+
+export interface InterestRateChangeLogStatistics {
+  totalChanges: number;
+  mostFrequentSetting: MostFrequentSetting | null;
+  changesByUser: UserChangeCount[];
+  changesByLoan: LoanChangeCount[];
+  averageChangeMagnitude: number;
+  maxChangeMagnitude: number;
+  minChangeMagnitude: number;
+  changesLast30Days: number;
+}
+
+export interface InterestRateChangeLogStatisticsResponse {
+  status: boolean;
+  message: string;
+  data: InterestRateChangeLogStatistics;
+}
+
 class InterestRateChangeLogAPI {
   async getAll(
     filters?: {
@@ -30,7 +62,7 @@ class InterestRateChangeLogAPI {
       toDate?: string;
     },
     page = 1,
-    limit = 50
+    limit = 50,
   ): Promise<PaginatedResult<InterestRateChangeLog>> {
     const response = await window.backendAPI.interestRateChangeLog({
       method: "getAllLogs",
@@ -52,7 +84,7 @@ class InterestRateChangeLogAPI {
   async getForLoan(
     loanId: number,
     page = 1,
-    limit = 50
+    limit = 50,
   ): Promise<PaginatedResult<InterestRateChangeLog>> {
     const response = await window.backendAPI.interestRateChangeLog({
       method: "getLogsForLoan",
@@ -62,7 +94,9 @@ class InterestRateChangeLogAPI {
     return response.data;
   }
 
-  async create(data: CreateInterestRateLogData): Promise<InterestRateChangeLog> {
+  async create(
+    data: CreateInterestRateLogData,
+  ): Promise<InterestRateChangeLog> {
     const response = await window.backendAPI.interestRateChangeLog({
       method: "createLog",
       params: data,
@@ -78,6 +112,27 @@ class InterestRateChangeLogAPI {
     });
     if (!response.status) throw new Error(response.message);
     return true;
+  }
+
+  /**
+   * Get statistics for interest rate change logs.
+   * @param params - optional date range filters
+   */
+  async getStatistics(params?: {
+    startDate?: string;
+    endDate?: string;
+  }): Promise<InterestRateChangeLogStatisticsResponse> {
+    if (!window.backendAPI?.interestRateChangeLog) {
+      throw new Error("Electron API (interestRateChangeLog) not available");
+    }
+    const response = await window.backendAPI.interestRateChangeLog({
+      method: "getStatistics",
+      params: params || {},
+    });
+    if (response.status) return response;
+    throw new Error(
+      response.message || "Failed to fetch interest rate change statistics",
+    );
   }
 
   async isAvailable(): Promise<boolean> {

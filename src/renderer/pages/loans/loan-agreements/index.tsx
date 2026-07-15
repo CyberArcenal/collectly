@@ -182,7 +182,7 @@ const LoanAgreementsPage: React.FC = () => {
       await loanAgreementsAPI.delete(
         agreement.id,
         "system",
-        agreement.status === "signed"
+        false
       );
       dialogs.success("Agreement deleted");
       reload();
@@ -359,8 +359,8 @@ const LoanAgreementsPage: React.FC = () => {
       {showStats && stats && (
         <LoanAgreementSummaryCards
           total={stats.totalAgreements || 0}
-          draft={stats.totalAgreements - (stats.signed || 0) || 0}
-          signed={stats.signed || 0}
+          draft={stats.draftCount || 0}
+          signed={stats.signedCount || 0}
           withFiles={stats.withFiles || 0}
         />
       )}

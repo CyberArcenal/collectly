@@ -1,8 +1,9 @@
 // src/main/ipc/core/reminder/get/stats.ipc.js
+//@ts-check
 const { reminderLogService } = require("../../../../../services/ReminderLog");
 const onlineClient = require("../../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
-const { extractData } = require("../../../../../utils/responseTransformer");
+const { extractData, transformKeysToCamelCase } = require("../../../../../utils/responseTransformer");
 
 module.exports = async (params) => {
   const { startDate, endDate } = params;
@@ -24,10 +25,12 @@ module.exports = async (params) => {
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
     const serverResult = await response.json();
+    const stats = transformKeysToCamelCase(serverResult);
+    console.log("Retrieved statistics from server:", stats);
     return {
       status: true,
-      message: "Stats retrieved from server",
-      data: extractData(serverResult),
+      message: stats.message || "Statistics retrieved from server",
+      data: stats.data,
     };
   } else {
     const stats = await reminderLogService.getReminderStats({ startDate, endDate });
