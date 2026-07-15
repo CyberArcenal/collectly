@@ -44,6 +44,38 @@ export interface SyncSummary {
   lastSync: string | null;
 }
 
+// src/renderer/api/utils/sync.ts
+
+// Add these interfaces at the top of the file (after existing imports)
+
+export interface Conflict {
+  id: number;
+  entity: string;
+  entityId: number;
+  localData: any;
+  serverData: any;
+  resolution: string;
+  localUpdatedAt: string;
+  serverUpdatedAt: string;
+  notes: string | null;
+  createdAt: string;
+}
+
+export interface QueueItem {
+  id: number;
+  entity: string;
+  entityId: number;
+  action: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  retryCount: number;
+  maxRetries: number;
+  errorMessage: string | null;
+  processedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  data: any;
+}
+
 class SyncAPI {
   /**
    * Register progress listener

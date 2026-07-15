@@ -42,6 +42,7 @@ const {
 const PenaltyApplicationScheduler = require("../scheduler/penaltyApplicationScheduler.js");
 const ZeroBalanceFixerScheduler = require("../scheduler/zeroBalanceFixerScheduler.js");
 const { syncMode } = require("../utils/system.js");
+const syncService = require("../services/SyncService.js");
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -974,6 +975,15 @@ async function runSchedulers() {
   });
 }
 
+async function initializeServices() {
+  try {
+    // await syncService.initialize();
+    console.log("✅ Sync metadata initialized");
+  } catch (err) {
+    console.error("❌ Failed to initialize sync metadata:", err);
+  }
+}
+
 // ===================== MAIN APPLICATION FLOW =====================
 /**
  * Main startup sequence
@@ -1030,6 +1040,7 @@ async function startupSequence() {
     // 4. Register IPC handlers
     registerIpcHandlers();
     registerFileStorage();
+    initializeServices();
     const mode = await syncMode();
     if (mode === "offline") {
       runSchedulers();
