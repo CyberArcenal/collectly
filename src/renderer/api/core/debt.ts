@@ -245,6 +245,29 @@ class DebtsAPI {
   }
 
   /**
+   * Get true overdue debts (status='overdue', remainingAmount > 0, dueDate < today)
+   * @param params - Pagination and filter parameters
+   */
+  async getOverdueDebts(params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    sortBy?: string;
+    sortOrder?: "ASC" | "DESC";
+    minDaysOverdue?: number;
+  }): Promise<DebtsResponse> {
+    if (!window.backendAPI?.debt) {
+      throw new Error("Electron API (debt) not available");
+    }
+    const response = await window.backendAPI.debt({
+      method: "getOverdueDebts",
+      params: params || {},
+    });
+    if (response.status) return response;
+    throw new Error(response.message || "Failed to fetch overdue debts");
+  }
+
+  /**
    * Get debt statistics
    */
   async getStatistics(): Promise<DebtStatisticsResponse> {
@@ -587,13 +610,6 @@ class DebtsAPI {
     });
     if (response.status) return response;
     throw new Error(response.message || "Failed to fetch debts in bucket");
-  }
-
-  /**
-   * Get overdue debts (status = 'overdue')
-   */
-  async getOverdueDebts(page?: number, limit?: number): Promise<DebtsResponse> {
-    return this.getAll({ status: "overdue", page, limit });
   }
 
   /**

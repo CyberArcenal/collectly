@@ -274,6 +274,7 @@ class BorrowerService {
     return borrower;
   }
 
+
   /**
    * Find all borrowers with filters, pagination, sorting
    * @param {Object} options
@@ -305,11 +306,38 @@ class BorrowerService {
     }
 
     // Sorting
-    const sortBy = options.sortBy || "createdAt";
+    let sortBy = options.sortBy || "createdAt";
     const sortOrder = options.sortOrder === "ASC" ? "ASC" : "DESC";
-    qb.orderBy(`borrower.${sortBy}`, sortOrder);
 
-    // 👇 Use the utility
+    // ✅ Handle computed field: total_debt
+    if (sortBy === "total_debt") {
+      // Add subquery to compute total remaining debt for each borrower
+      qb.addSelect((subQ) => {
+        return subQ
+          .select("COALESCE(SUM(debt.remainingAmount), 0)")
+          .from("debts", "debt")
+          .where("debt.borrowerId = borrower.id")
+          .andWhere("debt.deletedAt IS NULL");
+      }, "totalDebt");
+
+      // Order by the computed field
+      qb.orderBy("totalDebt", sortOrder);
+    } else {
+      // For other fields, use direct column (whitelist)
+      const allowedColumns = [
+        "id", "name", "contact", "email", "address",
+        "notes", "createdAt", "updatedAt", "deletedAt"
+      ];
+      if (allowedColumns.includes(sortBy)) {
+        qb.orderBy(`borrower.${sortBy}`, sortOrder);
+      } else {
+        // Fallback to name
+        console.warn(`[BorrowerService] Invalid sort field: ${sortBy}, falling back to name`);
+        qb.orderBy("borrower.name", "ASC");
+      }
+    }
+
+    // Pagination
     const result = await paginateQueryBuilder(qb, {
       page: options.page,
       limit: options.limit,
@@ -348,6 +376,11 @@ class BorrowerService {
       .andWhere('borrower.contact != ""')
       .getCount();
 
+    const totalDeleted = await qb
+      .clone()
+      .where("borrower.deletedAt IS NOT NULL")
+      .getCount();
+
     // Recently added (last 30 days)
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const recentlyAdded = await qb
@@ -365,7 +398,7 @@ class BorrowerService {
       with_email: totalWithEmail,
       with_contact: totalWithContact,
       active: total,
-      deleted: 0,
+      deleted: totalDeleted,
     };
   }
 

@@ -231,47 +231,47 @@ class GroupService {
     return saved;
   }
 
- /**
- * Delete a group (cascade removes all members)
- * @param {number} id
- * @param {string} user
- * @param {import("typeorm").QueryRunner | null} qr
- */
-async deleteGroup(id, user = "system", qr = null) {
-  const { removeDb } = require("../utils/dbUtils/dbActions");
-  const DebtorGroup = require("../entities/DebtorGroup");
-  const DebtorGroupMember = require("../entities/DebtorGroupMember");
-  const groupRepo = this._getRepo(qr, DebtorGroup);
-  const memberRepo = this._getRepo(qr, DebtorGroupMember);
+  /**
+   * Delete a group (cascade removes all members)
+   * @param {number} id
+   * @param {string} user
+   * @param {import("typeorm").QueryRunner | null} qr
+   */
+  async deleteGroup(id, user = "system", qr = null) {
+    const { removeDb } = require("../utils/dbUtils/dbActions");
+    const DebtorGroup = require("../entities/DebtorGroup");
+    const DebtorGroupMember = require("../entities/DebtorGroupMember");
+    const groupRepo = this._getRepo(qr, DebtorGroup);
+    const memberRepo = this._getRepo(qr, DebtorGroupMember);
 
-  try {
-    // 1. Find the group first
-    const group = await groupRepo.findOne({ where: { id } });
-    if (!group) {
-      throw new Error(`Group with ID ${id} not found`);
+    try {
+      // 1. Find the group first
+      const group = await groupRepo.findOne({ where: { id } });
+      if (!group) {
+        throw new Error(`Group with ID ${id} not found`);
+      }
+
+      const groupName = group.name || `Group #${id}`;
+
+      // 2. 🔒 Check if group has members
+      const memberCount = await memberRepo.count({
+        where: { groupId: id, deletedAt: null },
+      });
+      if (memberCount > 0) {
+        throw new Error(
+          `Cannot delete group "${groupName}" because it has ${memberCount} member(s). Please remove all members first.`,
+        );
+      }
+
+      // 3. Proceed with delete
+      await removeDb(groupRepo, group);
+      await auditLogger.logDelete("DebtorGroup", id, group, user);
+      console.log(`Group deleted: "${groupName}" (ID: ${id})`);
+    } catch (error) {
+      console.error("Failed to delete group:", error.message);
+      throw error;
     }
-
-    const groupName = group.name || `Group #${id}`;
-
-    // 2. 🔒 Check if group has members
-    const memberCount = await memberRepo.count({
-      where: { groupId: id, deletedAt: null },
-    });
-    if (memberCount > 0) {
-      throw new Error(
-        `Cannot delete group "${groupName}" because it has ${memberCount} member(s). Please remove all members first.`
-      );
-    }
-
-    // 3. Proceed with delete
-    await removeDb(groupRepo, group);
-    await auditLogger.logDelete("DebtorGroup", id, group, user);
-    console.log(`Group deleted: "${groupName}" (ID: ${id})`);
-  } catch (error) {
-    console.error("Failed to delete group:", error.message);
-    throw error;
   }
-}
 
   /**
    * Assign a single debtor to a group
@@ -406,12 +406,6 @@ async deleteGroup(id, user = "system", qr = null) {
    * @param {Object} filters - optional filters (none currently)
    * @param {import("typeorm").QueryRunner | null} qr
    * @returns {Promise<Object>}
-   *   {
-   *     totalGroups: number,
-   *     averageMembers: number,
-   *     groupsWithZeroMembers: number,
-   *     groups: Array<{ id, name, memberCount, totalDebt? }> // optional details
-   *   }
    */
   async getStatistics(filters = {}, qr = null) {
     const DebtorGroup = require("../entities/DebtorGroup");
@@ -421,11 +415,8 @@ async deleteGroup(id, user = "system", qr = null) {
     const memberRepo = this._getRepo(qr, DebtorGroupMember);
     const debtRepo = this._getRepo(qr, Debt);
 
-    // Get all non-deleted groups
-    const groups = await groupRepo
-      .createQueryBuilder("group")
-      .where("group.deletedAt IS NULL")
-      .getMany();
+    // ✅ Get all groups
+    const groups = await groupRepo.createQueryBuilder("g").getMany();
 
     const totalGroups = groups.length;
     if (totalGroups === 0) {
@@ -437,37 +428,30 @@ async deleteGroup(id, user = "system", qr = null) {
       };
     }
 
-    // For each group, count active members (non-deleted)
-    // Also compute total debt for members if desired
     const groupStats = [];
     let totalMembers = 0;
     let zeroMemberCount = 0;
 
     for (const group of groups) {
-      // Count active members
+      // ✅ Count members for this group
       const memberCount = await memberRepo
         .createQueryBuilder("member")
         .where("member.groupId = :groupId", { groupId: group.id })
-        .andWhere("member.deletedAt IS NULL")
         .getCount();
 
       totalMembers += memberCount;
       if (memberCount === 0) zeroMemberCount++;
 
-      // (Optional) Get total debt of members
-      // This requires joining through members → debtor → debts
-      // We can compute with a subquery or raw SQL; for simplicity, we'll skip or compute via relation
-      // Since we have `debt.totalAmount` and `debt.remainingAmount`, we can sum remaining amounts.
-      // We'll compute total outstanding debt (remainingAmount) for all debts of members in this group.
+      // ✅ Compute total debt of members using a subquery
+      // This avoids joining with a non-existent relation
       const totalDebtResult = await debtRepo
         .createQueryBuilder("debt")
-        .leftJoin("debt.borrower", "borrower")
-        .leftJoin("borrower.groupMemberships", "membership")
-        .where("membership.groupId = :groupId", { groupId: group.id })
-        .andWhere("membership.deletedAt IS NULL")
-        .andWhere("debt.deletedAt IS NULL")
-        .andWhere("borrower.deletedAt IS NULL")
         .select("SUM(debt.remainingAmount)", "total")
+        .where(
+          "debt.borrowerId IN (SELECT debtorId FROM debtor_group_members WHERE groupId = :groupId)",
+          { groupId: group.id },
+        )
+        .andWhere("debt.deletedAt IS NULL") // exclude soft-deleted debts
         .getRawOne();
 
       const totalDebt = parseFloat(totalDebtResult?.total) || 0;
@@ -484,9 +468,9 @@ async deleteGroup(id, user = "system", qr = null) {
 
     return {
       totalGroups,
-      averageMembers: Math.round(averageMembers * 100) / 100, // round to 2 decimals
+      averageMembers: Math.round(averageMembers * 100) / 100,
       groupsWithZeroMembers: zeroMemberCount,
-      groups: groupStats, // optional details
+      groups: groupStats,
     };
   }
 }

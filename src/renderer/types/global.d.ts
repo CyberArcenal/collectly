@@ -39,6 +39,7 @@ declare global {
       paymentMethod: (payload: any) => Promise<any>;
       printer: (payload: any) => Promise<any>;
       creditCheck: (payload: any) => Promise<any>;
+      sync: (payload: any) => Promise<any>;
 
       // ========== PRINTER CONVENIENCE METHODS ==========
       printerGetStatus: () => Promise<{

@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld("backendAPI", {
   creditCheck: (payload) => ipcRenderer.invoke("creditCheck", payload),
   interestRateChangeLog: (payload) =>
     ipcRenderer.invoke("interestRateChangeLog", payload),
+  sync: (payload) => ipcRenderer.invoke("sync", payload),
 
   // ========== PRINTER MODULE (generic + specific methods) ==========
   // Generic handler for printer configuration (CRUD, test, etc.)
