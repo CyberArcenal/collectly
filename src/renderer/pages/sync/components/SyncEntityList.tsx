@@ -1,7 +1,19 @@
 // src/renderer/pages/sync/components/SyncEntityList.tsx
 import React, { useState } from "react";
-import { RefreshCw, ChevronDown, ChevronRight, Database } from "lucide-react";
-import type { SyncStatus } from "../../../api/utils/sync";
+import {
+  RefreshCw,
+  ChevronDown,
+  ChevronRight,
+  Database,
+  Users,
+  FileText,
+  CreditCard,
+  Receipt,
+  FileSignature,
+  FileCheck,
+  DollarSign,
+  AlertCircle,
+} from "lucide-react";
 import LoadingSpinner from "../../../components/Shared/LoadingSpinner";
 
 interface EntityStatusItem {
@@ -32,6 +44,19 @@ const getStatusBadge = (status: string): { label: string; color: string } => {
   }
 };
 
+const getEntityIcon = (name: string) => {
+  const icons: Record<string, React.ReactNode> = {
+    Borrower: <Users className="w-3.5 h-3.5" />,
+    Debt: <FileText className="w-3.5 h-3.5" />,
+    PaymentTransaction: <CreditCard className="w-3.5 h-3.5" />,
+    PenaltyTransaction: <Receipt className="w-3.5 h-3.5" />,
+    LoanAgreement: <FileSignature className="w-3.5 h-3.5" />,
+    LoanApplication: <FileCheck className="w-3.5 h-3.5" />,
+    PaymentMethod: <DollarSign className="w-3.5 h-3.5" />,
+  };
+  return icons[name] || <Database className="w-3.5 h-3.5" />;
+};
+
 const formatDate = (date: string | null): string => {
   if (!date) return "Never";
   try {
@@ -41,7 +66,11 @@ const formatDate = (date: string | null): string => {
   }
 };
 
-const SyncEntityList: React.FC<SyncEntityListProps> = ({ entities, loading, onSyncEntity }) => {
+const SyncEntityList: React.FC<SyncEntityListProps> = ({
+  entities,
+  loading,
+  onSyncEntity,
+}) => {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const toggleExpand = (name: string) => {
@@ -72,14 +101,17 @@ const SyncEntityList: React.FC<SyncEntityListProps> = ({ entities, loading, onSy
         const isExpanded = expanded[entity.name] || false;
 
         return (
-          <div key={entity.name} className="border-b border-[var(--border-color)] last:border-0">
+          <div
+            key={entity.name}
+            className="border-b border-[var(--border-color)] last:border-0"
+          >
             <div
               className="flex items-center justify-between py-2.5 px-3 hover:bg-[var(--card-hover-bg)] transition-colors cursor-pointer"
               onClick={() => toggleExpand(entity.name)}
             >
               <div className="flex items-center gap-3">
-                <div className="w-7 h-7 rounded-full bg-[var(--primary-color)]/20 flex items-center justify-center text-[var(--primary-color)] text-xs font-medium">
-                  {entity.name.charAt(0)}
+                <div className="w-7 h-7 rounded-full bg-[var(--primary-color)]/10 flex items-center justify-center text-[var(--primary-color)]">
+                  {getEntityIcon(entity.name)}
                 </div>
                 <div>
                   <div className="text-sm font-medium text-[var(--text-primary)]">
@@ -91,7 +123,11 @@ const SyncEntityList: React.FC<SyncEntityListProps> = ({ entities, loading, onSy
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <span className={`text-xs font-medium ${entity.hasPending ? "text-yellow-500" : status.color}`}>
+                <span
+                  className={`text-xs font-medium ${
+                    entity.hasPending ? "text-yellow-500" : status.color
+                  }`}
+                >
                   {entity.hasPending ? (
                     <span className="flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse" />
@@ -123,7 +159,11 @@ const SyncEntityList: React.FC<SyncEntityListProps> = ({ entities, loading, onSy
                   }}
                   className="p-1 rounded hover:bg-[var(--card-hover-bg)] transition-colors text-[var(--text-tertiary)]"
                 >
-                  {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                  {isExpanded ? (
+                    <ChevronDown className="w-4 h-4" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4" />
+                  )}
                 </button>
               </div>
             </div>
@@ -132,19 +172,27 @@ const SyncEntityList: React.FC<SyncEntityListProps> = ({ entities, loading, onSy
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <div>
                     <span className="text-[var(--text-tertiary)]">Status</span>
-                    <p className="font-medium text-[var(--text-primary)]">{status.label}</p>
+                    <p className="font-medium text-[var(--text-primary)]">
+                      {status.label}
+                    </p>
                   </div>
                   <div>
                     <span className="text-[var(--text-tertiary)]">Last Synced</span>
-                    <p className="font-medium text-[var(--text-primary)]">{formatDate(entity.lastSyncedAt)}</p>
+                    <p className="font-medium text-[var(--text-primary)]">
+                      {formatDate(entity.lastSyncedAt)}
+                    </p>
                   </div>
                   <div>
                     <span className="text-[var(--text-tertiary)]">Total Synced</span>
-                    <p className="font-medium text-[var(--text-primary)]">{entity.totalSynced.toLocaleString()}</p>
+                    <p className="font-medium text-[var(--text-primary)]">
+                      {entity.totalSynced.toLocaleString()}
+                    </p>
                   </div>
                   <div>
                     <span className="text-[var(--text-tertiary)]">Last Count</span>
-                    <p className="font-medium text-[var(--text-primary)]">{entity.lastSyncCount}</p>
+                    <p className="font-medium text-[var(--text-primary)]">
+                      {entity.lastSyncCount}
+                    </p>
                   </div>
                 </div>
               </div>

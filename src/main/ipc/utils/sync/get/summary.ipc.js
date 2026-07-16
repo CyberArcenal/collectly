@@ -1,10 +1,9 @@
 // src/main/ipc/utils/sync/get/summary.ipc.js
 const syncService = require("../../../../../services/SyncService");
 const onlineClient = require("../../../../../utils/onlineClient");
-const {
-  transformKeysToCamelCase,
-} = require("../../../../../utils/responseTransformer");
+const { transformSingle } = require("../../../../../utils/responseTransformer");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
+
 module.exports = async (params) => {
   const mode = await syncMode();
 
@@ -20,13 +19,14 @@ module.exports = async (params) => {
     }
 
     const serverResult = await response.json();
-    const data = transformKeysToCamelCase(serverResult);
-
-    return {
-      status: true,
-      message: "Sync summary retrieved from server",
-      data: data.summary || data,
-    };
+    // ✅ transformSingle extracts the entire data object, which contains { summary, queue, conflicts, ... }
+    // The frontend expects the summary object directly.
+    const transformed = transformSingle(serverResult);
+    // If the server returns data.summary, extract it:
+    if (transformed.data && transformed.data.summary) {
+      transformed.data = transformed.data.summary;
+    }
+    return transformed;
   }
 
   // Offline mode

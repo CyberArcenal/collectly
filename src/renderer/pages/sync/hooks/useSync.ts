@@ -1,11 +1,13 @@
 // src/renderer/pages/sync/hooks/useSync.ts
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useSyncContext } from "../../../contexts/SyncContext";
 import syncAPI, {
   type SyncStatus,
   type SyncSummary,
   type SyncProgress,
   type Conflict,
   type QueueItem,
+  type TaskProgress,
 } from "../../../api/utils/sync";
 import { showSuccess, showError } from "../../../utils/notification";
 
@@ -18,162 +20,49 @@ interface UseSyncReturn {
   error: string | null;
   syncing: boolean;
   progress: SyncProgress | null;
+  activeTasks: TaskProgress[];
+  isOnline: boolean;
   fetchData: () => Promise<void>;
   fullSync: (user?: string) => Promise<void>;
   incrementalSync: (user?: string, limit?: number) => Promise<void>;
-  syncEntity: (entityName: string, user?: string) => Promise<void>;
+  syncEntity: (entityName: string, records?: any[], user?: string) => Promise<string>;
+  syncEntityByName: (entityName: string, user?: string) => Promise<void>;
+  getTaskStatus: (taskId: string) => Promise<TaskProgress>;
+  pollTask: (taskId: string, onProgress?: (progress: TaskProgress) => void) => Promise<TaskProgress>;
   resolveConflict: (conflictId: number, resolution: string, user?: string) => Promise<void>;
   autoResolveConflicts: (entity?: string, entityId?: number) => Promise<void>;
   cleanup: (days?: number) => Promise<void>;
   resetSync: (entity?: string, user?: string) => Promise<void>;
+  checkAvailability: () => Promise<{ available: boolean; message?: string }>;
 }
 
 const useSync = (): UseSyncReturn => {
-  const [status, setStatus] = useState<SyncStatus | null>(null);
-  const [summary, setSummary] = useState<SyncSummary | null>(null);
-  const [conflicts, setConflicts] = useState<Conflict[]>([]);
-  const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [syncing, setSyncing] = useState(false);
-  const [progress, setProgress] = useState<SyncProgress | null>(null);
+  const context = useSyncContext();
 
-  const progressUnsubscribe = useRef<(() => void) | null>(null);
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [statusRes, summaryRes, conflictsRes, queueRes] = await Promise.all([
-        syncAPI.getStatus(),
-        syncAPI.getSummary(),
-        syncAPI.getConflicts(),
-        syncAPI.getQueueStatus(),
-      ]);
-      setStatus(statusRes);
-      setSummary(summaryRes);
-      setConflicts(conflictsRes.conflicts || []);
-      setQueueItems(queueRes.items || []);
-    } catch (err: any) {
-      setError(err.message || "Failed to load sync data");
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Progress listener
-  useEffect(() => {
-    progressUnsubscribe.current = syncAPI.onProgress((progressData) => {
-      setProgress(progressData);
-      if (progressData.status === "completed" || progressData.status === "failed") {
-        setSyncing(false);
-        fetchData();
-        if (progressData.status === "completed") {
-          showSuccess("Sync completed successfully!");
-        } else {
-          showError("Sync completed with errors. Check the logs.");
-        }
-      }
-    });
-
-    return () => {
-      if (progressUnsubscribe.current) {
-        progressUnsubscribe.current();
-      }
-    };
-  }, [fetchData]);
-
-  // Initial load
-  useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 30000); // Auto-refresh
-    return () => clearInterval(interval);
-  }, [fetchData]);
-
-  const fullSync = async (user: string = "system") => {
-    setSyncing(true);
-    try {
-      await syncAPI.fullSync(user);
-      // Progress will update via listener
-    } catch (err: any) {
-      setSyncing(false);
-      showError(err.message);
-    }
-  };
-
-  const incrementalSync = async (user: string = "system", limit: number = 50) => {
-    setSyncing(true);
-    try {
-      await syncAPI.incrementalSync(user, limit);
-    } catch (err: any) {
-      setSyncing(false);
-      showError(err.message);
-    }
-  };
-
-  const syncEntity = async (entityName: string, user: string = "system") => {
-    try {
-      await syncAPI.syncEntity(entityName, false, user);
-      await fetchData();
-    } catch (err: any) {
-      showError(err.message);
-    }
-  };
-
-  const resolveConflict = async (conflictId: number, resolution: string, user: string = "system") => {
-    try {
-      await syncAPI.resolveConflict(conflictId, resolution as any, user);
-      await fetchData();
-    } catch (err: any) {
-      showError(err.message);
-    }
-  };
-
-  const autoResolveConflicts = async (entity?: string, entityId?: number) => {
-    try {
-      await syncAPI.autoResolveConflicts(entity, entityId);
-      await fetchData();
-    } catch (err: any) {
-      showError(err.message);
-    }
-  };
-
-  const cleanup = async (days: number = 30) => {
-    try {
-      await syncAPI.cleanup(days);
-      await fetchData();
-    } catch (err: any) {
-      showError(err.message);
-    }
-  };
-
-  const resetSync = async (entity?: string, user: string = "system") => {
-    try {
-      await syncAPI.resetSync(entity, user);
-      await fetchData();
-    } catch (err: any) {
-      showError(err.message);
-    }
-  };
-
+  // For backward compatibility, also expose these from context
   return {
-    status,
-    summary,
-    conflicts,
-    queueItems,
-    loading,
-    error,
-    syncing,
-    progress,
-    fetchData,
-    fullSync,
-    incrementalSync,
-    syncEntity,
-    resolveConflict,
-    autoResolveConflicts,
-    cleanup,
-    resetSync,
+    status: context.status,
+    summary: context.summary,
+    conflicts: context.conflicts,
+    queueItems: context.queueItems,
+    loading: context.loading,
+    error: context.error,
+    syncing: context.syncing,
+    progress: context.progress,
+    activeTasks: context.activeTasks || [],
+    isOnline: context.isOnline,
+    fetchData: context.fetchData,
+    fullSync: context.fullSync,
+    incrementalSync: context.incrementalSync,
+    syncEntity: context.syncEntity,
+    syncEntityByName: context.syncEntityByName,
+    getTaskStatus: context.getTaskStatus,
+    pollTask: context.pollTask,
+    resolveConflict: context.resolveConflict,
+    autoResolveConflicts: context.autoResolveConflicts,
+    cleanup: context.cleanup,
+    resetSync: context.resetSync,
+    checkAvailability: context.checkAvailability,
   };
 };
 

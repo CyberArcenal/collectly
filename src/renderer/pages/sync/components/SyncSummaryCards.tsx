@@ -9,32 +9,44 @@ interface SyncSummaryCardsProps {
 }
 
 const SyncSummaryCards: React.FC<SyncSummaryCardsProps> = ({ summary, isSyncing }) => {
+  // ✅ Adaptive helper – supports both camelCase and snake_case
+  const get = (camelKey: string, snakeKey: string, fallback: any = 0) => {
+    return (summary as any)?.[camelKey] ?? (summary as any)?.[snakeKey] ?? fallback;
+  };
+
+  const totalEntities = get("totalEntities", "total_entities");
+  const completed = get("completed", "completed"); // same key
+  const queuePending = get("queuePending", "queue_pending");
+  const failed = get("failed", "failed");
+  const totalSynced = get("totalSynced", "total_synced");
+  const conflictPending = get("conflictPending", "conflict_pending");
+
   const cards = [
     {
       label: "Entities",
-      value: summary?.totalEntities || 0,
-      sub: `${summary?.completed || 0} synced`,
+      value: totalEntities,
+      sub: `${completed} synced`,
       icon: Database,
       color: "bg-blue-500/10 text-blue-500",
     },
     {
       label: "Pending Sync",
-      value: summary?.queuePending || 0,
-      sub: `${summary?.failed || 0} failed`,
+      value: queuePending,
+      sub: `${failed} failed`,
       icon: Clock,
       color: "bg-yellow-500/10 text-yellow-500",
     },
     {
       label: "Total Synced",
-      value: summary?.totalSynced?.toLocaleString() || 0,
+      value: totalSynced.toLocaleString(),
       sub: "records",
       icon: HardDrive,
       color: "bg-green-500/10 text-green-500",
     },
     {
       label: "Conflicts",
-      value: summary?.conflictPending || 0,
-      sub: `${summary?.conflictPending || 0} pending`,
+      value: conflictPending,
+      sub: `${conflictPending} pending`,
       icon: AlertTriangle,
       color: "bg-red-500/10 text-red-500",
     },

@@ -1,9 +1,8 @@
 // src/main/ipc/utils/sync/get/queue_status.ipc.js
 const syncQueueService = require("../../../../../services/SyncQueueService");
 const onlineClient = require("../../../../../utils/onlineClient");
-const { transformKeysToCamelCase } = require("../../../../../utils/responseTransformer");
+const { transformSingle } = require("../../../../../utils/responseTransformer");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
-
 
 module.exports = async (params) => {
   const mode = await syncMode();
@@ -20,13 +19,7 @@ module.exports = async (params) => {
     }
 
     const serverResult = await response.json();
-    const data = transformKeysToCamelCase(serverResult);
-
-    return {
-      status: true,
-      message: "Queue status retrieved from server",
-      data,
-    };
+    return transformSingle(serverResult);
   }
 
   // Offline mode

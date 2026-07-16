@@ -1,10 +1,11 @@
 // src/main/ipc/utils/sync/get/conflicts.ipc.js
 const syncConflictService = require("../../../../../services/SyncConflictService");
 const onlineClient = require("../../../../../utils/onlineClient");
-const { transformKeysToCamelCase } = require("../../../../../utils/responseTransformer");
+const { transformSingle } = require("../../../../../utils/responseTransformer");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
+
 module.exports = async (params) => {
-  const { entity, entityId, limit = 50} = params;
+  const { entity, entityId, limit = 50 } = params;
   const mode = await syncMode();
 
   if (mode === "online") {
@@ -24,13 +25,7 @@ module.exports = async (params) => {
     }
 
     const serverResult = await response.json();
-    const data = transformKeysToCamelCase(serverResult);
-
-    return {
-      status: true,
-      message: "Conflicts retrieved from server",
-      data,
-    };
+    return transformSingle(serverResult);
   }
 
   // Offline mode

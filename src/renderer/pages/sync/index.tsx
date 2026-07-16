@@ -1,6 +1,20 @@
 // src/renderer/pages/sync/index.tsx
 import React, { useState } from "react";
-import { Cloud, Wifi, WifiOff, Loader2, RefreshCw, ChevronDown, ChevronRight } from "lucide-react";
+import {
+  Cloud,
+  Wifi,
+  WifiOff,
+  Loader2,
+  RefreshCw,
+  ChevronDown,
+  ChevronRight,
+  Database,
+  Play,
+  Settings,
+  AlertTriangle,
+  Clock,
+  HardDrive,
+} from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { dialogs } from "../../utils/dialogs";
 
@@ -36,6 +50,7 @@ const SyncPage: React.FC = () => {
     fullSync,
     incrementalSync,
     syncEntity,
+     syncEntityByName, 
     resolveConflict,
     autoResolveConflicts,
     cleanup,
@@ -46,20 +61,43 @@ const SyncPage: React.FC = () => {
   const [showQueue, setShowQueue] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
+  const getSummary = (
+    camelKey: string,
+    snakeKey: string,
+    fallback: any = 0,
+  ) => {
+    return (
+      (summary as any)?.[camelKey] ?? (summary as any)?.[snakeKey] ?? fallback
+    );
+  };
   // Transform metadata to entities
-  const entityList = status?.metadata?.map(item => ({
-    name: item.entity,
-    status: item.status,
-    lastSyncedAt: item.lastSyncedAt,
-    totalSynced: item.totalSynced,
-    lastSyncCount: item.lastSyncCount,
-    hasPending: item.hasPending,
-  })) || [];
+  const entityList =
+    status?.metadata?.map((item) => ({
+      name: item.entity,
+      status: item.status,
+      lastSyncedAt: item.lastSyncedAt || item.last_synced_at || null,
+      totalSynced: item.totalSynced || item.total_synced || 0,
+      lastSyncCount: item.lastSyncCount || item.last_sync_count || 0,
+      hasPending: item.hasPending || item.has_pending || false,
+    })) || [];
+
+  const lastSync = getSummary("lastSync", "last_sync", null);
+  const totalEntities = getSummary("totalEntities", "total_entities");
+  const totalSynced = getSummary("totalSynced", "total_synced");
+  const pending = getSummary("pending", "pending");
+  const failed = getSummary("failed", "failed");
+
+  console.log("Synce Entities", entityList);
+  console.log("status: ", status);
+  console.log("Summary", summary);
+  console.log("conflict: ", conflicts);
+  console.log("Queue items", queueItems);
 
   const handleFullSync = async () => {
     const confirmed = await dialogs.confirm({
       title: "Full Sync",
-      message: "This will sync all data from the local database to the server. Are you sure?",
+      message:
+        "This will sync all data from the local database to the server. Are you sure?",
     });
     if (!confirmed) return;
     await fullSync(user?.username || "system");
@@ -72,7 +110,8 @@ const SyncPage: React.FC = () => {
   const handleAutoResolve = async () => {
     const confirmed = await dialogs.confirm({
       title: "Auto-Resolve Conflicts",
-      message: "This will automatically resolve all pending conflicts using Last Write Wins (server priority). Continue?",
+      message:
+        "This will automatically resolve all pending conflicts using Last Write Wins (server priority). Continue?",
     });
     if (!confirmed) return;
     await autoResolveConflicts();
@@ -90,23 +129,24 @@ const SyncPage: React.FC = () => {
   const handleReset = async () => {
     const confirmed = await dialogs.confirm({
       title: "Reset Sync State",
-      message: "This will reset all sync statuses. Use this if you're having sync issues. Continue?",
+      message:
+        "This will reset all sync statuses. Use this if you're having sync issues. Continue?",
     });
     if (!confirmed) return;
     await resetSync(undefined, user?.username || "system");
   };
 
-  const handleSyncEntity = async (entityName: string) => {
-    await syncEntity(entityName, user?.username || "system");
-  };
+const handleSyncEntity = async (entityName: string) => {
+  await syncEntityByName(entityName, user?.username || "system");
+};
 
   const handleResolveConflict = async (id: number, resolution: string) => {
     await resolveConflict(id, resolution, user?.username || "system");
   };
 
   return (
-    <div className="p-4 space-y-4 max-w-7xl mx-auto">
-      {/* Header */}
+    <div className="p-4 space-y-4">
+      {/* ─── Header ─── */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
           <h1 className="text-xl font-bold text-[var(--text-primary)] flex items-center gap-2">
@@ -122,22 +162,29 @@ const SyncPage: React.FC = () => {
             {syncing ? (
               <>
                 <Loader2 className="w-3.5 h-3.5 text-yellow-500 animate-spin" />
-                <span className="text-xs text-yellow-500 font-medium">Syncing...</span>
+                <span className="text-xs text-yellow-500 font-medium">
+                  Syncing...
+                </span>
               </>
             ) : status?.isSyncing === false ? (
               <>
                 <Wifi className="w-3.5 h-3.5 text-green-500" />
-                <span className="text-xs text-green-500 font-medium">Online</span>
+                <span className="text-xs text-green-500 font-medium">
+                  Online
+                </span>
               </>
             ) : (
               <>
                 <WifiOff className="w-3.5 h-3.5 text-red-500" />
-                <span className="text-xs text-red-500 font-medium">Offline</span>
+                <span className="text-xs text-red-500 font-medium">
+                  Offline
+                </span>
               </>
             )}
           </div>
           <span className="text-xs text-[var(--text-tertiary)]">
-            Last sync: {summary?.lastSync ? formatDate(summary.lastSync) : "Never"}
+            Last sync:{" "}
+            {summary?.lastSync ? formatDate(summary.lastSync) : "Never"}
           </span>
           <button
             onClick={fetchData}
@@ -149,13 +196,13 @@ const SyncPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Summary Cards */}
+      {/* ─── Summary Cards ─── */}
       <SyncSummaryCards summary={summary} isSyncing={syncing} />
 
-      {/* Progress Bar */}
+      {/* ─── Progress Bar ─── */}
       <SyncProgressBar progress={progress} isVisible={syncing} />
 
-      {/* Actions Bar */}
+      {/* ─── Actions ─── */}
       <SyncActionsBar
         onFullSync={handleFullSync}
         onIncrementalSync={handleIncrementalSync}
@@ -167,7 +214,7 @@ const SyncPage: React.FC = () => {
         conflictsCount={conflicts.length}
       />
 
-      {/* Advanced Actions */}
+      {/* ─── Advanced Actions ─── */}
       {showAdvanced && (
         <SyncAdvancedActions
           onCleanup={handleCleanup}
@@ -176,18 +223,21 @@ const SyncPage: React.FC = () => {
         />
       )}
 
-      {/* Main Grid */}
+      {/* ─── Main Grid ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Entities List */}
+        {/* ─── Entities List ─── */}
         <div className="lg:col-span-2">
           <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border-color)] shadow-sm overflow-hidden">
             <div className="px-4 py-3 border-b border-[var(--border-color)] flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
-                <span>Entities</span>
+              <div className="flex items-center gap-2">
+                <Database className="w-4 h-4 text-[var(--primary-color)]" />
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">
+                  Entities
+                </h3>
                 <span className="text-xs text-[var(--text-tertiary)] font-normal">
                   ({entityList.length})
                 </span>
-              </h3>
+              </div>
               <button
                 onClick={fetchData}
                 disabled={loading}
@@ -196,30 +246,49 @@ const SyncPage: React.FC = () => {
                 Refresh
               </button>
             </div>
-            <SyncEntityList
-              entities={entityList}
-              loading={loading}
-              onSyncEntity={handleSyncEntity}
-            />
+            {loading ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="w-8 h-8 text-[var(--primary-color)] animate-spin" />
+              </div>
+            ) : entityList.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-[var(--text-tertiary)]">
+                <Database className="w-12 h-12 mb-3 opacity-20" />
+                <p className="text-sm font-medium">No entities found</p>
+                <p className="text-xs mt-0.5">Run a sync to populate data</p>
+              </div>
+            ) : (
+              <SyncEntityList
+                entities={entityList}
+                loading={loading}
+                onSyncEntity={handleSyncEntity}
+              />
+            )}
           </div>
         </div>
 
-        {/* Right Sidebar */}
+        {/* ─── Right Sidebar ─── */}
         <div className="space-y-4">
-          {/* Conflicts */}
+          {/* ─── Conflicts ─── */}
           <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border-color)] shadow-sm overflow-hidden">
             <div
-              className="px-4 py-3 border-b border-[var(--border-color)] flex items-center justify-between cursor-pointer"
+              className="px-4 py-3 border-b border-[var(--border-color)] flex items-center justify-between cursor-pointer hover:bg-[var(--card-hover-bg)] transition-colors"
               onClick={() => setShowConflicts(!showConflicts)}
             >
-              <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
-                <span>Conflicts</span>
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-red-500" />
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">
+                  Conflicts
+                </h3>
                 <span className="text-xs text-[var(--text-tertiary)] font-normal">
                   ({conflicts.length})
                 </span>
-              </h3>
+              </div>
               <button className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">
-                {showConflicts ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                {showConflicts ? (
+                  <ChevronDown className="w-4 h-4" />
+                ) : (
+                  <ChevronRight className="w-4 h-4" />
+                )}
               </button>
             </div>
             {showConflicts && (
@@ -233,20 +302,27 @@ const SyncPage: React.FC = () => {
             )}
           </div>
 
-          {/* Queue Status */}
+          {/* ─── Queue ─── */}
           <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border-color)] shadow-sm overflow-hidden">
             <div
-              className="px-4 py-3 border-b border-[var(--border-color)] flex items-center justify-between cursor-pointer"
+              className="px-4 py-3 border-b border-[var(--border-color)] flex items-center justify-between cursor-pointer hover:bg-[var(--card-hover-bg)] transition-colors"
               onClick={() => setShowQueue(!showQueue)}
             >
-              <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
-                <span>Queue</span>
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-yellow-500" />
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">
+                  Queue
+                </h3>
                 <span className="text-xs text-[var(--text-tertiary)] font-normal">
                   ({queueItems.length})
                 </span>
-              </h3>
+              </div>
               <button className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">
-                {showQueue ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                {showQueue ? (
+                  <ChevronDown className="w-4 h-4" />
+                ) : (
+                  <ChevronRight className="w-4 h-4" />
+                )}
               </button>
             </div>
             {showQueue && (
@@ -256,43 +332,47 @@ const SyncPage: React.FC = () => {
             )}
           </div>
 
-          {/* Quick Info */}
+          {/* ─── Quick Stats ─── */}
           <div className="bg-[var(--card-secondary-bg)] rounded-xl border border-[var(--border-color)] p-3">
             <div className="space-y-1 text-xs text-[var(--text-secondary)]">
               <div className="flex justify-between">
                 <span>Mode</span>
                 <span className="font-medium text-[var(--text-primary)]">
-                  {syncing ? "Syncing" : "Idle"}
+                  {syncing
+                    ? "Syncing"
+                    : status?.isSyncing === false
+                      ? "Idle"
+                      : "Offline"}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span>Entities</span>
                 <span className="font-medium text-[var(--text-primary)]">
-                  {summary?.totalEntities || 0}
+                  {totalEntities}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span>Total Synced</span>
                 <span className="font-medium text-[var(--text-primary)]">
-                  {summary?.totalSynced?.toLocaleString() || 0}
+                  {totalSynced.toLocaleString()}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span>Last Sync</span>
-                <span className="font-medium text-[var(--text-primary)]">
-                  {summary?.lastSync ? formatDate(summary.lastSync) : "Never"}
-                </span>
+                <span>Pending</span>
+                <span className="font-medium text-yellow-500">{pending}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Failed</span>
+                <span className="font-medium text-red-500">{failed}</span>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Footer */}
+      {/* ─── Footer ─── */}
       <div className="text-center text-xs text-[var(--text-tertiary)] border-t border-[var(--border-color)] pt-3">
-        <p>
-          Sync Service v1.0 • {syncing ? "🔄 Syncing..." : "✅ Ready"}
-        </p>
+        <p>Sync Service v1.0 • {syncing ? "🔄 Syncing..." : "✅ Ready"}</p>
       </div>
     </div>
   );

@@ -19,6 +19,7 @@ class SyncService {
     };
     this.progressCallbacks = [];
     this.syncResults = null;
+    this.activeTasks = {}; // { taskId: { entity, status, progress } }
 
     // Entity configuration for syncing
     this.entities = [
@@ -194,6 +195,17 @@ class SyncService {
     }
   }
 
+  /**
+   * Update task progress
+   * @param {string} taskId - Task ID
+   * @param {Object} progress - Progress update
+   */
+  _updateTaskProgress(taskId, progress) {
+    if (this.activeTasks[taskId]) {
+      this.activeTasks[taskId] = { ...this.activeTasks[taskId], ...progress };
+    }
+  }
+
   // ============================================================
   // 🔍 CHECK SYNC REQUIREMENTS
   // ============================================================
@@ -227,20 +239,226 @@ class SyncService {
   }
 
   // ============================================================
-  // 🔄 FULL SYNC
+  // 🆕 TASK-BASED SYNC
   // ============================================================
 
   /**
-   * Perform a full sync of all entities
+   * Start a sync task for a specific entity
+   * @param {string} entityName - Entity name
+   * @param {Array} records - Records to sync
    * @param {string} user - User performing the sync
-   * @returns {Promise<Object>} Sync results
+   * @param {boolean} force - Force sync even if no changes
+   * @returns {Promise<{taskId: string, status: string, entity: string, total: number}>}
+   */
+  async startSyncTask(entityName, records, user = "system", force = false) {
+    const availability = await this.isSyncAvailable();
+    if (!availability.available) {
+      throw new Error(`Sync not available: ${availability.message}`);
+    }
+
+    const url = await serverUrl();
+    if (!url) throw new Error("Server URL not configured");
+    onlineClient.setBaseUrl(url);
+
+    const response = await onlineClient.post(`/api/v1/sync/${entityName}/`, {
+      data: records,
+      user: user,
+      force: force,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Server error: ${response.status} - ${errorText}`);
+    }
+
+    const result = await response.json();
+    const taskId = result.data?.taskId || result.taskId;
+
+    // Track active task
+    this.activeTasks[taskId] = {
+      entity: entityName,
+      status: "queued",
+      total: result.data?.total || records.length,
+      processed: 0,
+      startedAt: new Date(),
+    };
+
+    this._updateProgress({
+      status: "syncing",
+      currentEntity: entityName,
+      total: this.activeTasks[taskId].total,
+      completed: 0,
+    });
+
+    return {
+      taskId: taskId,
+      status: result.data?.status || "queued",
+      entity: entityName,
+      total: result.data?.total || records.length,
+    };
+  }
+
+  /**
+   * Get task status from server
+   * @param {string} taskId - Task ID
+   * @returns {Promise<Object>}
+   */
+  async getTaskStatus(taskId) {
+    const availability = await this.isSyncAvailable();
+    if (!availability.available) {
+      throw new Error(`Sync not available: ${availability.message}`);
+    }
+
+    const url = await serverUrl();
+    if (!url) throw new Error("Server URL not configured");
+    onlineClient.setBaseUrl(url);
+
+    const response = await onlineClient.get(`/api/v1/sync/task/${taskId}/`);
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error("Task not found");
+      }
+      const errorText = await response.text();
+      throw new Error(`Server error: ${response.status} - ${errorText}`);
+    }
+
+    const result = await response.json();
+    const data = result.data || result;
+
+    // Update local task tracking
+    if (this.activeTasks[taskId]) {
+      this.activeTasks[taskId] = {
+        ...this.activeTasks[taskId],
+        status: data.status,
+        processed: data.processed || data.processed || 0,
+        result: data.result,
+        error: data.error,
+      };
+    }
+
+    // Update progress if task is running
+    if (data.status === "running" || data.status === "queued") {
+      this._updateProgress({
+        status: "syncing",
+        currentEntity: data.entity || this.activeTasks[taskId]?.entity,
+        total: data.total || this.activeTasks[taskId]?.total || 0,
+        completed: data.processed || this.activeTasks[taskId]?.processed || 0,
+      });
+    }
+
+    // Check if task is complete
+    if (data.status === "completed") {
+      this._updateProgress({
+        status: "completed",
+        currentEntity: null,
+        completed: data.total || this.activeTasks[taskId]?.total || 0,
+      });
+      // Clean up active task
+      delete this.activeTasks[taskId];
+    }
+
+    if (data.status === "failed") {
+      this._updateProgress({
+        status: "failed",
+        currentEntity: null,
+      });
+      // Clean up active task
+      delete this.activeTasks[taskId];
+    }
+
+    return data;
+  }
+
+  /**
+   * Poll task status until completion
+   * @param {string} taskId - Task ID
+   * @param {Function} onProgress - Callback for each progress update
+   * @param {number} interval - Polling interval in ms
+   * @param {number} timeout - Max time to poll in ms
+   * @returns {Promise<Object>}
+   */
+  async pollTaskStatus(taskId, onProgress, interval = 1000, timeout = 300000) {
+    const startTime = Date.now();
+
+    while (true) {
+      // Check timeout
+      if (Date.now() - startTime > timeout) {
+        throw new Error("Task polling timed out");
+      }
+
+      try {
+        const status = await this.getTaskStatus(taskId);
+        if (onProgress) {
+          onProgress(status);
+        }
+
+        if (status.status === "completed") {
+          return status;
+        }
+
+        if (status.status === "failed") {
+          throw new Error(status.error || "Task failed");
+        }
+
+        // Wait before next poll
+        await new Promise(resolve => setTimeout(resolve, interval));
+      } catch (error) {
+        // If task not found, it might have been completed and cleaned up
+        if (error.message === "Task not found") {
+          // Check if we have a result cached
+          return { status: "completed", message: "Task completed (no longer tracked)" };
+        }
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * Get list of sync tasks
+   * @param {string} entity - Filter by entity
+   * @param {string} status - Filter by status
+   * @param {number} limit - Max items
+   * @returns {Promise<{items: Array, count: number}>}
+   */
+  async getTaskList(entity, status, limit = 50) {
+    const availability = await this.isSyncAvailable();
+    if (!availability.available) {
+      return { items: [], count: 0 };
+    }
+
+    const url = await serverUrl();
+    if (!url) throw new Error("Server URL not configured");
+    onlineClient.setBaseUrl(url);
+
+    const query = new URLSearchParams();
+    if (entity) query.append("entity", entity);
+    if (status) query.append("status", status);
+    if (limit) query.append("limit", limit);
+
+    const response = await onlineClient.get(`/api/v1/sync/tasks/?${query.toString()}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Server error: ${response.status} - ${errorText}`);
+    }
+
+    const result = await response.json();
+    return result.data || result;
+  }
+
+  // ============================================================
+  // 🔄 FULL SYNC (Task-Based)
+  // ============================================================
+
+  /**
+   * Perform a full sync of all entities (task-based)
+   * @param {string} user - User performing the sync
+   * @returns {Promise<Object>} Sync results with task IDs
    */
   async fullSync(user = "system") {
     if (this.isSyncing) {
       throw new Error("Sync already in progress");
     }
 
-    // Check availability
     const availability = await this.isSyncAvailable();
     if (!availability.available) {
       throw new Error(`Sync not available: ${availability.message}`);
@@ -255,7 +473,7 @@ class SyncService {
       failed: 0,
       errors: [],
       entities: {},
-      conflicts: [],
+      tasks: [],
     };
 
     this._updateProgress({
@@ -270,28 +488,62 @@ class SyncService {
       const entityNames = this.entities.map((e) => e.name);
       await syncMetadataService.initializeEntities(entityNames);
 
+      // Start tasks for each entity
       for (const entity of this.entities) {
         try {
-          await this._syncEntity(entity, user);
+          // Get all records for this entity
+          const records = await this.getEntityRecords(entity.name);
+
+          if (records.length === 0) {
+            this.syncResults.entities[entity.name] = {
+              status: "skipped",
+              count: 0,
+              message: "No records to sync",
+            };
+            this.syncResults.success++;
+            this.syncResults.total++;
+            continue;
+          }
+
+          // Start sync task
+          const result = await this.startSyncTask(
+            entity.name,
+            records,
+            user,
+            false
+          );
+
+          this.syncResults.entities[entity.name] = {
+            status: "task_queued",
+            count: records.length,
+            taskId: result.taskId,
+          };
+          this.syncResults.tasks.push({
+            entity: entity.name,
+            taskId: result.taskId,
+            status: result.status,
+          });
           this.syncResults.success++;
+          this.syncResults.total++;
+
+          this._updateProgress({
+            completed: this.syncResults.total,
+            currentEntity: null,
+          });
+
         } catch (error) {
           this.syncResults.failed++;
           this.syncResults.errors.push({
             entity: entity.name,
             error: error.message,
           });
+          this.syncResults.entities[entity.name] = {
+            status: "failed",
+            error: error.message,
+          };
           await syncMetadataService.logError(entity.name, error.message);
         }
-        this.syncResults.total++;
-        this._updateProgress({
-          completed: this.syncResults.total,
-          currentEntity: null,
-        });
       }
-
-      // Auto-resolve conflicts after sync
-      const conflictResult = await syncConflictService.autoResolveAll();
-      this.syncResults.conflicts = conflictResult;
 
       this.syncResults.completedAt = new Date();
       this._updateProgress({
@@ -299,7 +551,7 @@ class SyncService {
       });
 
       logger.info(
-        `[SyncService] Full sync completed: ${this.syncResults.success} succeeded, ${this.syncResults.failed} failed`,
+        `[SyncService] Full sync completed: ${this.syncResults.success} succeeded, ${this.syncResults.failed} failed`
       );
       return this.syncResults;
     } catch (error) {
@@ -315,7 +567,7 @@ class SyncService {
   }
 
   // ============================================================
-  // 🔄 INCREMENTAL SYNC (Based on queue)
+  // 🔄 INCREMENTAL SYNC (Queue-based)
   // ============================================================
 
   /**
@@ -350,7 +602,7 @@ class SyncService {
       });
 
       logger.info(
-        `[SyncService] Incremental sync completed: ${results.completed} succeeded, ${results.failed} failed`,
+        `[SyncService] Incremental sync completed: ${results.completed} succeeded, ${results.failed} failed`
       );
       return results;
     } catch (error) {
@@ -417,149 +669,7 @@ class SyncService {
   }
 
   // ============================================================
-  // 🔄 ENTITY SYNC
-  // ============================================================
-
-  /**
-   * Sync a specific entity
-   * @param {Object} entity - Entity configuration
-   * @param {string} user - User performing the sync
-   * @param {boolean} force - Force sync even if no changes
-   * @returns {Promise<Object>}
-   */
-  async _syncEntity(entity, user = "system", force = false) {
-    this._updateProgress({
-      currentEntity: entity.name,
-    });
-
-    logger.info(`[SyncService] Syncing ${entity.name}...`);
-
-    // Update status to syncing
-    await syncMetadataService.updateSyncStatus(entity.name, "syncing");
-
-    try {
-      // Get last sync time
-      const lastSync = await syncMetadataService.getLastSyncTime(entity.name);
-
-      // Get repository and fetch changed records
-      const { AppDataSource } = require("../main/db/data-source");
-      const repo = AppDataSource.getRepository(entity.name);
-
-      let qb = repo.createQueryBuilder(entity.name);
-
-      if (!force && lastSync) {
-        // Only get records changed since last sync
-        qb = qb.where(
-          `${entity.name}.updatedAt >= :since OR ${entity.name}.createdAt >= :since`,
-          { since: lastSync },
-        );
-
-        // Include soft-deleted records
-        if (repo.hasColumn("deletedAt")) {
-          qb = qb.orWhere(`${entity.name}.deletedAt >= :since`, {
-            since: lastSync,
-          });
-        }
-      }
-
-      const records = await qb.getMany();
-
-      if (records.length === 0) {
-        logger.info(`[SyncService] No changes for ${entity.name}`);
-        await syncMetadataService.updateSyncStatus(entity.name, "completed");
-        return { count: 0, message: "No changes" };
-      }
-
-      // Prepare data for server
-      const data = records.map((record) => {
-        const obj = {};
-        for (const field of entity.fields) {
-          if (record[field] !== undefined) {
-            // Convert Dates to ISO strings
-            if (record[field] instanceof Date) {
-              obj[field] = record[field].toISOString();
-            } else {
-              obj[field] = record[field];
-            }
-          }
-        }
-        return obj;
-      });
-
-      // Send to server
-      const url = await serverUrl();
-      if (!url) throw new Error("Server URL not configured");
-      onlineClient.setBaseUrl(url);
-
-      const response = await onlineClient.post(
-        `/api/v1/sync/${entity.endpoint}/`,
-        {
-          data,
-          user: user,
-        },
-      );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Server error: ${response.status} - ${errorText}`);
-      }
-
-      const result = await response.json();
-
-      // Update metadata
-      await syncMetadataService.updateSyncTime(entity.name, records.length);
-
-      // Check for conflicts in response
-      if (result.conflicts && result.conflicts.length > 0) {
-        for (const conflict of result.conflicts) {
-          await syncConflictService.createConflict(
-            entity.name,
-            conflict.id,
-            conflict.local,
-            conflict.server,
-            new Date(conflict.localUpdatedAt),
-            new Date(conflict.serverUpdatedAt),
-            conflict.notes ||
-              `Auto-detected conflict for ${entity.name}#${conflict.id}`,
-          );
-        }
-        logger.warn(
-          `[SyncService] ${result.conflicts.length} conflicts detected for ${entity.name}`,
-        );
-      }
-
-      logger.info(`[SyncService] Synced ${records.length} ${entity.name}(s)`);
-      return { count: records.length, conflicts: result.conflicts || [] };
-    } catch (error) {
-      logger.error(`[SyncService] Failed to sync ${entity.name}:`, error);
-      await syncMetadataService.logError(entity.name, error.message);
-      throw error;
-    }
-  }
-
-  /**
-   * Sync a specific entity by name (public method)
-   * @param {string} entityName - Entity name
-   * @param {string} user - User performing the sync
-   * @param {boolean} force - Force sync
-   * @returns {Promise<Object>}
-   */
-  async syncEntityByName(entityName, user = "system", force = false) {
-    const entity = this.entities.find((e) => e.name === entityName);
-    if (!entity) {
-      throw new Error(`Unknown entity: ${entityName}`);
-    }
-
-    const availability = await this.isSyncAvailable();
-    if (!availability.available) {
-      throw new Error(`Sync not available: ${availability.message}`);
-    }
-
-    return await this._syncEntity(entity, user, force);
-  }
-
-  // ============================================================
-  // 📊 SYNC STATUS
+  // 📊 SYNC STATUS (Existing)
   // ============================================================
 
   /**
@@ -571,12 +681,16 @@ class SyncService {
     const queueStats = await syncQueueService.getStats();
     const conflictStats = await syncConflictService.getStats();
 
+    // Include active task status
+    const activeTasks = Object.values(this.activeTasks);
+
     return {
       isSyncing: this.isSyncing,
       progress: this.currentProgress,
       metadata,
       queue: queueStats,
       conflicts: conflictStats,
+      activeTasks: activeTasks,
       entities: metadata.map((m) => ({
         name: m.entity,
         status: m.status,
@@ -603,11 +717,12 @@ class SyncService {
       conflictPending,
       isSyncing: this.isSyncing,
       lastSync: this.syncResults?.completedAt || null,
+      activeTasks: Object.keys(this.activeTasks).length,
     };
   }
 
   // ============================================================
-  // 🧹 CLEANUP
+  // 🧹 CLEANUP (Existing)
   // ============================================================
 
   /**
@@ -646,7 +761,7 @@ class SyncService {
   }
 
   // ============================================================
-  // 📦 ENQUEUE RECORDS FOR SYNC
+  // 📦 ENQUEUE RECORDS FOR SYNC (Existing)
   // ============================================================
 
   /**
@@ -697,7 +812,7 @@ class SyncService {
   }
 
   // ============================================================
-  // 🧪 TEST / DEBUG METHODS
+  // 🧪 TEST / DEBUG METHODS (Existing)
   // ============================================================
 
   /**
@@ -736,9 +851,9 @@ class SyncService {
 
     const { AppDataSource } = require("../main/db/data-source");
     const repo = AppDataSource.getRepository(entityName);
-    
+
     const records = await repo.find();
-    
+
     return {
       entity: entityName,
       records: records.map(r => {
@@ -755,6 +870,21 @@ class SyncService {
         return obj;
       }),
     };
+  }
+
+  /**
+   * Get active sync tasks
+   * @returns {Object}
+   */
+  getActiveTasks() {
+    return this.activeTasks;
+  }
+
+  /**
+   * Clear active tasks (for cleanup)
+   */
+  clearActiveTasks() {
+    this.activeTasks = {};
   }
 }
 

@@ -1,10 +1,11 @@
 // src/main/ipc/utils/sync/sync_entity.ipc.js
 const syncService = require("../../../../services/SyncService");
 const onlineClient = require("../../../../utils/onlineClient");
-const { transformKeysToCamelCase } = require("../../../../utils/responseTransformer");
+const { transformSingle } = require("../../../../utils/responseTransformer");
 const { syncMode, serverUrl } = require("../../../../utils/system");
+
 module.exports = async (params) => {
-  const { entityName, user = "system", force = false} = params;
+  const { entityName, user = "system", force = false, records = [] } = params;
 
   if (!entityName) {
     return {
@@ -21,10 +22,10 @@ module.exports = async (params) => {
     if (!url) throw new Error("Server URL not configured");
     onlineClient.setBaseUrl(url);
 
-    // Use the trigger endpoint
-    const response = await onlineClient.post(`/api/v1/sync/${entityName}/trigger/`, {
-      user,
-      force,
+    const response = await onlineClient.post(`/api/v1/sync/${entityName}/`, {
+      data: records,
+      user: user,
+      force: force,
     });
 
     if (!response.ok) {
@@ -33,13 +34,7 @@ module.exports = async (params) => {
     }
 
     const serverResult = await response.json();
-    const data = transformKeysToCamelCase(serverResult);
-
-    return {
-      status: true,
-      message: `Synced ${entityName} on server`,
-      data,
-    };
+    return transformSingle(serverResult);
   }
 
   // Offline mode

@@ -18,6 +18,11 @@ class SyncHandler {
     this.getSyncStatus = this.importHandler("./get/status.ipc");
     this.getSyncSummary = this.importHandler("./get/summary.ipc");
     this.isSyncAvailable = this.importHandler("./get/available.ipc");
+    this.getEntityRecords = this.importHandler("./get_entity_records.ipc");
+    // 🆕 TASK OPERATIONS
+    this.getTaskStatus = this.importHandler("./get/task_status.ipc");
+    this.getTaskList = this.importHandler("./get/task_list.ipc");
+    this.pollTask = this.importHandler("./poll_task.ipc");
 
     // 🔄 SYNC OPERATIONS
     this.fullSync = this.importHandler("./full_sync.ipc");
@@ -50,7 +55,10 @@ class SyncHandler {
       const fullPath = require.resolve(`./${path}`, { paths: [__dirname] });
       return require(fullPath);
     } catch (error) {
-      console.warn(`[SyncHandler] Failed to load handler: ${path}`, error.message);
+      console.warn(
+        `[SyncHandler] Failed to load handler: ${path}`,
+        error.message,
+      );
       return async () => ({
         status: false,
         message: `Handler not implemented: ${path}`,
@@ -88,7 +96,7 @@ class SyncHandler {
       logger?.info(`SyncHandler: ${method}`, { params, user });
 
       // Pass mode to handlers via params
-      const handlerParams = { ...params, user};
+      const handlerParams = { ...params, user };
 
       switch (method) {
         // 📋 READ OPERATIONS
@@ -98,6 +106,16 @@ class SyncHandler {
           return await this.getSyncSummary(handlerParams);
         case "isSyncAvailable":
           return await this.isSyncAvailable(handlerParams);
+        case "getEntityRecords":
+          return await this.getEntityRecords(handlerParams);
+
+        // 🆕 TASK OPERATIONS
+        case "getTaskStatus":
+          return await this.getTaskStatus(handlerParams);
+        case "getTaskList":
+          return await this.getTaskList(handlerParams);
+        case "pollTask":
+          return await this.pollTask(handlerParams);
 
         // 🔄 SYNC OPERATIONS
         case "fullSync":
@@ -158,7 +176,7 @@ const syncHandler = new SyncHandler();
 
 ipcMain.handle(
   "sync",
-  withErrorHandling(syncHandler.handleRequest.bind(syncHandler), "IPC:sync")
+  withErrorHandling(syncHandler.handleRequest.bind(syncHandler), "IPC:sync"),
 );
 
 module.exports = { SyncHandler, syncHandler };

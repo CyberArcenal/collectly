@@ -3,7 +3,11 @@ import React from "react";
 import { ChevronUp, ChevronDown, User, Calendar, Clock } from "lucide-react";
 import ActiveLoanActionsDropdown from "./ActiveLoanActionsDropdown";
 import type { Debt } from "../../../../api/core/debt";
-import { daysUntil, formatCurrency, formatDate } from "../../../../utils/formatters";
+import {
+  daysUntil,
+  formatCurrency,
+  formatDate,
+} from "../../../../utils/formatters";
 
 interface ActiveLoansTableProps {
   loans: Debt[];
@@ -38,11 +42,20 @@ const getDaysLeftClass = (days: number) => {
 const getStatusBadge = (status: string) => {
   switch (status) {
     case "active":
-      return { bg: "bg-[var(--status-success-bg)]", text: "text-[var(--status-success-text)]" };
+      return {
+        bg: "bg-[var(--status-success-bg)]",
+        text: "text-[var(--status-success-text)]",
+      };
     case "overdue":
-      return { bg: "bg-[var(--status-overdue-bg)]", text: "text-[var(--status-overdue-text)]" };
+      return {
+        bg: "bg-[var(--status-overdue-bg)]",
+        text: "text-[var(--status-overdue-text)]",
+      };
     default:
-      return { bg: "bg-[var(--status-inactive-bg)]", text: "text-[var(--status-inactive-text)]" };
+      return {
+        bg: "bg-[var(--status-inactive-bg)]",
+        text: "text-[var(--status-inactive-text)]",
+      };
   }
 };
 
@@ -153,7 +166,10 @@ const ActiveLoansTable: React.FC<ActiveLoansTableProps> = ({
                 className="border-b border-[var(--border-color)] hover:bg-[var(--card-hover-bg)] transition-colors cursor-pointer"
                 onClick={() => onView(loan)}
               >
-                <td className="py-2.5 px-3" onClick={(e) => e.stopPropagation()}>
+                <td
+                  className="py-2.5 px-3"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <input
                     type="checkbox"
                     checked={selectedLoans.includes(loan.id)}
@@ -180,7 +196,10 @@ const ActiveLoansTable: React.FC<ActiveLoansTableProps> = ({
                   {formatCurrency(loan.totalAmount ?? 0)}
                 </td>
                 <td className="py-2.5 px-3">
-                  <span className="font-semibold" style={{ color: "var(--debt-high)" }}>
+                  <span
+                    className="font-semibold"
+                    style={{ color: "var(--debt-high)" }}
+                  >
                     {formatCurrency(loan.remainingAmount ?? 0)}
                   </span>
                 </td>
@@ -190,7 +209,9 @@ const ActiveLoansTable: React.FC<ActiveLoansTableProps> = ({
                     {dueDate ? formatDate(dueDate) : "—"}
                   </div>
                 </td>
-                <td className={`py-2.5 px-3 ${getDaysLeftClass(daysLeft)} text-sm`}>
+                <td
+                  className={`py-2.5 px-3 ${getDaysLeftClass(daysLeft)} text-sm`}
+                >
                   <div className="flex items-center gap-1.5">
                     <Clock className="w-3 h-3" />
                     {daysLeft < 0 ? `Overdue by ${-daysLeft}d` : `${daysLeft}d`}
@@ -200,10 +221,13 @@ const ActiveLoansTable: React.FC<ActiveLoansTableProps> = ({
                   <span
                     className={`px-2 py-0.5 text-xs rounded-full ${statusBadge.bg} ${statusBadge.text}`}
                   >
-                    {isOverdue ? "overdue" : loan.status}
+                    {loan.status}
                   </span>
                 </td>
-                <td className="py-2.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                <td
+                  className="py-2.5 px-3 text-center"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <ActiveLoanActionsDropdown
                     loan={loan}
                     onView={onView}

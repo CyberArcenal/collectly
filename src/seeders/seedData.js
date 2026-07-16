@@ -439,12 +439,26 @@ class DebtManagerXSeeder {
         }
         remainingToPay -= amount;
 
+        // ✅ FIX: Guarantee paymentDate is never null
+        let paymentDate;
+        try {
+          const start = debt.createdAt
+            ? new Date(debt.createdAt)
+            : new Date(2023, 0, 1);
+          if (isNaN(start.getTime())) {
+            // Fallback: use a default date
+            paymentDate = random.pastDate();
+          } else {
+            paymentDate = random.date(start, new Date());
+          }
+        } catch (err) {
+          // Ultimate fallback
+          paymentDate = random.pastDate();
+        }
+
         payments.push({
           amount: amount,
-          paymentDate: random.date(
-            new Date(debt.createdAt || new Date(2023, 0, 1)),
-            new Date(),
-          ),
+          paymentDate: paymentDate,
           reference: `PAY-${random.int(10000, 99999)}`,
           notes: random.boolean(0.3)
             ? random.element([
@@ -469,9 +483,11 @@ class DebtManagerXSeeder {
 
       if (maxAdditional > 10) {
         const amount = random.float(50, Math.min(maxAdditional, 50000));
+        // ✅ FIX: Guarantee paymentDate
+        const paymentDate = random.pastDate();
         payments.push({
           amount: amount,
-          paymentDate: random.pastDate(),
+          paymentDate: paymentDate,
           reference: `PAY-${random.int(10000, 99999)}`,
           notes: random.boolean(0.3) ? "Additional payment" : null,
           deletedAt: null,
@@ -503,6 +519,15 @@ class DebtManagerXSeeder {
     const penalties = [];
     const repo = this.dataSource.getRepository(PenaltyTransaction);
 
+    // ✅ Filter out debts na walang id
+    const validDebts = debts.filter((d) => d && d.id);
+
+    // ✅ If walang valid debts, skip seeding penalties
+    if (validDebts.length === 0) {
+      console.log(`⚠️ No valid debts found, skipping penalties`);
+      return [];
+    }
+
     const reasons = [
       "Late payment",
       "Missed payment deadline",
@@ -513,21 +538,48 @@ class DebtManagerXSeeder {
     ];
 
     for (let i = 0; i < this.config.penaltyCount; i++) {
-      const debt = random.element(debts);
+      // ✅ Randomly pick a valid debt
+      const debt = random.element(validDebts);
+
+      // ✅ Skip if debt is invalid
+      if (!debt || !debt.id) {
+        console.warn(`⚠️ Skipping penalty #${i + 1}: No valid debt`);
+        continue;
+      }
+
       const amount = random.float(
         100,
         Math.max(500, parseFloat(debt.totalAmount) * 0.05),
       );
 
+      // ✅ Guarantee penaltyDate is never null
+      let penaltyDate;
+      try {
+        const start = debt.createdAt
+          ? new Date(debt.createdAt)
+          : new Date(2023, 0, 1);
+        if (isNaN(start.getTime())) {
+          penaltyDate = random.pastDate();
+        } else {
+          penaltyDate = random.date(start, new Date());
+        }
+      } catch (err) {
+        penaltyDate = random.pastDate();
+      }
+
       penalties.push({
         amount: amount,
-        penaltyDate: random.date(
-          new Date(debt.createdAt || new Date(2023, 0, 1)),
-          new Date(),
-        ),
+        penaltyDate: penaltyDate, // ✅ Guaranteed may value
         reason: random.element(reasons),
-        debt: { id: debt.id },
+        debt: { id: debt.id }, // ✅ Guaranteed may debt.id
+        status: "pending", // ✅ May default value sa entity
       });
+    }
+
+    // ✅ If walang penalties na na-generate, return early
+    if (penalties.length === 0) {
+      console.log(`⚠️ No penalties generated`);
+      return [];
     }
 
     const saved = await repo.save(penalties);
@@ -548,6 +600,7 @@ class DebtManagerXSeeder {
       i++
     ) {
       const debt = debts[i % debts.length];
+      if (!debt || !debt.id) continue;
       agreements.push({
         agreementDate: random.date(
           new Date(debt.createdAt || new Date(2023, 0, 1)),
@@ -840,7 +893,7 @@ class DebtManagerXSeeder {
     for (let i = 0; i < this.config.loanApplicationCount; i++) {
       const borrower = random.element(borrowers);
       const status = random.element(statuses);
-      const requestedAmount = random.float(1000, 200000);
+      const requestedAmount = Math.max(1000, random.float(1000, 200000));
       const proposedDueDate = random.futureDate();
       const createdAt = random.pastDate();
       apps.push({

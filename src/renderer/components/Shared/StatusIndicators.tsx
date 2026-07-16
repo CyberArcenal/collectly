@@ -1,6 +1,7 @@
 // src/components/Shared/StatusIndicators.tsx
 import React, { useState, useEffect, useRef } from "react";
-import { Loader2, CheckCircle, XCircle } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
+import { useSyncContext } from "../../contexts/SyncContext";
 
 type IndicatorType = "audit" | "email" | "sms";
 
@@ -14,6 +15,7 @@ interface StatusState {
 }
 
 const StatusIndicators: React.FC = () => {
+  const { syncing, isOnline, error, activeTasks } = useSyncContext();
   const [auditStatus, setAuditStatus] = useState<StatusState>({ active: false });
   const [emailStatus, setEmailStatus] = useState<StatusState>({ active: false });
   const [smsStatus, setSmsStatus] = useState<StatusState>({ active: false });
@@ -121,6 +123,28 @@ const StatusIndicators: React.FC = () => {
     window.backendAPI?.on?.("sms:status", smsListener);
     return () => window.backendAPI?.off?.("sms:status", smsListener);
   }, []);
+
+    
+
+  if (syncing) {
+    const total = activeTasks.reduce((sum, t) => sum + t.total, 0);
+    const processed = activeTasks.reduce((sum, t) => sum + t.processed, 0);
+    return (
+      <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-yellow-500/20 text-yellow-500 text-xs">
+        <Loader2 className="w-3 h-3 animate-spin" />
+        <span>Syncing {processed}/{total}</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/20 text-red-500 text-xs">
+        <AlertTriangle className="w-3 h-3" />
+        <span>Sync Error</span>
+      </div>
+    );
+  }
 
   const renderIndicator = (type: IndicatorType, status: StatusState) => {
     if (type === "audit") {
