@@ -22,6 +22,7 @@ export interface SyncStatus {
     totalSynced: number;
     lastSyncCount: number;
     hasPending: boolean;
+    pendingCount?: number;
   }>;
   queue: {
     total: number;
@@ -66,7 +67,7 @@ export interface QueueItem {
   entity: string;
   entityId: number;
   action: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: "pending" | "processing" | "completed" | "failed";
   retryCount: number;
   maxRetries: number;
   errorMessage: string | null;
@@ -83,7 +84,7 @@ export interface QueueItem {
 export interface TaskProgress {
   taskId: string;
   entity: string;
-  status: 'queued' | 'running' | 'completed' | 'failed';
+  status: "queued" | "running" | "completed" | "failed";
   total: number;
   processed: number;
   failed: number;
@@ -103,7 +104,7 @@ export interface TaskProgress {
 
 export interface SyncEntityResponse {
   taskId: string;
-  status: 'queued';
+  status: "queued";
   entity: string;
   total: number;
 }
@@ -204,22 +205,24 @@ class SyncAPI {
   async syncEntity(
     entityName: string,
     records: any[],
-    user: string = "system"
+    user: string = "system",
   ): Promise<SyncEntityResponse> {
     if (!window.backendAPI?.sync) {
       throw new Error("Sync API not available");
     }
     const response = await window.backendAPI.sync({
       method: "syncEntity",
-      params: { 
-        entityName, 
-        records, 
+      params: {
+        entityName,
+        records,
         user,
         force: false,
       },
     });
     if (response.status) return response.data;
-    throw new Error(response.message || `Failed to start sync for ${entityName}`);
+    throw new Error(
+      response.message || `Failed to start sync for ${entityName}`,
+    );
   }
 
   /**
@@ -248,7 +251,7 @@ class SyncAPI {
     taskId: string,
     onProgress: (progress: TaskProgress) => void,
     interval: number = 1000,
-    timeout: number = 300000
+    timeout: number = 300000,
   ): Promise<TaskProgress> {
     const startTime = Date.now();
     let lastProgress: TaskProgress | null = null;
@@ -269,11 +272,11 @@ class SyncAPI {
           onProgress(progress);
 
           // Check if task is complete
-          if (progress.status === 'completed') {
+          if (progress.status === "completed") {
             resolve(progress);
             return;
           }
-          if (progress.status === 'failed') {
+          if (progress.status === "failed") {
             reject(new Error(progress.error || "Task failed"));
             return;
           }
@@ -296,7 +299,7 @@ class SyncAPI {
   async getTaskList(
     entity?: string,
     status?: string,
-    limit: number = 50
+    limit: number = 50,
   ): Promise<{ items: TaskProgress[]; count: number }> {
     if (!window.backendAPI?.sync) {
       throw new Error("Sync API not available");
@@ -333,7 +336,10 @@ class SyncAPI {
    * @deprecated Use syncEntity() instead (task-based)
    * Perform incremental sync (process queue)
    */
-  async incrementalSync(user: string = "system", limit: number = 50): Promise<any> {
+  async incrementalSync(
+    user: string = "system",
+    limit: number = 50,
+  ): Promise<any> {
     if (!window.backendAPI?.sync) {
       throw new Error("Sync API not available");
     }
@@ -349,7 +355,11 @@ class SyncAPI {
    * @deprecated Use syncEntity() instead (task-based)
    * Sync a specific entity (legacy synchronous version)
    */
-  async syncEntityLegacy(entityName: string, force: boolean = false, user: string = "system"): Promise<any> {
+  async syncEntityLegacy(
+    entityName: string,
+    force: boolean = false,
+    user: string = "system",
+  ): Promise<any> {
     if (!window.backendAPI?.sync) {
       throw new Error("Sync API not available");
     }
@@ -379,7 +389,10 @@ class SyncAPI {
   /**
    * Process queue
    */
-  async processQueue(user: string = "system", limit: number = 50): Promise<any> {
+  async processQueue(
+    user: string = "system",
+    limit: number = 50,
+  ): Promise<any> {
     if (!window.backendAPI?.sync) {
       throw new Error("Sync API not available");
     }
@@ -394,7 +407,11 @@ class SyncAPI {
   /**
    * Get conflicts
    */
-  async getConflicts(entity?: string, entityId?: number, limit: number = 50): Promise<any> {
+  async getConflicts(
+    entity?: string,
+    entityId?: number,
+    limit: number = 50,
+  ): Promise<any> {
     if (!window.backendAPI?.sync) {
       throw new Error("Sync API not available");
     }
@@ -413,7 +430,7 @@ class SyncAPI {
     conflictId: number,
     resolution: "local" | "server" | "manual" | "merged",
     resolvedBy?: string,
-    mergedData?: any
+    mergedData?: any,
   ): Promise<any> {
     if (!window.backendAPI?.sync) {
       throw new Error("Sync API not available");
@@ -486,10 +503,12 @@ class SyncAPI {
     throw new Error(response.message || "Test failed");
   }
 
-    /**
+  /**
    * Get all local records for a specific entity (for sync)
    */
-  async getEntityRecords(entityName: string): Promise<{ entity: string; records: any[] }> {
+  async getEntityRecords(
+    entityName: string,
+  ): Promise<{ entity: string; records: any[] }> {
     if (!window.backendAPI?.sync) {
       throw new Error("Sync API not available");
     }
@@ -498,7 +517,25 @@ class SyncAPI {
       params: { entityName },
     });
     if (response.status) return response.data;
-    throw new Error(response.message || `Failed to get records for ${entityName}`);
+    throw new Error(
+      response.message || `Failed to get records for ${entityName}`,
+    );
+  }
+  /**
+   * Get pending (unsynced) records for a specific entity
+   */
+  async getPendingRecords(
+    entityName: string,
+  ): Promise<{ entity: string; records: any[]; lastSync: string | null }> {
+    if (!window.backendAPI?.sync) {
+      throw new Error("Sync API not available");
+    }
+    const response = await window.backendAPI.sync({
+      method: "getPendingRecords",
+      params: { entityName },
+    });
+    if (response.status) return response.data;
+    throw new Error(response.message || "Failed to get pending records");
   }
 }
 

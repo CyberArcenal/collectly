@@ -19,6 +19,8 @@ class SyncHandler {
     this.getSyncSummary = this.importHandler("./get/summary.ipc");
     this.isSyncAvailable = this.importHandler("./get/available.ipc");
     this.getEntityRecords = this.importHandler("./get_entity_records.ipc");
+    this.getPendingRecords = this.importHandler("./get_pending_records.ipc");
+
     // 🆕 TASK OPERATIONS
     this.getTaskStatus = this.importHandler("./get/task_status.ipc");
     this.getTaskList = this.importHandler("./get/task_list.ipc");
@@ -108,6 +110,8 @@ class SyncHandler {
           return await this.isSyncAvailable(handlerParams);
         case "getEntityRecords":
           return await this.getEntityRecords(handlerParams);
+        case "getPendingRecords":
+          return await this.getPendingRecords(handlerParams);
 
         // 🆕 TASK OPERATIONS
         case "getTaskStatus":

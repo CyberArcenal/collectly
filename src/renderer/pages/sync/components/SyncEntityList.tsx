@@ -1,4 +1,5 @@
 // src/renderer/pages/sync/components/SyncEntityList.tsx
+
 import React, { useState } from "react";
 import {
   RefreshCw,
@@ -13,9 +14,11 @@ import {
   FileCheck,
   DollarSign,
   AlertCircle,
+  Eye,
 } from "lucide-react";
 import LoadingSpinner from "../../../components/Shared/LoadingSpinner";
 
+// ✅ Add pendingCount to the interface
 interface EntityStatusItem {
   name: string;
   status: string;
@@ -23,12 +26,14 @@ interface EntityStatusItem {
   totalSynced: number;
   lastSyncCount: number;
   hasPending: boolean;
+  pendingCount: number; // new
 }
 
 interface SyncEntityListProps {
   entities: EntityStatusItem[];
   loading: boolean;
   onSyncEntity: (name: string) => void;
+  onViewPending: (name: string) => void; // new
 }
 
 const getStatusBadge = (status: string): { label: string; color: string } => {
@@ -70,6 +75,7 @@ const SyncEntityList: React.FC<SyncEntityListProps> = ({
   entities,
   loading,
   onSyncEntity,
+  onViewPending,
 }) => {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
@@ -99,6 +105,7 @@ const SyncEntityList: React.FC<SyncEntityListProps> = ({
       {entities.map((entity) => {
         const status = getStatusBadge(entity.status);
         const isExpanded = expanded[entity.name] || false;
+        const hasPending = entity.pendingCount > 0;
 
         return (
           <div
@@ -114,8 +121,14 @@ const SyncEntityList: React.FC<SyncEntityListProps> = ({
                   {getEntityIcon(entity.name)}
                 </div>
                 <div>
-                  <div className="text-sm font-medium text-[var(--text-primary)]">
+                  <div className="text-sm font-medium text-[var(--text-primary)] flex items-center gap-2">
                     {entity.name}
+                    {/* ✅ Pending count badge */}
+                    {hasPending && (
+                      <span className="text-xs bg-yellow-500/20 text-yellow-500 px-1.5 py-0.5 rounded-full">
+                        {entity.pendingCount} pending
+                      </span>
+                    )}
                   </div>
                   <div className="text-xs text-[var(--text-tertiary)]">
                     {entity.totalSynced.toLocaleString()} records synced
@@ -125,10 +138,10 @@ const SyncEntityList: React.FC<SyncEntityListProps> = ({
               <div className="flex items-center gap-3">
                 <span
                   className={`text-xs font-medium ${
-                    entity.hasPending ? "text-yellow-500" : status.color
+                    hasPending ? "text-yellow-500" : status.color
                   }`}
                 >
-                  {entity.hasPending ? (
+                  {hasPending ? (
                     <span className="flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse" />
                       Pending
@@ -177,23 +190,37 @@ const SyncEntityList: React.FC<SyncEntityListProps> = ({
                     </p>
                   </div>
                   <div>
-                    <span className="text-[var(--text-tertiary)]">Last Synced</span>
+                    <span className="text-[var(--text-tertiary)]">
+                      Last Synced
+                    </span>
                     <p className="font-medium text-[var(--text-primary)]">
                       {formatDate(entity.lastSyncedAt)}
                     </p>
                   </div>
                   <div>
-                    <span className="text-[var(--text-tertiary)]">Total Synced</span>
+                    <span className="text-[var(--text-tertiary)]">
+                      Total Synced
+                    </span>
                     <p className="font-medium text-[var(--text-primary)]">
                       {entity.totalSynced.toLocaleString()}
                     </p>
                   </div>
                   <div>
-                    <span className="text-[var(--text-tertiary)]">Last Count</span>
-                    <p className="font-medium text-[var(--text-primary)]">
-                      {entity.lastSyncCount}
+                    <span className="text-[var(--text-tertiary)]">Pending</span>
+                    <p className="font-medium text-yellow-500">
+                      {entity.pendingCount}
                     </p>
                   </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onViewPending(entity.name);
+                    }}
+                    className="p-1 rounded hover:bg-[var(--card-hover-bg)] transition-colors text-[var(--text-secondary)] hover:text-[var(--primary-color)]"
+                    title="View pending records"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
             )}

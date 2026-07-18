@@ -401,12 +401,15 @@ class SyncService {
         }
 
         // Wait before next poll
-        await new Promise(resolve => setTimeout(resolve, interval));
+        await new Promise((resolve) => setTimeout(resolve, interval));
       } catch (error) {
         // If task not found, it might have been completed and cleaned up
         if (error.message === "Task not found") {
           // Check if we have a result cached
-          return { status: "completed", message: "Task completed (no longer tracked)" };
+          return {
+            status: "completed",
+            message: "Task completed (no longer tracked)",
+          };
         }
         throw error;
       }
@@ -435,7 +438,9 @@ class SyncService {
     if (status) query.append("status", status);
     if (limit) query.append("limit", limit);
 
-    const response = await onlineClient.get(`/api/v1/sync/tasks/?${query.toString()}`);
+    const response = await onlineClient.get(
+      `/api/v1/sync/tasks/?${query.toString()}`,
+    );
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Server error: ${response.status} - ${errorText}`);
@@ -444,6 +449,30 @@ class SyncService {
     const result = await response.json();
     return result.data || result;
   }
+
+
+  /**
+ * Get the number of pending records for a given entity.
+ * @param {string} entityName
+ * @returns {Promise<number>}
+ */
+async getPendingCount(entityName) {
+  const entity = this.entities.find(e => e.name === entityName);
+  if (!entity) throw new Error(`Unknown entity: ${entityName}`);
+
+  const lastSync = await syncMetadataService.getLastSyncTime(entityName);
+  const { AppDataSource } = require("../main/db/data-source");
+  const repo = AppDataSource.getRepository(entityName);
+
+  const qb = repo.createQueryBuilder(entityName);
+  if (lastSync) {
+    qb.where(`${entityName}.updatedAt > :lastSync`, { lastSync })
+      .orWhere(`${entityName}.createdAt > :lastSync`, { lastSync })
+      .orWhere(`${entityName}.deletedAt > :lastSync`, { lastSync });
+  }
+  // If lastSync is null (never synced), count all records
+  return await qb.getCount();
+}
 
   // ============================================================
   // 🔄 FULL SYNC (Task-Based)
@@ -454,7 +483,7 @@ class SyncService {
    * @param {string} user - User performing the sync
    * @returns {Promise<Object>} Sync results with task IDs
    */
-  async fullSync(user = "system") {
+  async fullSync(user = "system", force = false) {
     if (this.isSyncing) {
       throw new Error("Sync already in progress");
     }
@@ -492,7 +521,9 @@ class SyncService {
       for (const entity of this.entities) {
         try {
           // Get all records for this entity
-          const records = await this.getEntityRecords(entity.name);
+          const { records } = force 
+        ? await this.getEntityRecords(entity.name) 
+        : await this.getPendingRecords(entity.name);
 
           if (records.length === 0) {
             this.syncResults.entities[entity.name] = {
@@ -506,12 +537,7 @@ class SyncService {
           }
 
           // Start sync task
-          const result = await this.startSyncTask(
-            entity.name,
-            records,
-            user,
-            false
-          );
+          const result = await this.startSyncTask(entity.name, records, user, force);
 
           this.syncResults.entities[entity.name] = {
             status: "task_queued",
@@ -530,7 +556,6 @@ class SyncService {
             completed: this.syncResults.total,
             currentEntity: null,
           });
-
         } catch (error) {
           this.syncResults.failed++;
           this.syncResults.errors.push({
@@ -551,7 +576,7 @@ class SyncService {
       });
 
       logger.info(
-        `[SyncService] Full sync completed: ${this.syncResults.success} succeeded, ${this.syncResults.failed} failed`
+        `[SyncService] Full sync completed: ${this.syncResults.success} succeeded, ${this.syncResults.failed} failed`,
       );
       return this.syncResults;
     } catch (error) {
@@ -602,7 +627,7 @@ class SyncService {
       });
 
       logger.info(
-        `[SyncService] Incremental sync completed: ${results.completed} succeeded, ${results.failed} failed`
+        `[SyncService] Incremental sync completed: ${results.completed} succeeded, ${results.failed} failed`,
       );
       return results;
     } catch (error) {
@@ -684,10 +709,20 @@ class SyncService {
     // Include active task status
     const activeTasks = Object.values(this.activeTasks);
 
+    const metadataWithPending = await Promise.all(
+  metadata.map(async (item) => {
+    const pendingCount = await this.getPendingCount(item.entity);
+    return {
+      ...item,
+      pendingCount, // new field
+    };
+  })
+);
+
     return {
       isSyncing: this.isSyncing,
       progress: this.currentProgress,
-      metadata,
+      metadata: metadataWithPending,
       queue: queueStats,
       conflicts: conflictStats,
       activeTasks: activeTasks,
@@ -844,7 +879,7 @@ class SyncService {
    * @returns {Promise<{ entity: string, records: Array }>}
    */
   async getEntityRecords(entityName) {
-    const entity = this.entities.find(e => e.name === entityName);
+    const entity = this.entities.find((e) => e.name === entityName);
     if (!entity) {
       throw new Error(`Unknown entity: ${entityName}`);
     }
@@ -856,7 +891,7 @@ class SyncService {
 
     return {
       entity: entityName,
-      records: records.map(r => {
+      records: records.map((r) => {
         const obj = {};
         for (const field of entity.fields) {
           if (r[field] !== undefined) {
@@ -870,6 +905,63 @@ class SyncService {
         return obj;
       }),
     };
+  }
+
+  /**
+ * Sync a specific entity by name (fetches pending records and starts a task)
+ * @param {string} entityName
+ * @param {string} user
+ * @param {boolean} force - if true, sync all records, not just pending
+ * @returns {Promise<{taskId: string, status: string, entity: string, total: number}>}
+ */
+async syncEntityByName(entityName, user = "system", force = false) {
+  const { records } = force
+    ? await this.getEntityRecords(entityName)
+    : await this.getPendingRecords(entityName);
+
+  if (records.length === 0) {
+    throw new Error(`No pending records for ${entityName}`);
+  }
+
+  return await this.startSyncTask(entityName, records, user, force);
+}
+
+  /**
+   * Get records that have changed since the last sync for a given entity.
+   * @param {string} entityName
+   * @returns {Promise<{ entity: string, records: Array, lastSync: Date | null }>}
+   */
+  async getPendingRecords(entityName) {
+    const entity = this.entities.find((e) => e.name === entityName);
+    if (!entity) throw new Error(`Unknown entity: ${entityName}`);
+
+    const lastSync = await syncMetadataService.getLastSyncTime(entityName);
+    const { AppDataSource } = require("../main/db/data-source");
+    const repo = AppDataSource.getRepository(entityName);
+
+    // Build a query that returns records where updatedAt > lastSync (or createdAt > lastSync, or deletedAt > lastSync)
+    const qb = repo.createQueryBuilder(entityName);
+    if (lastSync) {
+      qb.where(`${entityName}.updatedAt > :lastSync`, { lastSync })
+        .orWhere(`${entityName}.createdAt > :lastSync`, { lastSync })
+        .orWhere(`${entityName}.deletedAt > :lastSync`, { lastSync });
+    }
+    // If lastSync is null (never synced), return all records
+    const records = await qb.getMany();
+
+    // Transform to plain objects (same as getEntityRecords)
+    const transformed = records.map((r) => {
+      const obj = {};
+      for (const field of entity.fields) {
+        if (r[field] !== undefined) {
+          obj[field] =
+            r[field] instanceof Date ? r[field].toISOString() : r[field];
+        }
+      }
+      return obj;
+    });
+
+    return { entity: entityName, records: transformed, lastSync };
   }
 
   /**

@@ -26,6 +26,7 @@ import SyncAdvancedActions from "./components/SyncAdvancedActions";
 import SyncEntityList from "./components/SyncEntityList";
 import SyncConflictList from "./components/SyncConflictList";
 import SyncQueueList from "./components/SyncQueueList";
+import PendingRecordsModal from "./components/PendingRecordsModal";
 
 const formatDate = (date: string | null): string => {
   if (!date) return "Never";
@@ -50,7 +51,7 @@ const SyncPage: React.FC = () => {
     fullSync,
     incrementalSync,
     syncEntity,
-     syncEntityByName, 
+    syncEntityByName,
     resolveConflict,
     autoResolveConflicts,
     cleanup,
@@ -60,6 +61,9 @@ const SyncPage: React.FC = () => {
   const [showConflicts, setShowConflicts] = useState(true);
   const [showQueue, setShowQueue] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [pendingModalEntity, setPendingModalEntity] = useState<string | null>(
+    null,
+  );
 
   const getSummary = (
     camelKey: string,
@@ -79,6 +83,7 @@ const SyncPage: React.FC = () => {
       totalSynced: item.totalSynced || item.total_synced || 0,
       lastSyncCount: item.lastSyncCount || item.last_sync_count || 0,
       hasPending: item.hasPending || item.has_pending || false,
+      pendingCount: (item as any).pendingCount ?? 0,
     })) || [];
 
   const lastSync = getSummary("lastSync", "last_sync", null);
@@ -117,6 +122,10 @@ const SyncPage: React.FC = () => {
     await autoResolveConflicts();
   };
 
+  const handleViewPending = (entityName: string) => {
+    setPendingModalEntity(entityName);
+  };
+
   const handleCleanup = async () => {
     const confirmed = await dialogs.confirm({
       title: "Cleanup Sync Data",
@@ -136,9 +145,9 @@ const SyncPage: React.FC = () => {
     await resetSync(undefined, user?.username || "system");
   };
 
-const handleSyncEntity = async (entityName: string) => {
-  await syncEntityByName(entityName, user?.username || "system");
-};
+  const handleSyncEntity = async (entityName: string) => {
+    await syncEntityByName(entityName, user?.username || "system");
+  };
 
   const handleResolveConflict = async (id: number, resolution: string) => {
     await resolveConflict(id, resolution, user?.username || "system");
@@ -261,6 +270,7 @@ const handleSyncEntity = async (entityName: string) => {
                 entities={entityList}
                 loading={loading}
                 onSyncEntity={handleSyncEntity}
+                onViewPending={handleViewPending}
               />
             )}
           </div>
@@ -374,6 +384,12 @@ const handleSyncEntity = async (entityName: string) => {
       <div className="text-center text-xs text-[var(--text-tertiary)] border-t border-[var(--border-color)] pt-3">
         <p>Sync Service v1.0 • {syncing ? "🔄 Syncing..." : "✅ Ready"}</p>
       </div>
+
+      <PendingRecordsModal
+        entityName={pendingModalEntity}
+        isOpen={!!pendingModalEntity}
+        onClose={() => setPendingModalEntity(null)}
+      />
     </div>
   );
 };

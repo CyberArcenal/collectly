@@ -32,7 +32,9 @@ interface SyncContextValue {
   fullSync: (user?: string) => Promise<void>;
   incrementalSync: (user?: string, limit?: number) => Promise<void>;
   syncEntity: (entityName: string, records?: any[], user?: string) => Promise<string>;
-  syncEntityByName: (entityName: string, user?: string) => Promise<void>;
+  // ✅ Changed return type to allow taskId or undefined
+  syncEntityByName: (entityName: string, user?: string) => Promise<string | undefined>;
+  getPendingRecords: (entityName: string) => Promise<{ entity: string; records: any[]; lastSync: string | null }>;
   getTaskStatus: (taskId: string) => Promise<TaskProgress>;
   pollTask: (taskId: string, onProgress?: (progress: TaskProgress) => void) => Promise<TaskProgress>;
   resolveConflict: (conflictId: number, resolution: string, user?: string) => Promise<void>;
@@ -78,65 +80,67 @@ export const SyncProvider: React.FC<SyncProviderProps> = ({ children }) => {
   const [isOnline, setIsOnline] = useState(true);
 
   const progressUnsubscribe = useRef<(() => void) | null>(null);
-  const activeTaskPolling = useRef<Record<string, NodeJS.Timeout>>({});
   const isMounted = useRef(true);
 
+  // ─── Helper: Get pending count for an entity ───
+  const fetchPendingCount = useCallback(async (entityName: string): Promise<number> => {
+    try {
+      const { records } = await syncAPI.getPendingRecords(entityName);
+      return records.length;
+    } catch {
+      return 0;
+    }
+  }, []);
+
   // ─── Fetch Data ───
-// src/renderer/contexts/SyncContext.tsx (partial – only fetchData method)
-
-const fetchData = useCallback(async () => {
-  if (!isMounted.current) return;
-  setLoading(true);
-  setError(null);
-
-  try {
-    console.log('[SyncContext] Fetching sync data...');
-    
-    const [statusRes, summaryRes, conflictsRes, queueRes] = await Promise.all([
-      syncAPI.getStatus(),
-      syncAPI.getSummary(),
-      syncAPI.getConflicts(),
-      syncAPI.getQueueStatus(),
-    ]);
-
-    console.log('[SyncContext] Raw status response:', statusRes);
-    console.log('[SyncContext] Raw summary response:', summaryRes);
-    console.log('[SyncContext] Raw conflicts response:', conflictsRes);
-    console.log('[SyncContext] Raw queue response:', queueRes);
-
-    // Check metadata structure
-    if (statusRes) {
-      console.log('[SyncContext] statusRes.metadata:', statusRes.metadata);
-      console.log('[SyncContext] statusRes.entities:', statusRes.entities);
-      console.log('[SyncContext] statusRes keys:', Object.keys(statusRes));
-    }
-
+  const fetchData = useCallback(async () => {
     if (!isMounted.current) return;
+    setLoading(true);
+    setError(null);
 
-    setStatus(statusRes);
-    setSummary(summaryRes);
-    setConflicts(conflictsRes.conflicts || []);
-    setQueueItems(queueRes.items || []);
+    try {
+      const [statusRes, summaryRes, conflictsRes, queueRes] = await Promise.all([
+        syncAPI.getStatus(),
+        syncAPI.getSummary(),
+        syncAPI.getConflicts(),
+        syncAPI.getQueueStatus(),
+      ]);
 
-    // Update syncing state
-    if (statusRes.isSyncing) {
-      setSyncing(true);
+      // Augment metadata with pending counts (client-side)
+      if (statusRes && statusRes.metadata) {
+        const metadataWithPending = await Promise.all(
+          statusRes.metadata.map(async (item) => {
+            const pendingCount = await fetchPendingCount(item.entity);
+            return { ...item, pendingCount };
+          })
+        );
+        statusRes.metadata = metadataWithPending;
+      }
+
+      if (!isMounted.current) return;
+
+      setStatus(statusRes);
+      setSummary(summaryRes);
+      setConflicts(conflictsRes.conflicts || []);
+      setQueueItems(queueRes.items || []);
+
+      if (statusRes.isSyncing) {
+        setSyncing(true);
+      }
+
+      const availability = await syncAPI.isAvailable();
+      setIsOnline(availability.available);
+
+    } catch (err: any) {
+      console.error('[SyncContext] Error fetching data:', err);
+      if (!isMounted.current) return;
+      setError(err.message || "Failed to load sync data");
+    } finally {
+      if (isMounted.current) {
+        setLoading(false);
+      }
     }
-
-    // Update online status
-    const availability = await syncAPI.isAvailable();
-    setIsOnline(availability.available);
-
-  } catch (err: any) {
-    console.error('[SyncContext] Error fetching data:', err);
-    if (!isMounted.current) return;
-    setError(err.message || "Failed to load sync data");
-  } finally {
-    if (isMounted.current) {
-      setLoading(false);
-    }
-  }
-}, []);
+  }, [fetchPendingCount]);
 
   // ─── Progress Listener ───
   useEffect(() => {
@@ -167,13 +171,11 @@ const fetchData = useCallback(async () => {
     isMounted.current = true;
     fetchData();
 
-    const interval = setInterval(fetchData, 30000); // Auto-refresh every 30s
+    const interval = setInterval(fetchData, 30000);
 
     return () => {
       isMounted.current = false;
       clearInterval(interval);
-      // Clean up polling intervals
-      Object.values(activeTaskPolling.current).forEach(clearInterval);
     };
   }, [fetchData]);
 
@@ -188,7 +190,6 @@ const fetchData = useCallback(async () => {
     setError(null);
     try {
       await syncAPI.fullSync(user);
-      // Progress will update via listener
     } catch (err: any) {
       setSyncing(false);
       setError(err.message);
@@ -244,16 +245,14 @@ const fetchData = useCallback(async () => {
         setActiveTasks(prev =>
           prev.map(t => t.taskId === taskId ? { ...t, ...progress } : t)
         );
-        // Also update global progress
         setProgress({
-          status: progress.status === "running" ? "syncing" : progress.status,
+          status: progress.status === "running" ? "syncing" : progress.status as "completed" | "failed" | "syncing" | "idle",
           total: progress.total || 0,
           completed: progress.processed || 0,
           failed: progress.failed || 0,
           currentEntity: progress.entity || entityName,
         });
       }).then(() => {
-        // Task completed
         setSyncing(false);
         fetchData();
       }).catch((err) => {
@@ -269,34 +268,36 @@ const fetchData = useCallback(async () => {
     }
   }, [fetchData]);
 
-  // ─── Sync Entity By Name (no records, uses local data) ───
-const syncEntityByName = useCallback(async (entityName: string, user: string = "system") => {
-  try {
-    // 1. Fetch all local records
-    const entityData = await syncAPI.getEntityRecords(entityName);
+  // ─── Sync Entity By Name (using pending records) ───
+  const syncEntityByName = useCallback(async (entityName: string, user: string = "system") => {
+    try {
+      // Get pending records only
+      const pendingData = await syncAPI.getPendingRecords(entityName);
 
-    if (!entityData.records || entityData.records.length === 0) {
-      showSuccess(`No records to sync for ${entityName}`);
-      return;
+      if (!pendingData.records || pendingData.records.length === 0) {
+        showSuccess(`No pending records for ${entityName}`);
+        return; // returns undefined
+      }
+
+      // Start sync with only pending records
+      const taskId = await syncEntity(entityName, pendingData.records, user);
+      return taskId; // returns string
+    } catch (err: any) {
+      setError(err.message);
+      showError(err.message);
+      throw err;
     }
+  }, [syncEntity]);
 
-    // 2. Start sync with records
-    const taskId = await syncEntity(entityName, entityData.records, user);
-
-    // 3. Poll for completion (optional)
-    return taskId;
-  } catch (err: any) {
-    setError(err.message);
-    showError(err.message);
-    throw err;
-  }
-}, [syncEntity]);
+  // ─── Get Pending Records (exposed to UI) ───
+  const getPendingRecords = useCallback(async (entityName: string) => {
+    return await syncAPI.getPendingRecords(entityName);
+  }, []);
 
   // ─── Get Task Status ───
   const getTaskStatus = useCallback(async (taskId: string): Promise<TaskProgress> => {
     try {
       const progress = await syncAPI.getTaskStatus(taskId);
-      // Update active tasks
       setActiveTasks(prev =>
         prev.map(t => t.taskId === taskId ? { ...t, ...progress } : t)
       );
@@ -314,7 +315,6 @@ const syncEntityByName = useCallback(async (entityName: string, user: string = "
   ): Promise<TaskProgress> => {
     try {
       const result = await syncAPI.pollTaskStatus(taskId, (progress) => {
-        // Update active tasks
         setActiveTasks(prev =>
           prev.map(t => t.taskId === taskId ? { ...t, ...progress } : t)
         );
@@ -396,6 +396,7 @@ const syncEntityByName = useCallback(async (entityName: string, user: string = "
     incrementalSync,
     syncEntity,
     syncEntityByName,
+    getPendingRecords,
     getTaskStatus,
     pollTask,
     resolveConflict,
