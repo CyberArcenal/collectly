@@ -1,30 +1,53 @@
-import React, { useState, useEffect } from "react";
-import { RefreshCw, Upload, CheckCircle, AlertCircle } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import { AlertCircle, Upload } from "lucide-react";
 import { useSettings } from "../../contexts/SettingsContext";
+import Modal from "../../components/UI/Modal";
+import { SyncProvider } from "./SyncContext";
+import { useSync } from "./useSync";
+import SyncEntityList from "./SyncEntityList";
+import { SYNC_ENTITIES, SyncEntityKey } from "./SyncStateStore";
 
-const SyncPage: React.FC = () => {
-  const { getSetting } = useSettings();
-  const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "success" | "error">("idle");
-  const [lastSync, setLastSync] = useState<string | null>(null);
+const SyncPageContent: React.FC = () => {
+  const { getSetting, isStrictOnlineMode } = useSettings();
+  const {
+    syncing,
+    error,
+    progress,
+    currentTask,
+    pendingCounts,
+    lastSyncTimestamps,
+    activeTasks,
+    syncEntity,
+    cancelSync,
+    getPendingRecords,
+  } = useSync();
 
-  const syncMode = getSetting("general", "sync_mode", "offline");
   const serverUrl = getSetting("general", "server_url", "");
+  const [pendingModalOpen, setPendingModalOpen] = useState(false);
+  const [selectedEntity, setSelectedEntity] = useState<SyncEntityKey | null>(null);
 
-  const handleSync = async () => {
-    if (syncMode !== "online" as "offline" | "online" || !serverUrl) {
-      return;
-    }
-    setSyncStatus("syncing");
-    // TODO: implement actual sync logic (fetch unsynced queue, send batch)
-    // For now, simulate
-    setTimeout(() => {
-      setSyncStatus("success");
-      setLastSync(new Date().toLocaleString());
-      setTimeout(() => setSyncStatus("idle"), 3000);
-    }, 2000);
+  const hasOnlineAccess = isStrictOnlineMode();
+
+  const pendingRecords = useMemo(
+    () => (selectedEntity ? getPendingRecords(selectedEntity) : []),
+    [getPendingRecords, selectedEntity],
+  );
+
+  const selectedEntityLabel = selectedEntity
+    ? SYNC_ENTITIES.find((entity) => entity.key === selectedEntity)?.label ?? selectedEntity
+    : "";
+
+  const openPendingModal = (entityKey: SyncEntityKey) => {
+    setSelectedEntity(entityKey);
+    setPendingModalOpen(true);
   };
 
-  if (syncMode !== "online" as "offline" | "online") {
+  const closePendingModal = () => {
+    setPendingModalOpen(false);
+    setSelectedEntity(null);
+  };
+
+  if (!hasOnlineAccess) {
     return (
       <div className="p-4 text-center text-[var(--text-secondary)]">
         <AlertCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
@@ -35,39 +58,77 @@ const SyncPage: React.FC = () => {
   }
 
   return (
-    <div className="m-1">
-      <div className="rounded-md shadow-md border p-4" style={{ backgroundColor: "var(--card-bg)", borderColor: "var(--border-color)" }}>
-        <h1 className="text-xl font-bold mb-4 flex items-center gap-2">
-          <Upload className="w-5 h-5" /> Data Sync
-        </h1>
-        <div className="mb-4 p-3 rounded-md bg-[var(--card-secondary-bg)]">
-          <p>Server: <span className="font-mono">{serverUrl}</span></p>
-          {lastSync && <p className="text-sm text-[var(--text-tertiary)]">Last sync: {lastSync}</p>}
+    <div className="m-1 space-y-4">
+      <div className="rounded-md border border-[var(--border-color)] bg-[var(--card-bg)] p-4 shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-xl font-bold flex items-center gap-2">
+              <Upload className="w-5 h-5" /> Data Sync
+            </h1>
+            <p className="text-sm text-[var(--text-tertiary)]">
+              Manual sync is available while the app is connected to the configured server.
+            </p>
+          </div>
+          <div className="rounded-xl border border-[var(--border-color)] bg-[var(--card-secondary-bg)] p-3 text-sm">
+            <div className="font-semibold">Server</div>
+            <div className="font-mono break-all">{serverUrl || "Not configured"}</div>
+          </div>
         </div>
-        <button
-          onClick={handleSync}
-          disabled={syncStatus === "syncing"}
-          className="windows-button windows-button-primary flex items-center gap-2"
-        >
-          {syncStatus === "syncing" ? (
-            <RefreshCw className="w-4 h-4 animate-spin" />
-          ) : (
-            <Upload className="w-4 h-4" />
-          )}
-          {syncStatus === "syncing" ? "Syncing..." : "Sync Now"}
-        </button>
-        {syncStatus === "success" && (
-          <div className="mt-4 p-2 bg-green-500/20 text-green-500 rounded flex items-center gap-2">
-            <CheckCircle className="w-4 h-4" /> Sync completed successfully.
-          </div>
-        )}
-        {syncStatus === "error" && (
-          <div className="mt-4 p-2 bg-red-500/20 text-red-500 rounded flex items-center gap-2">
-            <AlertCircle className="w-4 h-4" /> Sync failed.
-          </div>
-        )}
       </div>
+
+      {error && (
+        <div className="rounded-md border border-red-300 bg-red-500/10 p-4 text-sm text-red-700">
+          <div className="font-semibold">Sync error</div>
+          <div>{error}</div>
+        </div>
+      )}
+
+      <SyncEntityList
+        entities={SYNC_ENTITIES}
+        pendingCounts={pendingCounts}
+        lastSyncTimestamps={lastSyncTimestamps}
+        activeTasks={activeTasks}
+        syncing={syncing}
+        currentTask={currentTask}
+        progressMessage={progress?.message ?? null}
+        onSync={syncEntity}
+        onCancel={cancelSync}
+        onViewPending={openPendingModal}
+      />
+
+      <Modal
+        isOpen={pendingModalOpen}
+        onClose={closePendingModal}
+        title={selectedEntityLabel ? `Pending records for ${selectedEntityLabel}` : "Pending records"}
+        size="md"
+      >
+        {pendingRecords.length > 0 ? (
+          <div className="space-y-3">
+            {pendingRecords.map((record) => (
+              <div
+                key={record.id}
+                className="rounded-md border border-[var(--border-color)] bg-[var(--card-bg)] p-3"
+              >
+                <div className="font-semibold">{record.title}</div>
+                <p className="text-sm text-[var(--text-tertiary)]">{record.detail}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-[var(--text-secondary)]">
+            There are no pending records for this entity at the moment.
+          </p>
+        )}
+      </Modal>
     </div>
+  );
+};
+
+const SyncPage: React.FC = () => {
+  return (
+    <SyncProvider>
+      <SyncPageContent />
+    </SyncProvider>
   );
 };
 
