@@ -35,6 +35,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { ProtectedRoute } from "../components/Shared/ProtectedRoute";
 import UserManagement from "../pages/users";
 import ProfilePage from "../pages/profile";
+import ControlsPage from "../pages/controls";
 
 function App() {
   const [licenseAccepted, setLicenseAccepted] = useState(false);
@@ -319,6 +320,8 @@ function App() {
 
         <Route path="/users" element={<UserManagement />} />
         <Route path="/profile" element={<ProfilePage />} />
+
+        <Route path="/controls" element={<ControlsPage />} />
 
         {/* 404 Page */}
         <Route path="*" element={<div>Not found page</div>} />

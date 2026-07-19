@@ -9,11 +9,8 @@ import {
   ChevronDown,
   ChevronRight,
   Database,
-  Play,
-  Settings,
   AlertTriangle,
   Clock,
-  HardDrive,
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { dialogs } from "../../utils/dialogs";
@@ -50,7 +47,6 @@ const SyncPage: React.FC = () => {
     fetchData,
     fullSync,
     incrementalSync,
-    syncEntity,
     syncEntityByName,
     resolveConflict,
     autoResolveConflicts,
@@ -61,69 +57,12 @@ const SyncPage: React.FC = () => {
   const [showConflicts, setShowConflicts] = useState(true);
   const [showQueue, setShowQueue] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [pendingModalEntity, setPendingModalEntity] = useState<string | null>(
-    null,
-  );
+  const [pendingModalEntity, setPendingModalEntity] = useState<string | null>(null);
 
-  const getSummary = (
-    camelKey: string,
-    snakeKey: string,
-    fallback: any = 0,
-  ) => {
-import React, { useMemo, useState } from "react";
-import { AlertCircle, Upload } from "lucide-react";
-import { useSettings } from "../../contexts/SettingsContext";
-import Modal from "../../components/UI/Modal";
-import { SyncProvider } from "./SyncContext";
-import { useSync } from "./useSync";
-import SyncEntityList from "./SyncEntityList";
-import { SYNC_ENTITIES, SyncEntityKey } from "./SyncStateStore";
-
-const SyncPageContent: React.FC = () => {
-  const { getSetting, isStrictOnlineMode } = useSettings();
-  const {
-    syncing,
-    error,
-    progress,
-    currentTask,
-    pendingCounts,
-    lastSyncTimestamps,
-    activeTasks,
-    syncEntity,
-    cancelSync,
-    getPendingRecords,
-  } = useSync();
-
-  const serverUrl = getSetting("general", "server_url", "");
-  const [pendingModalOpen, setPendingModalOpen] = useState(false);
-  const [selectedEntity, setSelectedEntity] = useState<SyncEntityKey | null>(null);
-
-  const hasOnlineAccess = isStrictOnlineMode();
-
-  const pendingRecords = useMemo(
-    () => (selectedEntity ? getPendingRecords(selectedEntity) : []),
-    [getPendingRecords, selectedEntity],
-  );
-
-  const selectedEntityLabel = selectedEntity
-    ? SYNC_ENTITIES.find((entity) => entity.key === selectedEntity)?.label ?? selectedEntity
-    : "";
-
-  const openPendingModal = (entityKey: SyncEntityKey) => {
-    setSelectedEntity(entityKey);
-    setPendingModalOpen(true);
+  const getSummary = (key: string, fallback: any = 0) => {
+    return (summary as any)?.[key] ?? fallback;
   };
 
-  const closePendingModal = () => {
-    setPendingModalOpen(false);
-    setSelectedEntity(null);
-  };
-
-  if (!hasOnlineAccess) {
-    return (
-      (summary as any)?.[camelKey] ?? (summary as any)?.[snakeKey] ?? fallback
-    );
-  };
   // Transform metadata to entities
   const entityList =
     status?.metadata?.map((item) => ({
@@ -136,17 +75,11 @@ const SyncPageContent: React.FC = () => {
       pendingCount: (item as any).pendingCount ?? 0,
     })) || [];
 
-  const lastSync = getSummary("lastSync", "last_sync", null);
-  const totalEntities = getSummary("totalEntities", "total_entities");
-  const totalSynced = getSummary("totalSynced", "total_synced");
-  const pending = getSummary("pending", "pending");
-  const failed = getSummary("failed", "failed");
-
-  console.log("Synce Entities", entityList);
-  console.log("status: ", status);
-  console.log("Summary", summary);
-  console.log("conflict: ", conflicts);
-  console.log("Queue items", queueItems);
+  const lastSync = getSummary("lastSync");
+  const totalEntities = getSummary("totalEntities");
+  const totalSynced = getSummary("totalSynced");
+  const pending = getSummary("pending");
+  const failed = getSummary("failed");
 
   const handleFullSync = async () => {
     const confirmed = await dialogs.confirm({
@@ -205,7 +138,7 @@ const SyncPageContent: React.FC = () => {
 
   return (
     <div className="p-4 space-y-4">
-      {/* ─── Header ─── */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
           <h1 className="text-xl font-bold text-[var(--text-primary)] flex items-center gap-2">
@@ -242,8 +175,7 @@ const SyncPageContent: React.FC = () => {
             )}
           </div>
           <span className="text-xs text-[var(--text-tertiary)]">
-            Last sync:{" "}
-            {summary?.lastSync ? formatDate(summary.lastSync) : "Never"}
+            Last sync: {lastSync ? formatDate(lastSync) : "Never"}
           </span>
           <button
             onClick={fetchData}
@@ -255,13 +187,13 @@ const SyncPageContent: React.FC = () => {
         </div>
       </div>
 
-      {/* ─── Summary Cards ─── */}
+      {/* Summary Cards */}
       <SyncSummaryCards summary={summary} isSyncing={syncing} />
 
-      {/* ─── Progress Bar ─── */}
+      {/* Progress Bar */}
       <SyncProgressBar progress={progress} isVisible={syncing} />
 
-      {/* ─── Actions ─── */}
+      {/* Actions */}
       <SyncActionsBar
         onFullSync={handleFullSync}
         onIncrementalSync={handleIncrementalSync}
@@ -273,7 +205,7 @@ const SyncPageContent: React.FC = () => {
         conflictsCount={conflicts.length}
       />
 
-      {/* ─── Advanced Actions ─── */}
+      {/* Advanced Actions */}
       {showAdvanced && (
         <SyncAdvancedActions
           onCleanup={handleCleanup}
@@ -282,9 +214,9 @@ const SyncPageContent: React.FC = () => {
         />
       )}
 
-      {/* ─── Main Grid ─── */}
+      {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* ─── Entities List ─── */}
+        {/* Entities List */}
         <div className="lg:col-span-2">
           <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border-color)] shadow-sm overflow-hidden">
             <div className="px-4 py-3 border-b border-[var(--border-color)] flex items-center justify-between">
@@ -326,9 +258,9 @@ const SyncPageContent: React.FC = () => {
           </div>
         </div>
 
-        {/* ─── Right Sidebar ─── */}
+        {/* Right Sidebar */}
         <div className="space-y-4">
-          {/* ─── Conflicts ─── */}
+          {/* Conflicts */}
           <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border-color)] shadow-sm overflow-hidden">
             <div
               className="px-4 py-3 border-b border-[var(--border-color)] flex items-center justify-between cursor-pointer hover:bg-[var(--card-hover-bg)] transition-colors"
@@ -362,7 +294,7 @@ const SyncPageContent: React.FC = () => {
             )}
           </div>
 
-          {/* ─── Queue ─── */}
+          {/* Queue */}
           <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border-color)] shadow-sm overflow-hidden">
             <div
               className="px-4 py-3 border-b border-[var(--border-color)] flex items-center justify-between cursor-pointer hover:bg-[var(--card-hover-bg)] transition-colors"
@@ -392,7 +324,7 @@ const SyncPageContent: React.FC = () => {
             )}
           </div>
 
-          {/* ─── Quick Stats ─── */}
+          {/* Quick Stats */}
           <div className="bg-[var(--card-secondary-bg)] rounded-xl border border-[var(--border-color)] p-3">
             <div className="space-y-1 text-xs text-[var(--text-secondary)]">
               <div className="flex justify-between">
@@ -426,90 +358,22 @@ const SyncPageContent: React.FC = () => {
                 <span className="font-medium text-red-500">{failed}</span>
               </div>
             </div>
-    <div className="m-1 space-y-4">
-      <div className="rounded-md border border-[var(--border-color)] bg-[var(--card-bg)] p-4 shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-xl font-bold flex items-center gap-2">
-              <Upload className="w-5 h-5" /> Data Sync
-            </h1>
-            <p className="text-sm text-[var(--text-tertiary)]">
-              Manual sync is available while the app is connected to the configured server.
-            </p>
-          </div>
-          <div className="rounded-xl border border-[var(--border-color)] bg-[var(--card-secondary-bg)] p-3 text-sm">
-            <div className="font-semibold">Server</div>
-            <div className="font-mono break-all">{serverUrl || "Not configured"}</div>
           </div>
         </div>
       </div>
 
-      {error && (
-        <div className="rounded-md border border-red-300 bg-red-500/10 p-4 text-sm text-red-700">
-          <div className="font-semibold">Sync error</div>
-          <div>{error}</div>
-        </div>
-      )}
-
-      <SyncEntityList
-        entities={SYNC_ENTITIES}
-        pendingCounts={pendingCounts}
-        lastSyncTimestamps={lastSyncTimestamps}
-        activeTasks={activeTasks}
-        syncing={syncing}
-        currentTask={currentTask}
-        progressMessage={progress?.message ?? null}
-        onSync={syncEntity}
-        onCancel={cancelSync}
-        onViewPending={openPendingModal}
-      />
-
-      <Modal
-        isOpen={pendingModalOpen}
-        onClose={closePendingModal}
-        title={selectedEntityLabel ? `Pending records for ${selectedEntityLabel}` : "Pending records"}
-        size="md"
-      >
-        {pendingRecords.length > 0 ? (
-          <div className="space-y-3">
-            {pendingRecords.map((record) => (
-              <div
-                key={record.id}
-                className="rounded-md border border-[var(--border-color)] bg-[var(--card-bg)] p-3"
-              >
-                <div className="font-semibold">{record.title}</div>
-                <p className="text-sm text-[var(--text-tertiary)]">{record.detail}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* ─── Footer ─── */}
+      {/* Footer */}
       <div className="text-center text-xs text-[var(--text-tertiary)] border-t border-[var(--border-color)] pt-3">
         <p>Sync Service v1.0 • {syncing ? "🔄 Syncing..." : "✅ Ready"}</p>
       </div>
 
+      {/* Pending Records Modal */}
       <PendingRecordsModal
         entityName={pendingModalEntity}
         isOpen={!!pendingModalEntity}
         onClose={() => setPendingModalEntity(null)}
       />
-        ) : (
-          <p className="text-sm text-[var(--text-secondary)]">
-            There are no pending records for this entity at the moment.
-          </p>
-        )}
-      </Modal>
     </div>
-  );
-};
-
-const SyncPage: React.FC = () => {
-  return (
-    <SyncProvider>
-      <SyncPageContent />
-    </SyncProvider>
   );
 };
 

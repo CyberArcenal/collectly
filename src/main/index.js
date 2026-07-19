@@ -895,6 +895,7 @@ function registerIpcHandlers() {
       "./ipc/core/auth/index.ipc.js",
       "./ipc/core/tokenStorage/index.ipc.js",
       "./ipc/utils/sync/index.ipc.js",
+      "./ipc/utils/controls/index.ipc.js",
     ];
 
     ipcModules.forEach((modulePath) => {

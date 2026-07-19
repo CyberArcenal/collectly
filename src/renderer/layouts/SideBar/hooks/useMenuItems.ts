@@ -26,6 +26,7 @@ import {
   Upload,
   Calendar,
   UserCog,
+  PanelBottom,
 } from 'lucide-react';
 import type { MenuItem } from '../types';
 import type { UserRole } from '../../../contexts/AuthContext';
@@ -33,7 +34,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { useSettings } from '../../../contexts/SettingsContext';
 
 // Define which menu items should be hidden in offline mode
-const OFFLINE_HIDDEN_PATHS = ['/users', '/sync']; // User Management and Sync are not available offline
+const OFFLINE_HIDDEN_PATHS = ['/users', '/sync', '/controls']; // User Management and Sync are not available offline
 
 const MENU_ITEMS: MenuItem[] = [
   {
@@ -212,6 +213,12 @@ const MENU_ITEMS: MenuItem[] = [
         name: 'Data Sync',
         icon: Upload,
         roles: ['admin', 'manager'],
+      },
+      {
+        path: '/controls',
+        name: 'Control Panel',
+        icon: PanelBottom,
+        roles: ['admin'],
       },
       {
         path: '/system/settings',

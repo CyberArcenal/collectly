@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld("backendAPI", {
     ipcRenderer.invoke("paymentTransaction", payload),
   penaltyTransaction: (payload) =>
     ipcRenderer.invoke("penaltyTransaction", payload),
+  controls: (payload) => ipcRenderer.invoke("controls", payload),
 
   // ========== NEW DEBT MANAGEMENT MODULES ==========
   group: (payload) => ipcRenderer.invoke("group", payload),

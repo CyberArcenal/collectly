@@ -1,7 +1,7 @@
 // src/main/ipc/utils/sync/sync_entity.ipc.js
 const syncService = require("../../../../services/SyncService");
 const onlineClient = require("../../../../utils/onlineClient");
-const { transformSingle } = require("../../../../utils/responseTransformer");
+const { transformSingle, transformKeysToCamelCase } = require("../../../../utils/responseTransformer");
 const { syncMode, serverUrl } = require("../../../../utils/system");
 
 module.exports = async (params) => {
@@ -34,11 +34,40 @@ module.exports = async (params) => {
     }
 
     const serverResult = await response.json();
-    return transformSingle(serverResult);
+    // Wrap in { status, message, data }
+    const transformed = transformSingle(serverResult);
+    
+    // ✅ Transform data keys from snake_case to camelCase
+    if (transformed.data && typeof transformed.data === 'object') {
+      transformed.data = transformKeysToCamelCase(transformed.data);
+    }
+
+    // ✅ Now check for taskId (camelCase)
+    if (transformed.data && transformed.data.taskId) {
+      return transformed;
+    } else {
+      // Fallback: if task_id exists but transformation failed, use it
+      if (serverResult.data && serverResult.data.task_id) {
+        // Create a response with camelCase taskId manually
+        return {
+          status: true,
+          message: transformed.message || "Sync started",
+          data: {
+            taskId: serverResult.data.task_id,
+            status: serverResult.data.status || "queued",
+            entity: serverResult.data.entity || entityName,
+            total: serverResult.data.total || records.length,
+          },
+        };
+      }
+      // If still no task ID, throw an error
+      throw new Error("Server did not return a task ID");
+    }
   }
 
   // Offline mode
   try {
+    // Note: syncService.syncEntityByName must exist (implement it if missing)
     const result = await syncService.syncEntityByName(entityName, user, force);
     return {
       status: true,
