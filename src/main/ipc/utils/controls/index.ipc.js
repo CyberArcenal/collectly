@@ -15,30 +15,91 @@ class ControlsHandler {
   registerHandlers() {
     // Map method names to endpoint paths
     this.handlers = {
-      // Interest accrual
+      // ─── Interest Accrual ───
       triggerInterestAccrual: { path: "interest-accrual/trigger/", method: "POST" },
       getInterestAccrualStatus: { path: "interest-accrual/status/", method: "GET" },
 
-      // Overdue corrector
+      // ─── Overdue Corrector ───
       triggerOverdueCorrector: { path: "overdue-corrector/trigger/", method: "POST" },
       getOverdueCorrectorStatus: { path: "overdue-corrector/status/", method: "GET" },
 
-      // Overdue updater
+      // ─── Overdue Updater ───
       triggerOverdueUpdater: { path: "overdue-updater/trigger/", method: "POST" },
       getOverdueUpdaterStatus: { path: "overdue-updater/status/", method: "GET" },
 
-      // Zero balance fixer
+      // ─── Zero Balance Fixer ───
       triggerZeroBalanceFixer: { path: "zero-balance-fixer/trigger/", method: "POST" },
       getZeroBalanceFixerStatus: { path: "zero-balance-fixer/status/", method: "GET" },
 
-      // Penalty scheduler
+      // ─── Penalty Scheduler ───
       triggerPenaltyScheduler: { path: "penalty-scheduler/trigger/", method: "POST" },
       getPenaltySchedulerStatus: { path: "penalty-scheduler/status/", method: "GET" },
 
-      // Health checks
+      // ─── Health Checks ───
       overdueStatusHealth: { path: "health/overdue-status/", method: "GET" },
       zeroBalanceHealth: { path: "health/zero-balance/", method: "GET" },
       penaltyHealth: { path: "health/penalty/", method: "GET" },
+
+      // ─── Audit Cleanup ───
+      triggerAuditCleanup: { path: "audit-cleanup/trigger/", method: "POST" },
+      getAuditCleanupStatus: { path: "audit-cleanup/status/", method: "GET" },
+
+      // ─── Overdue Reminders ───
+      triggerOverdueReminders: { path: "overdue-reminders/trigger/", method: "POST" },
+      getOverdueRemindersStatus: { path: "overdue-reminders/status/", method: "GET" },
+
+      // ─── Notification Retry ───
+      triggerNotificationRetry: { path: "notification-retry/trigger/", method: "POST" },
+      getNotificationRetryStatus: { path: "notification-retry/status/", method: "GET" },
+
+      // ─── Borrower Tasks ───
+      triggerCreditScoreRecalc: { path: "borrower/credit-score-recalc/trigger/", method: "POST" },
+      triggerBorrowerMerge: { path: "borrower/merge/trigger/", method: "POST" },
+      triggerBorrowerCleanup: { path: "borrower/cleanup/trigger/", method: "POST" },
+      triggerBorrowerStatusUpdate: { path: "borrower/status-update/trigger/", method: "POST" },
+
+      // ─── Group Tasks ───
+      triggerBulkAssign: { path: "group/bulk-assign/trigger/", method: "POST" },
+      triggerAutoAssign: { path: "group/auto-assign/trigger/", method: "POST" },
+      triggerGroupCleanup: { path: "group/cleanup/trigger/", method: "POST" },
+      triggerGroupStatsUpdate: { path: "group/stats-update/trigger/", method: "POST" },
+
+      // ─── Loan Agreement Tasks ───
+      triggerAgreementCleanup: { path: "loan-agreement/cleanup/trigger/", method: "POST" },
+      triggerOverdueAgreementNotify: { path: "loan-agreement/overdue-notify/trigger/", method: "POST" },
+      triggerAutoAssignAgreements: { path: "loan-agreement/auto-assign/trigger/", method: "POST" },
+      triggerSyncAgreementStatus: { path: "loan-agreement/sync-status/trigger/", method: "POST" },
+
+      // ─── Loan Application Tasks ───
+      triggerAutoApprove: { path: "loan-application/auto-approve/trigger/", method: "POST" },
+      triggerStaleCleanup: { path: "loan-application/stale-cleanup/trigger/", method: "POST" },
+      triggerPendingReminders: { path: "loan-application/pending-reminders/trigger/", method: "POST" },
+      triggerBulkImportApplications: { path: "loan-application/bulk-import/trigger/", method: "POST" },
+
+      // ─── Payment Method Tasks ───
+      triggerPaymentMethodStatsRecalc: { path: "payment-method/stats-recalc/trigger/", method: "POST" },
+      triggerPaymentMethodCleanup: { path: "payment-method/cleanup/trigger/", method: "POST" },
+      triggerPaymentMethodReport: { path: "payment-method/report/trigger/", method: "POST" },
+      triggerEnsureDefaultMethod: { path: "payment-method/ensure-default/trigger/", method: "POST" },
+
+      // ─── Sync Maintenance Tasks ───
+      triggerSyncHealthCheck: { path: "sync/health-check/trigger/", method: "POST" },
+      triggerSyncQueueRetry: { path: "sync/queue-retry/trigger/", method: "POST" },
+      triggerSyncCleanup: { path: "sync/cleanup/trigger/", method: "POST" },
+      triggerSyncReport: { path: "sync/report/trigger/", method: "POST" },
+
+      // ─── System Settings Tasks ───
+      triggerSettingsCacheRefresh: { path: "settings/cache-refresh/trigger/", method: "POST" },
+      triggerSettingsValidate: { path: "settings/validate/trigger/", method: "POST" },
+      triggerSettingsBackup: { path: "settings/backup/trigger/", method: "POST" },
+      triggerSettingsDiff: { path: "settings/diff/trigger/", method: "POST" },
+
+      // ─── User / Security Tasks ───
+      triggerSecurityCleanup: { path: "user/security-cleanup/trigger/", method: "POST" },
+      triggerSecurityMonitor: { path: "user/security-monitor/trigger/", method: "POST" },
+      triggerAutoSuspend: { path: "user/auto-suspend/trigger/", method: "POST" },
+      triggerOrphanCleanup: { path: "user/orphan-cleanup/trigger/", method: "POST" },
+      triggerSecurityReport: { path: "user/security-report/trigger/", method: "POST" },
     };
   }
 
