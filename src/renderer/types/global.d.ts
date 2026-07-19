@@ -16,6 +16,11 @@ declare global {
         message: string;
         data: any;
       }>;
+      onlineSystemConfig: (payload: { method: string; params?: any }) => Promise<{
+        status: boolean;
+        message: string;
+        data: any;
+      }>;
       dashboard: (payload: any) => Promise<any>;
       updater: (payload: { method: string; params?: any }) => Promise<{
         status: boolean;

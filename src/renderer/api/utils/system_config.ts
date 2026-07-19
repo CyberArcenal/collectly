@@ -51,6 +51,13 @@ export interface SystemSettingData {
 }
 
 export interface GroupedSettingsData {
+  integrations: IntegrationsSettings;
+  audit_security: AuditSecuritySettings;
+  reports: ReportsSettings;
+  loans: LoanSettings;
+  general: GeneralSettings;
+  collections: CollectionsSettings;
+  notifications: NotificationsSettings;
   settings: SystemSettingData[];
   grouped_settings: {
     general: GeneralSettings;

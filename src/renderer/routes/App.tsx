@@ -2,7 +2,6 @@
 import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import Layout from "../layouts/Layout";
 import AuditTrailPage from "../pages/AuditTrail";
-import SettingsPage from "../pages/Settings";
 import { useEffect, useState } from "react";
 import { LicenseModal } from "../components/Shared/LicenseModal";
 import { Help } from "../pages/help";
@@ -36,6 +35,9 @@ import { ProtectedRoute } from "../components/Shared/ProtectedRoute";
 import UserManagement from "../pages/users";
 import ProfilePage from "../pages/profile";
 import ControlsPage from "../pages/controls";
+import OfflineSettingsPage from "../pages/Settings/OfflineSettings";
+import ModeSwitchPage from "../pages/ModeSwitch";
+import SettingsPage from "../pages/Settings";
 
 function App() {
   const [licenseAccepted, setLicenseAccepted] = useState(false);
@@ -144,6 +146,15 @@ function App() {
           }
         />
 
+        <Route
+          path="/mode-switch"
+          element={
+            <ProtectedRoute roles={["admin", "manager", "collector", "staff"]}>
+              <ModeSwitchPage />
+            </ProtectedRoute>
+          }
+        />
+        
         {/* Notification logs - collector+ */}
         <Route
           path="notification-logs"
