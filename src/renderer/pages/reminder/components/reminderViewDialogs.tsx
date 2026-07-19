@@ -88,7 +88,7 @@ export const NotificationViewDialog: React.FC<NotificationViewDialogProps> = ({
             <User className="w-4 h-4 text-[var(--text-tertiary)] flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">Recipient</p>
-              <p className="text-sm font-medium text-[var(--text-primary)]">{log.recipient_email}</p>
+              <p className="text-sm font-medium text-[var(--text-primary)]">{log.recipient_email || log.recipient}</p>
             </div>
           </div>
 

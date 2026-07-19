@@ -16,6 +16,11 @@ declare global {
         message: string;
         data: any;
       }>;
+      onlineSystemConfig: (payload: { method: string; params?: any }) => Promise<{
+        status: boolean;
+        message: string;
+        data: any;
+      }>;
       dashboard: (payload: any) => Promise<any>;
       updater: (payload: { method: string; params?: any }) => Promise<{
         status: boolean;
@@ -32,6 +37,7 @@ declare global {
       paymentTransaction: (payload: any) => Promise<any>;
       penaltyTransaction: (payload: any) => Promise<any>;
       interestRateChangeLog: (payload: any) => Promise<any>;
+      controls: (payload: any) => Promise<any>;
 
       // ========== NEW DEBT MANAGEMENT MODULES ==========
       group: (payload: any) => Promise<any>;
@@ -39,6 +45,7 @@ declare global {
       paymentMethod: (payload: any) => Promise<any>;
       printer: (payload: any) => Promise<any>;
       creditCheck: (payload: any) => Promise<any>;
+      sync: (payload: any) => Promise<any>;
 
       // ========== PRINTER CONVENIENCE METHODS ==========
       printerGetStatus: () => Promise<{

@@ -1,0 +1,745 @@
+## 🗄️ Database Sync Plan: Offline → Server
+
+Based on your hybrid system (Electron + SQLite offline, Django online), narito ang isang comprehensive plan para sa syncing ng data mula offline patungo sa server.
+
+---
+
+### 📊 Current Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        ELECTRON APP                            │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────────┐   │
+│  │   Offline   │    │   Online    │    │   Sync Engine   │   │
+│  │   (SQLite)  │◄──►│   (API)     │◄──►│   (New)         │   │
+│  └─────────────┘    └─────────────┘    └─────────────────┘   │
+│         │                  │                    │              │
+│         ▼                  ▼                    ▼              │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │              IPC Handlers (services)                   │  │
+│  └─────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+                    ┌─────────────────┐
+                    │   Django API    │
+                    │  (PostgreSQL)   │
+                    └─────────────────┘
+```
+
+---
+
+### 🎯 Goal
+
+| Feature | Description |
+|---------|-------------|
+| **Bidirectional Sync** | Data flows both ways (local ↔ server) |
+| **Conflict Resolution** | Handle conflicts when same record modified in both places |
+| **Incremental Sync** | Only sync changes, not full database |
+| **Retry Logic** | Handle network failures gracefully |
+| **Progress Tracking** | User sees sync status and progress |
+
+---
+
+### 📋 Phase 1: Infrastructure (Foundation)
+
+#### 1.1 Create Sync Service
+
+**`src/main/services/SyncService.js`**
+
+```javascript
+// src/main/services/SyncService.js
+const { AppDataSource } = require("../main/db/data-source");
+const onlineClient = require("../utils/onlineClient");
+const { serverUrl, syncMode } = require("../utils/system");
+const { logger } = require("../utils/logger");
+
+class SyncService {
+  constructor() {
+    this.syncStatus = {
+      isSyncing: false,
+      lastSync: null,
+      pendingChanges: 0,
+      entities: {},
+    };
+    this.entities = [
+      { name: 'Borrower', table: 'borrowers', fields: ['id', 'name', 'contact', 'email', 'address', 'notes', 'deletedAt', 'createdAt', 'updatedAt'] },
+      { name: 'Debt', table: 'debts', fields: ['id', 'name', 'totalAmount', 'paidAmount', 'remainingAmount', 'dueDate', 'status', 'interestRate', 'penaltyRate', 'borrowerId', 'deletedAt', 'createdAt', 'updatedAt'] },
+      { name: 'PaymentTransaction', table: 'payment_transactions', fields: ['id', 'amount', 'paymentDate', 'reference', 'notes', 'methodId', 'debtId', 'deletedAt', 'recordedAt'] },
+      { name: 'PenaltyTransaction', table: 'penalty_transactions', fields: ['id', 'amount', 'penaltyDate', 'reason', 'debtId', 'deletedAt', 'createdAt'] },
+      { name: 'LoanAgreement', table: 'loan_agreements', fields: ['id', 'status', 'agreementDate', 'lenderName', 'termsText', 'filePath', 'debtId', 'deletedAt', 'signedAt', 'signedBy', 'principalAmount', 'interestRate', 'penaltyRate', 'dueDate', 'purpose', 'loanStartDate', 'anniversaryDay'] },
+      { name: 'LoanApplication', table: 'loan_applications', fields: ['id', 'debtorId', 'debtorName', 'debtorContact', 'debtorEmail', 'debtorAddress', 'requestedAmount', 'purpose', 'proposedDueDate', 'interestRate', 'status', 'approvedAt', 'rejectedAt', 'approvedBy', 'rejectionReason', 'deletedAt', 'createdAt', 'updatedAt'] },
+      { name: 'PaymentMethod', table: 'payment_methods', fields: ['id', 'name', 'description', 'icon', 'isDefault', 'createdAt', 'updatedAt'] },
+    ];
+  }
+
+  /**
+   * Get last sync timestamp for an entity
+   */
+  async getLastSyncTime(entityName) {
+    const repo = AppDataSource.getRepository('SyncMetadata');
+    const record = await repo.findOne({ where: { entity: entityName } });
+    return record ? record.lastSyncedAt : null;
+  }
+
+  /**
+   * Update last sync timestamp for an entity
+   */
+  async updateLastSyncTime(entityName, timestamp) {
+    const repo = AppDataSource.getRepository('SyncMetadata');
+    let record = await repo.findOne({ where: { entity: entityName } });
+    if (!record) {
+      record = repo.create({ entity: entityName, lastSyncedAt: timestamp });
+    } else {
+      record.lastSyncedAt = timestamp;
+    }
+    await repo.save(record);
+  }
+
+  /**
+   * Get entities that changed since last sync
+   */
+  async getChangedEntities(entityName, since) {
+    const repo = AppDataSource.getRepository(entityName);
+    const qb = repo.createQueryBuilder(entityName)
+      .where(`${entityName}.updatedAt >= :since`, { since })
+      .orWhere(`${entityName}.createdAt >= :since`, { since });
+    
+    // For soft-deleted entities
+    if (repo.hasColumn('deletedAt')) {
+      qb.orWhere(`${entityName}.deletedAt >= :since`, { since });
+    }
+    
+    return await qb.getMany();
+  }
+
+  /**
+   * Perform full sync (all entities)
+   */
+  async fullSync(user) {
+    this.syncStatus.isSyncing = true;
+    this.syncStatus.pendingChanges = 0;
+    
+    const results = {
+      success: 0,
+      failed: 0,
+      errors: [],
+      changes: {},
+    };
+
+    try {
+      const url = await serverUrl();
+      if (!url) throw new Error('Server URL not configured');
+      onlineClient.setBaseUrl(url);
+
+      for (const entity of this.entities) {
+        try {
+          const result = await this.syncEntity(entity, user);
+          results.changes[entity.name] = result;
+          if (result.success) {
+            results.success += result.count || 0;
+          } else {
+            results.failed += result.count || 0;
+            if (result.error) results.errors.push(result.error);
+          }
+        } catch (err) {
+          results.failed++;
+          results.errors.push({ entity: entity.name, error: err.message });
+          logger.error(`Sync failed for ${entity.name}:`, err);
+        }
+      }
+
+      this.syncStatus.lastSync = new Date();
+      this.syncStatus.isSyncing = false;
+      
+      return results;
+    } catch (error) {
+      this.syncStatus.isSyncing = false;
+      throw error;
+    }
+  }
+
+  /**
+   * Sync a single entity
+   */
+  async syncEntity(entity, user) {
+    const since = await this.getLastSyncTime(entity.name);
+    const changed = await this.getChangedEntities(entity.name, since);
+    const now = new Date();
+
+    if (changed.length === 0) {
+      return { success: true, count: 0, message: 'No changes' };
+    }
+
+    const url = await serverUrl();
+    if (!url) throw new Error('Server URL not configured');
+    onlineClient.setBaseUrl(url);
+
+    // ✅ Send all changed records to server
+    const endpoint = `/api/v1/sync/${entity.name.toLowerCase()}s/`;
+    const response = await onlineClient.post(endpoint, {
+      data: changed,
+      user: user || 'system',
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Server sync failed: ${response.status} - ${errorText}`);
+    }
+
+    // ✅ Update sync timestamp
+    await this.updateLastSyncTime(entity.name, now);
+
+    return { 
+      success: true, 
+      count: changed.length, 
+      message: `Synced ${changed.length} ${entity.name}(s)` 
+    };
+  }
+}
+
+module.exports = new SyncService();
+```
+
+---
+
+#### 1.2 Create Sync Metadata Entity
+
+**`src/main/entities/SyncMetadata.js`**
+
+```javascript
+// src/main/entities/SyncMetadata.js
+const { EntitySchema } = require("typeorm");
+
+const SyncMetadata = new EntitySchema({
+  name: "SyncMetadata",
+  tableName: "sync_metadata",
+  columns: {
+    id: { type: Number, primary: true, generated: true },
+    entity: { type: String, unique: true },
+    lastSyncedAt: { type: Date, default: null },
+    lastSyncCount: { type: Number, default: 0 },
+    status: { 
+      type: String, 
+      default: 'idle',
+      enum: ['idle', 'syncing', 'completed', 'failed']
+    },
+    errorMessage: { type: String, nullable: true },
+    createdAt: { type: Date, createDate: true },
+    updatedAt: { type: Date, updateDate: true },
+  },
+});
+
+module.exports = SyncMetadata;
+```
+
+---
+
+### 📋 Phase 2: Conflict Resolution
+
+#### 2.1 Strategy: Last Write Wins (LWW) + Server Priority
+
+```javascript
+// src/main/services/SyncService.js – add conflict resolution
+
+  /**
+   * Resolve conflicts using Last Write Wins (LWW) with server priority
+   */
+  async resolveConflict(localRecord, serverRecord) {
+    // If server has newer updatedAt, use server version
+    if (new Date(serverRecord.updatedAt) > new Date(localRecord.updatedAt)) {
+      return serverRecord;
+    }
+    
+    // If local has newer updatedAt, push local version
+    if (new Date(localRecord.updatedAt) > new Date(serverRecord.updatedAt)) {
+      return localRecord;
+    }
+    
+    // If same timestamp, server wins (for data integrity)
+    return serverRecord;
+  }
+```
+
+#### 2.2 Conflict Logging
+
+```javascript
+// src/main/entities/SyncConflict.js
+const { EntitySchema } = require("typeorm");
+
+const SyncConflict = new EntitySchema({
+  name: "SyncConflict",
+  tableName: "sync_conflicts",
+  columns: {
+    id: { type: Number, primary: true, generated: true },
+    entity: { type: String },
+    entityId: { type: Number },
+    localData: { type: "json" },
+    serverData: { type: "json" },
+    resolution: { 
+      type: String, 
+      default: 'pending',
+      enum: ['pending', 'local', 'server', 'manual']
+    },
+    resolvedBy: { type: String, nullable: true },
+    resolvedAt: { type: Date, nullable: true },
+    createdAt: { type: Date, createDate: true },
+  },
+});
+
+module.exports = SyncConflict;
+```
+
+---
+
+### 📋 Phase 3: Django Server Endpoints
+
+#### 3.1 Sync Endpoint
+
+**`sync/views/sync.py`**
+
+```python
+# sync/views/sync.py
+import logging
+from rest_framework.views import APIView
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from django.db import transaction
+from django.utils import timezone
+
+from sync.services.sync import SyncService
+from users.permissions.base import IsAccountActive
+from utils.response import _success, _error
+
+logger = logging.getLogger(__name__)
+
+
+class SyncView(APIView):
+    """
+    Receive sync data from offline clients.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @transaction.atomic
+    def post(self, request, entity_name):
+        """
+        Receive and process sync data for a specific entity.
+        
+        Expected payload:
+        {
+            'data': [...],  # list of records
+            'user': 'admin' # optional
+        }
+        """
+        user = request.user
+        data = request.data.get('data', [])
+        client_user = request.data.get('user', user.username)
+
+        if not data:
+            return _error(
+                message="No data to sync.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            service = SyncService()
+            result = service.process_sync(
+                entity_name=entity_name,
+                records=data,
+                user=client_user,
+                request=request,
+            )
+
+            return _success(
+                data=result,
+                message=f"Synced {len(data)} records for {entity_name}.",
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as exc:
+            logger.exception(f"Sync failed for {entity_name}")
+            return _error(
+                data={"detail": str(exc)},
+                message="Sync failed.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+```
+
+#### 3.2 Sync Service (Django)
+
+**`sync/services/sync.py`**
+
+```python
+# sync/services/sync.py
+import logging
+from django.db import transaction
+from django.utils import timezone
+from django.core.exceptions import ValidationError
+
+from borrowers.models.borrower import Borrower
+from debts.models.debt import Debt
+from payments.models.payment_transaction import PaymentTransaction
+from payments.models.penalty_transaction import PenaltyTransaction
+
+logger = logging.getLogger(__name__)
+
+# Entity mapping
+ENTITY_MAP = {
+    'borrowers': {
+        'model': Borrower,
+        'id_field': 'id',
+        'fields': ['name', 'contact', 'email', 'address', 'notes', 'deleted_at', 'created_at', 'updated_at'],
+    },
+    'debts': {
+        'model': Debt,
+        'id_field': 'id',
+        'fields': ['name', 'total_amount', 'paid_amount', 'remaining_amount', 'due_date', 'status', 'interest_rate', 'penalty_rate', 'borrower_id', 'deleted_at', 'created_at', 'updated_at'],
+    },
+    'payment_transactions': {
+        'model': PaymentTransaction,
+        'id_field': 'id',
+        'fields': ['amount', 'payment_date', 'reference', 'notes', 'method_id', 'debt_id', 'deleted_at', 'recorded_at'],
+    },
+    'penalty_transactions': {
+        'model': PenaltyTransaction,
+        'id_field': 'id',
+        'fields': ['amount', 'penalty_date', 'reason', 'debt_id', 'deleted_at', 'created_at'],
+    },
+}
+
+
+class SyncService:
+    """
+    Service for processing sync data from offline clients.
+    """
+
+    @staticmethod
+    def process_sync(entity_name, records, user=None, request=None):
+        """
+        Process sync records for a specific entity.
+        
+        Args:
+            entity_name: Name of the entity (e.g., 'borrowers')
+            records: List of records to sync
+            user: User performing the sync
+            request: HTTP request object for audit
+        """
+        entity_config = ENTITY_MAP.get(entity_name)
+        if not entity_config:
+            raise ValueError(f"Unknown entity: {entity_name}")
+
+        model = entity_config['model']
+        id_field = entity_config['id_field']
+        fields = entity_config['fields']
+
+        results = {
+            'created': 0,
+            'updated': 0,
+            'skipped': 0,
+            'errors': [],
+            'ids': [],
+        }
+
+        for record in records:
+            try:
+                record_id = record.get(id_field)
+                
+                if not record_id:
+                    # Create new record (client didn't specify ID)
+                    instance = SyncService._create_record(model, record, fields, user, request)
+                    results['created'] += 1
+                    results['ids'].append(instance.pk)
+                    continue
+
+                # Check if record exists
+                existing = model.objects.filter(id=record_id).first()
+                
+                if existing:
+                    # Update existing record
+                    # Check if client record is newer
+                    client_updated = record.get('updated_at')
+                    if client_updated:
+                        client_time = timezone.datetime.fromisoformat(client_updated.replace('Z', '+00:00'))
+                        if existing.updated_at and existing.updated_at >= client_time:
+                            results['skipped'] += 1
+                            continue
+                    
+                    SyncService._update_record(existing, record, fields, user, request)
+                    results['updated'] += 1
+                    results['ids'].append(existing.pk)
+                else:
+                    # Client has ID but server doesn't - create it
+                    instance = SyncService._create_record(
+                        model, record, fields, user, request, force_id=record_id
+                    )
+                    results['created'] += 1
+                    results['ids'].append(instance.pk)
+
+            except Exception as e:
+                logger.error(f"Failed to sync record {record.get(id_field)}: {e}")
+                results['errors'].append({
+                    'record': record,
+                    'error': str(e),
+                })
+
+        return results
+
+    @staticmethod
+    @transaction.atomic
+    def _create_record(model, data, fields, user=None, request=None, force_id=None):
+        """Create a new record from sync data."""
+        clean_data = {k: v for k, v in data.items() if k in fields}
+        
+        # Remove fields that should not be set directly
+        clean_data.pop('id', None)
+        
+        if force_id:
+            # For clients that have a specific ID, we need to set it
+            clean_data['id'] = force_id
+            instance = model(**clean_data)
+        else:
+            instance = model(**clean_data)
+        
+        instance.full_clean()
+        instance.save()
+        
+        # Audit log (optional)
+        if user and request:
+            from audit.utils.log import log_audit_event
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type='sync_create',
+                model_name=model.__name__,
+                object_id=str(instance.pk),
+                changes={'sync': True},
+            )
+        
+        return instance
+
+    @staticmethod
+    def _update_record(instance, data, fields, user=None, request=None):
+        """Update an existing record from sync data."""
+        clean_data = {k: v for k, v in data.items() if k in fields}
+        
+        # Remove fields that should not be updated
+        clean_data.pop('id', None)
+        clean_data.pop('created_at', None)
+        
+        for key, value in clean_data.items():
+            setattr(instance, key, value)
+        
+        instance.full_clean()
+        instance.save()
+        
+        # Audit log
+        if user and request:
+            from audit.utils.log import log_audit_event
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type='sync_update',
+                model_name=instance.__class__.__name__,
+                object_id=str(instance.pk),
+                changes={'sync': True, 'data': clean_data},
+            )
+        
+        return instance
+```
+
+---
+
+### 📋 Phase 4: IPC Handler for Sync
+
+**`src/main/ipc/utils/sync/index.ipc.js`**
+
+```javascript
+// src/main/ipc/utils/sync/index.ipc.js
+const { ipcMain } = require("electron");
+const { withErrorHandling } = require("../../../../middlewares/errorHandler");
+const syncService = require("../../../../services/SyncService");
+const { logger } = require("../../../../utils/logger");
+
+class SyncHandler {
+  constructor() {
+    this.initializeHandlers();
+  }
+
+  initializeHandlers() {
+    this.fullSync = this.importHandler("./full_sync.ipc");
+    this.syncStatus = this.importHandler("./status.ipc");
+    this.syncEntity = this.importHandler("./entity.ipc");
+  }
+
+  importHandler(path) {
+    try {
+      const fullPath = require.resolve(`./${path}`, { paths: [__dirname] });
+      return require(fullPath);
+    } catch (error) {
+      return async () => ({ status: false, message: `Handler not implemented: ${path}` });
+    }
+  }
+
+  async handleRequest(event, payload) {
+    const { method, params = {} } = payload;
+
+    switch (method) {
+      case "fullSync":
+        return await this.fullSync(params);
+      case "syncStatus":
+        return await this.syncStatus(params);
+      case "syncEntity":
+        return await this.syncEntity(params);
+      default:
+        return { status: false, message: `Unknown sync method: ${method}` };
+    }
+  }
+}
+
+const syncHandler = new SyncHandler();
+ipcMain.handle("sync", withErrorHandling(syncHandler.handleRequest.bind(syncHandler), "IPC:sync"));
+
+module.exports = { SyncHandler, syncHandler };
+```
+
+---
+
+### 📋 Phase 5: Frontend Sync UI
+
+**`src/renderer/pages/sync/index.tsx`** (existing)
+
+I-update ang sync page para gumamit ng bagong sync service.
+
+---
+
+### 🔄 Sync Flow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                           USER                                    │
+│                        (Clicks Sync)                              │
+└───────────────────────────┬─────────────────────────────────────────┘
+                            ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Frontend (Sync Page)                            │
+│  1. Show "Syncing..." status                                       │
+│  2. Call backendAPI.sync({ method: "fullSync" })                   │
+└───────────────────────────┬─────────────────────────────────────────┘
+                            ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Electron (IPC Handler)                          │
+│  - Calls SyncService.fullSync()                                    │
+│  - Reports progress back to renderer                              │
+└───────────────────────────┬─────────────────────────────────────────┘
+                            ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    SyncService (Electron)                          │
+│  1. For each entity:                                               │
+│     a. Get last sync timestamp                                     │
+│     b. Fetch changed records since last sync                      │
+│     c. POST to Django endpoint                                     │
+│     d. Update last sync timestamp                                  │
+│  2. Return sync results                                           │
+└───────────────────────────┬─────────────────────────────────────────┘
+                            ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Django Server                                   │
+│  1. Validate incoming data                                         │
+│  2. For each record:                                               │
+│     a. Check if exists                                            │
+│     b. Create or update                                           │
+│     c. Handle conflicts (LWW)                                    │
+│  3. Return sync results                                           │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 📋 Phase 6: Cron / Automated Sync
+
+**`src/main/scheduler/autoSyncScheduler.js`**
+
+```javascript
+// src/main/scheduler/autoSyncScheduler.js
+const { logger } = require("../utils/logger");
+const syncService = require("../services/SyncService");
+const { syncMode } = require("../utils/system");
+
+class AutoSyncScheduler {
+  constructor() {
+    this.interval = null;
+    this.isRunning = false;
+  }
+
+  async start(intervalMinutes = 30) {
+    if (this.interval) return;
+    
+    // Only run if in online or offline_first mode
+    const mode = await syncMode();
+    if (mode === "offline") return;
+
+    this.interval = setInterval(async () => {
+      await this.runSync();
+    }, intervalMinutes * 60 * 1000);
+
+    logger.info(`Auto-sync started (every ${intervalMinutes} minutes)`);
+  }
+
+  async runSync() {
+    if (this.isRunning) return;
+    
+    this.isRunning = true;
+    try {
+      const mode = await syncMode();
+      if (mode === "offline") return;
+      
+      const result = await syncService.fullSync('system');
+      logger.info(`Auto-sync completed: ${JSON.stringify(result)}`);
+    } catch (error) {
+      logger.error("Auto-sync failed:", error);
+    } finally {
+      this.isRunning = false;
+    }
+  }
+
+  stop() {
+    if (this.interval) {
+      clearInterval(this.interval);
+      this.interval = null;
+      logger.info("Auto-sync stopped");
+    }
+  }
+}
+
+module.exports = new AutoSyncScheduler();
+```
+
+---
+
+### 📋 Summary Table
+
+| Phase | Component | Status |
+|-------|-----------|--------|
+| 1 | SyncService (Electron) | ✅ Designed |
+| 1 | SyncMetadata Entity | ✅ Designed |
+| 2 | Conflict Resolution | ✅ Designed |
+| 2 | SyncConflict Entity | ✅ Designed |
+| 3 | Django Sync View | ✅ Designed |
+| 3 | Django Sync Service | ✅ Designed |
+| 4 | IPC Handler | ✅ Designed |
+| 5 | Frontend Sync UI | Existing page to update |
+| 6 | Auto-sync Scheduler | ✅ Designed |
+
+---
+
+### 🚀 Implementation Order
+
+1. **Create SyncMetadata entity** – para ma-track kung kailan huling nag-sync
+2. **Create SyncService (Electron)** – core sync logic
+3. **Create Django Sync endpoints** – para makatanggap ng data
+4. **Create IPC Handler** – para ma-access ng renderer
+5. **Update Sync page** – UI para sa manual sync
+6. **Add auto-sync scheduler** – para sa background sync
+
+Gusto mo bang simulan natin ang implementation ng isang part?

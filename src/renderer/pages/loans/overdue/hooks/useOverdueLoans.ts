@@ -99,79 +99,73 @@ const useOverdueLoans = (): UseOverdueLoansReturn => {
     return Math.max(0, diff);
   };
 
-const fetchStats = useCallback(async () => {
-  try {
-    const [debtsRes, penaltiesRes] = await Promise.all([
-      debtsAPI.getStatistics(),
-      penaltiesAPI.getStatistics(),
-    ]);
+  const fetchStats = useCallback(async () => {
+    try {
+      const [debtsRes, penaltiesRes] = await Promise.all([
+        debtsAPI.getStatistics(),
+        penaltiesAPI.getStatistics(),
+      ]);
 
-    let total = 0;
-    let totalAmount = 0;
-    let avgDaysOverdue = 0;
+      let total = 0;
+      let totalAmount = 0;
+      let avgDaysOverdue = 0;
 
-    if (debtsRes.status) {
-      const data = debtsRes.data || {};
-      // Handle both camelCase and snake_case
-      total = data.totalOverdue ?? data.total_overdue ?? 0;
-      totalAmount = data.totalRemainingBalance ?? data.total_remaining_balance ?? 0;
-      avgDaysOverdue = data.avgDaysOverdue ?? data.avg_days_overdue ?? 0;
+      if (debtsRes.status) {
+        const data = debtsRes.data || {};
+        // Handle both camelCase and snake_case
+        total = data.totalOverdue ?? data.total_overdue ?? 0;
+        totalAmount =
+          data.totalRemainingBalance ?? data.total_remaining_balance ?? 0;
+        avgDaysOverdue = data.avgDaysOverdue ?? data.avg_days_overdue ?? 0;
+      }
+
+      setStats({
+        total,
+        totalAmount,
+        averageDaysOverdue: avgDaysOverdue,
+        totalPenalties: penaltiesRes.status
+          ? (penaltiesRes.data.totalPenaltyAmount ??
+            penaltiesRes.data.total_penalty_amount ??
+            0)
+          : 0,
+      });
+    } catch (err) {
+      console.error("Failed to fetch overdue stats:", err);
     }
-
-    setStats({
-      total,
-      totalAmount,
-      averageDaysOverdue: avgDaysOverdue,
-      totalPenalties: penaltiesRes.status ? (penaltiesRes.data.totalPenaltyAmount ?? penaltiesRes.data.total_penalty_amount ?? 0) : 0,
-    });
-  } catch (err) {
-    console.error("Failed to fetch overdue stats:", err);
-  }
-}, []);
+  }, []);
 
   const fetchOverdueLoans = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayStr = today.toISOString().split("T")[0];
-
-      // Build API parameters
+      // ✅ Use dedicated getOverdueDebts method
       const params: any = {
-        status: "overdue", // Only get debts with status = 'overdue'
-        includeDeleted: false,
         page: currentPage,
         limit: pageSize,
         sortBy: sortConfig.key === "daysOverdue" ? "dueDate" : sortConfig.key,
         sortOrder: sortConfig.direction.toUpperCase() as "ASC" | "DESC",
       };
 
-      // Search
       if (filters.search) {
         params.search = filters.search;
       }
 
-      // Days overdue filter: adjust dueDateTo to restrict to debts due before cutoff
       if (filters.daysOverdue !== "all") {
-        const days = parseInt(filters.daysOverdue);
-        const cutoff = new Date(today);
-        cutoff.setDate(today.getDate() - days);
-        cutoff.setHours(0, 0, 0, 0);
-        params.dueDateTo = cutoff.toISOString().split("T")[0];
-      } else {
-        // If 'all', we still want debts due up to today (overdue)
-        params.dueDateTo = todayStr;
+        params.minDaysOverdue = parseInt(filters.daysOverdue);
       }
 
-      const response = await debtsAPI.getAll(params);
+      const response = await debtsAPI.getOverdueDebts(params);
 
-      if (!response.status)
+      if (!response.status) {
         throw new Error(response.message || "Failed to fetch overdue loans");
+      }
 
-      // Map to OverdueLoan with stats
+      // Data is already filtered by the service (status='overdue', remainingAmount>0, dueDate<today)
       const debts = response.data.data || [];
+      const pagination = response.data.pagination || {};
+
+      // Map to OverdueLoan (stats already attached by service)
       const withStats: OverdueLoan[] = debts.map((debt) => ({
         ...debt,
         stats: debt.stats || {
@@ -188,17 +182,17 @@ const fetchStats = useCallback(async () => {
 
       setLoans(withStats);
       setPagination({
-        page: response.data.pagination?.page || currentPage,
-        totalPages: response.data.pagination?.pages || 1,
-        totalItems: response.data.pagination?.total || withStats.length,
-        pageSize: response.data.pagination?.limit || pageSize,
+        page: pagination.page || currentPage,
+        totalPages: pagination.pages || 1,
+        totalItems: pagination.total || withStats.length,
+        pageSize: pagination.limit || pageSize,
       });
 
-      // Re-fetch stats after data load (to update average days if needed)
       await fetchStats();
     } catch (err: any) {
-      if (mountedRef.current)
+      if (mountedRef.current) {
         setError(err.message || "Failed to load overdue loans");
+      }
     } finally {
       if (mountedRef.current) setLoading(false);
     }

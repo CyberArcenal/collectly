@@ -7,6 +7,12 @@ const PenaltyTransaction = new EntitySchema({
     id: { type: Number, primary: true, generated: true },
     amount: { type: "decimal", precision: 12, scale: 2 },
     penaltyDate: { type: Date },
+    status: {
+      type: "varchar",
+      default: "pending",
+      enum: ["pending", "collected", "waived", "reversed"],
+      nullable: false,
+    },
     reason: { type: String, nullable: true },
     deletedAt: { type: Date, nullable: true },
     createdAt: { type: Date, createDate: true },

@@ -3,6 +3,7 @@
 import type { PaginatedResult } from "./common";
 
 export interface NotificationLogEntry {
+  recipient: string;
   id: number;
   recipient_email: string;
   subject: string | null;

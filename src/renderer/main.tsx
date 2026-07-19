@@ -10,13 +10,16 @@ import ConditionalRouter from "./components/Shared/ConditionalRouter";
 import App from "./routes/App";
 import { SettingsProvider } from "./contexts/SettingsContext";
 import { AuthProvider } from "./contexts/AuthContext";
+import { SyncProvider } from "./contexts/SyncContext";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <SettingsProvider>
       <ConditionalRouter>
         <AuthProvider>
-          <App />
+          <SyncProvider>
+            <App />
+          </SyncProvider>
         </AuthProvider>
       </ConditionalRouter>
     </SettingsProvider>

@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld("backendAPI", {
   auditLog: (payload) => ipcRenderer.invoke("auditLog", payload),
   activation: (payload) => ipcRenderer.invoke("activation", payload),
   systemConfig: (payload) => ipcRenderer.invoke("systemConfig", payload),
+  onlineSystemConfig: (payload) => ipcRenderer.invoke("onlineSystemConfig", payload),
   dashboard: (payload) => ipcRenderer.invoke("dashboard", payload),
   reminderLog: (payload) => ipcRenderer.invoke("reminderLog", payload),
   notificationLog: (payload) => ipcRenderer.invoke("notificationLog", payload),
@@ -24,6 +25,7 @@ contextBridge.exposeInMainWorld("backendAPI", {
     ipcRenderer.invoke("paymentTransaction", payload),
   penaltyTransaction: (payload) =>
     ipcRenderer.invoke("penaltyTransaction", payload),
+  controls: (payload) => ipcRenderer.invoke("controls", payload),
 
   // ========== NEW DEBT MANAGEMENT MODULES ==========
   group: (payload) => ipcRenderer.invoke("group", payload),
@@ -32,6 +34,7 @@ contextBridge.exposeInMainWorld("backendAPI", {
   creditCheck: (payload) => ipcRenderer.invoke("creditCheck", payload),
   interestRateChangeLog: (payload) =>
     ipcRenderer.invoke("interestRateChangeLog", payload),
+  sync: (payload) => ipcRenderer.invoke("sync", payload),
 
   // ========== PRINTER MODULE (generic + specific methods) ==========
   // Generic handler for printer configuration (CRUD, test, etc.)

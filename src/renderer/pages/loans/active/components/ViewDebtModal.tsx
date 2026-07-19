@@ -1,10 +1,11 @@
 // src/renderer/pages/loans/active/components/ViewDebtModal.tsx
-import React, { useEffect, useState, useRef } from "react";
-import { X, User, Calendar, Wallet, TrendingUp, AlertCircle, FileText } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { X, User, Calendar, Wallet, TrendingUp, AlertCircle, FileText, Loader2 } from "lucide-react";
 import paymentsAPI, { type PaymentTransaction } from "../../../../api/core/payment_transaction";
 import penaltiesAPI, { type PenaltyTransaction } from "../../../../api/core/pernalty_transaction";
+import debtsAPI, { type Debt } from "../../../../api/core/debt";
 import { formatCurrency, formatDate } from "../../../../utils/formatters";
-import type { Debt } from "../../../../api/core/debt";
+import { showError } from "../../../../utils/notification";
 
 interface ExtendedDebt extends Debt {
   lastInterestAccrualDate?: string | null;
@@ -21,50 +22,112 @@ interface ExtendedDebt extends Debt {
 
 interface ViewDebtModalProps {
   isOpen: boolean;
-  debt: ExtendedDebt | null;
+  debt: ExtendedDebt | null;  // Initial data from table (may be incomplete)
   onClose: () => void;
 }
 
 type TabType = "details" | "payments" | "penalties";
 
-const ViewDebtModal: React.FC<ViewDebtModalProps> = ({ isOpen, debt, onClose }) => {
+const ViewDebtModal: React.FC<ViewDebtModalProps> = ({ isOpen, debt: initialDebt, onClose }) => {
   const [activeTab, setActiveTab] = useState<TabType>("details");
+  const [fullDebt, setFullDebt] = useState<ExtendedDebt | null>(null);
   const [payments, setPayments] = useState<PaymentTransaction[]>([]);
   const [penalties, setPenalties] = useState<PenaltyTransaction[]>([]);
+  const [loading, setLoading] = useState(false);
   const [loadingPayments, setLoadingPayments] = useState(false);
   const [loadingPenalties, setLoadingPenalties] = useState(false);
-  const dataFetchedRef = useRef(false);
+  const [error, setError] = useState<string | null>(null);
 
+  // Reset state and fetch data when modal opens
   useEffect(() => {
-    if (isOpen && debt) {
-      dataFetchedRef.current = false;
+    if (isOpen && initialDebt?.id) {
+      // Reset state
+      setFullDebt(null);
       setPayments([]);
       setPenalties([]);
+      setError(null);
+      setActiveTab("details");
+
+      // Fetch full debt details
+      setLoading(true);
+      debtsAPI.getById(initialDebt.id)
+        .then(response => {
+          if (response.status) {
+            setFullDebt(response.data);
+          } else {
+            throw new Error(response.message || "Failed to fetch debt details");
+          }
+        })
+        .catch(err => {
+          setError(err.message);
+          showError(err.message);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+
+      // Fetch payments and penalties in parallel
       setLoadingPayments(true);
       setLoadingPenalties(true);
-
       Promise.all([
-        paymentsAPI.getByDebtId(debt.id).catch(() => []),
-        penaltiesAPI.getByDebtId(debt.id).catch(() => []),
+        paymentsAPI.getByDebtId(initialDebt.id).catch(() => []),
+        penaltiesAPI.getByDebtId(initialDebt.id).catch(() => []),
       ])
         .then(([paymentsData, penaltiesData]) => {
           setPayments(paymentsData);
           setPenalties(penaltiesData);
-          dataFetchedRef.current = true;
         })
         .finally(() => {
           setLoadingPayments(false);
           setLoadingPenalties(false);
         });
     } else if (!isOpen) {
-      setActiveTab("details");
+      // Cleanup on close
+      setFullDebt(null);
       setPayments([]);
       setPenalties([]);
-      dataFetchedRef.current = false;
+      setError(null);
     }
-  }, [isOpen, debt?.id]);
+  }, [isOpen, initialDebt?.id]);
 
-  if (!isOpen || !debt) return null;
+  if (!isOpen) return null;
+
+  // Show loading state while fetching debt
+  if (loading) {
+    return (
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="bg-[var(--card-bg)] rounded-xl p-8 shadow-xl border border-[var(--border-color)] flex flex-col items-center">
+          <Loader2 className="w-8 h-8 text-[var(--primary-color)] animate-spin" />
+          <p className="mt-4 text-[var(--text-secondary)]">Loading debt details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error if failed to load
+  if (error) {
+    return (
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="bg-[var(--card-bg)] rounded-xl p-8 shadow-xl border border-[var(--border-color)] max-w-md w-full">
+          <div className="text-center">
+            <AlertCircle className="w-12 h-12 text-[var(--danger-color)] mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-[var(--text-primary)]">Failed to load debt</h3>
+            <p className="text-sm text-[var(--text-secondary)] mt-2">{error}</p>
+            <button
+              onClick={onClose}
+              className="mt-4 px-4 py-2 rounded-lg text-sm font-medium text-white bg-[var(--primary-color)] hover:opacity-80"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Use the fetched full debt, fallback to initial prop if something went wrong
+  const debt = fullDebt || initialDebt;
+  if (!debt) return null;
 
   const totalPaid = debt.paidAmount ?? 0;
   const remainingBalance = debt.remainingAmount ?? 0;
@@ -199,6 +262,12 @@ const ViewDebtModal: React.FC<ViewDebtModalProps> = ({ isOpen, debt, onClose }) 
                       <div className="col-span-2">
                         <span className="text-[var(--text-tertiary)]">Email:</span>
                         <span className="ml-1 text-[var(--text-primary)]">{debt.borrower.email}</span>
+                      </div>
+                    )}
+                    {debt.borrower.address && (
+                      <div className="col-span-2">
+                        <span className="text-[var(--text-tertiary)]">Address:</span>
+                        <span className="ml-1 text-[var(--text-primary)]">{debt.borrower.address}</span>
                       </div>
                     )}
                   </div>

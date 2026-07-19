@@ -225,82 +225,82 @@ class DebtService {
     }
   }
 
-/**
- * Soft delete a debt (set deletedAt)
- * @param {number} id
- * @param {string} user
- * @param {import("typeorm").QueryRunner | null} qr
- */
-async delete(id, user = "system", qr = null) {
-  const { updateDb } = require("../utils/dbUtils/dbActions");
-  const Debt = require("../entities/Debt");
-  const PaymentTransaction = require("../entities/PaymentTransaction");
-  const PenaltyTransaction = require("../entities/PenaltyTransaction");
-  const LoanAgreement = require("../entities/LoanAgreement");
-  const debtRepo = this._getRepo(qr, Debt);
-  const paymentRepo = this._getRepo(qr, PaymentTransaction);
-  const penaltyRepo = this._getRepo(qr, PenaltyTransaction);
-  const agreementRepo = this._getRepo(qr, LoanAgreement);
+  /**
+   * Soft delete a debt (set deletedAt)
+   * @param {number} id
+   * @param {string} user
+   * @param {import("typeorm").QueryRunner | null} qr
+   */
+  async delete(id, user = "system", qr = null) {
+    const { updateDb } = require("../utils/dbUtils/dbActions");
+    const Debt = require("../entities/Debt");
+    const PaymentTransaction = require("../entities/PaymentTransaction");
+    const PenaltyTransaction = require("../entities/PenaltyTransaction");
+    const LoanAgreement = require("../entities/LoanAgreement");
+    const debtRepo = this._getRepo(qr, Debt);
+    const paymentRepo = this._getRepo(qr, PaymentTransaction);
+    const penaltyRepo = this._getRepo(qr, PenaltyTransaction);
+    const agreementRepo = this._getRepo(qr, LoanAgreement);
 
-  try {
-    // 1. Find the debt with borrower info for user-friendly error messages
-    const debt = await debtRepo.findOne({
-      where: { id },
-      relations: ["borrower"],
-    });
-    if (!debt) {
-      throw new Error(`Debt with ID ${id} not found`);
+    try {
+      // 1. Find the debt with borrower info for user-friendly error messages
+      const debt = await debtRepo.findOne({
+        where: { id },
+        relations: ["borrower"],
+      });
+      if (!debt) {
+        throw new Error(`Debt with ID ${id} not found`);
+      }
+      if (debt.deletedAt) {
+        throw new Error(`Debt "${debt.name}" is already deleted`);
+      }
+
+      const borrowerName = debt.borrower?.name || "Unknown Borrower";
+
+      // 2. 🔒 Check for active payments (not soft-deleted)
+      const paymentCount = await paymentRepo.count({
+        where: { debt: { id }, deletedAt: null },
+      });
+      if (paymentCount > 0) {
+        throw new Error(
+          `Cannot delete debt "${debt.name}" for ${borrowerName} because it has ${paymentCount} active payment(s). Please delete or void all payments first.`,
+        );
+      }
+
+      // 3. 🔒 Check for active penalties (not soft-deleted)
+      const penaltyCount = await penaltyRepo.count({
+        where: { debt: { id }, deletedAt: null },
+      });
+      if (penaltyCount > 0) {
+        throw new Error(
+          `Cannot delete debt "${debt.name}" for ${borrowerName} because it has ${penaltyCount} active penalty(s). Please delete all penalties first.`,
+        );
+      }
+
+      // 4. 🔒 Check for signed loan agreements (status = 'signed')
+      const signedAgreementCount = await agreementRepo.count({
+        where: { debt: { id }, status: "signed", deletedAt: null },
+      });
+      if (signedAgreementCount > 0) {
+        throw new Error(
+          `Cannot delete debt "${debt.name}" for ${borrowerName} because it has ${signedAgreementCount} signed loan agreement(s). Please void or delete the agreements first.`,
+        );
+      }
+
+      // 5. Proceed with soft delete
+      const oldData = { ...debt };
+      debt.deletedAt = new Date();
+      debt.updatedAt = new Date();
+
+      const saved = await updateDb(debtRepo, debt, { queryRunner: qr });
+      await auditLogger.logDelete("Debt", id, oldData, user);
+      console.log(`Debt soft deleted: "${debt.name}" (ID: ${id})`);
+      return saved;
+    } catch (error) {
+      console.error("Failed to delete debt:", error.message);
+      throw error;
     }
-    if (debt.deletedAt) {
-      throw new Error(`Debt "${debt.name}" is already deleted`);
-    }
-
-    const borrowerName = debt.borrower?.name || "Unknown Borrower";
-
-    // 2. 🔒 Check for active payments (not soft-deleted)
-    const paymentCount = await paymentRepo.count({
-      where: { debt: { id }, deletedAt: null },
-    });
-    if (paymentCount > 0) {
-      throw new Error(
-        `Cannot delete debt "${debt.name}" for ${borrowerName} because it has ${paymentCount} active payment(s). Please delete or void all payments first.`
-      );
-    }
-
-    // 3. 🔒 Check for active penalties (not soft-deleted)
-    const penaltyCount = await penaltyRepo.count({
-      where: { debt: { id }, deletedAt: null },
-    });
-    if (penaltyCount > 0) {
-      throw new Error(
-        `Cannot delete debt "${debt.name}" for ${borrowerName} because it has ${penaltyCount} active penalty(s). Please delete all penalties first.`
-      );
-    }
-
-    // 4. 🔒 Check for signed loan agreements (status = 'signed')
-    const signedAgreementCount = await agreementRepo.count({
-      where: { debt: { id }, status: "signed", deletedAt: null },
-    });
-    if (signedAgreementCount > 0) {
-      throw new Error(
-        `Cannot delete debt "${debt.name}" for ${borrowerName} because it has ${signedAgreementCount} signed loan agreement(s). Please void or delete the agreements first.`
-      );
-    }
-
-    // 5. Proceed with soft delete
-    const oldData = { ...debt };
-    debt.deletedAt = new Date();
-    debt.updatedAt = new Date();
-
-    const saved = await updateDb(debtRepo, debt, { queryRunner: qr });
-    await auditLogger.logDelete("Debt", id, oldData, user);
-    console.log(`Debt soft deleted: "${debt.name}" (ID: ${id})`);
-    return saved;
-  } catch (error) {
-    console.error("Failed to delete debt:", error.message);
-    throw error;
   }
-}
 
   /**
    * Restore a soft-deleted debt
@@ -497,6 +497,8 @@ async delete(id, user = "system", qr = null) {
     return debt;
   }
 
+  // services/Debt.js – inside DebtService class
+
   /**
    * Find all debts with filters, pagination, sorting
    * @param {Object} options
@@ -589,10 +591,53 @@ async delete(id, user = "system", qr = null) {
         .andWhere("penalty.deletedAt IS NULL");
     }, "penaltyCount");
 
-    // Sorting
-    const sortBy = options.sortBy || "dueDate";
+    // ✅ Sorting with field mapping
+    let sortBy = options.sortBy || "dueDate";
     const sortOrder = options.sortOrder === "ASC" ? "ASC" : "DESC";
-    qb.orderBy(`debt.${sortBy}`, sortOrder);
+
+    // 🔧 Map frontend sort fields to actual column/relation paths
+    const sortFieldMap = {
+      borrowerName: "borrower.name", // ✅ sort by borrower name
+      borrower: "borrower.name", // ✅ fallback
+      createdAt: "debt.createdAt",
+      updatedAt: "debt.updatedAt",
+      dueDate: "debt.dueDate",
+      name: "debt.name",
+      totalAmount: "debt.totalAmount",
+      paidAmount: "debt.paidAmount",
+      remainingAmount: "debt.remainingAmount",
+      status: "debt.status",
+      id: "debt.id",
+    };
+
+    // Use mapped field or default to debt.{sortBy}
+    let orderByField = sortFieldMap[sortBy] || `debt.${sortBy}`;
+
+    // ✅ SAFETY: Prevent SQL injection by validating field is allowed
+    const allowedFields = [
+      "debt.id",
+      "debt.name",
+      "debt.totalAmount",
+      "debt.paidAmount",
+      "debt.remainingAmount",
+      "debt.dueDate",
+      "debt.status",
+      "debt.createdAt",
+      "debt.updatedAt",
+      "debt.interestRate",
+      "debt.penaltyRate",
+      "borrower.name",
+    ];
+
+    // If the mapped field is not in allowed list, fallback to dueDate
+    if (!allowedFields.includes(orderByField)) {
+      console.warn(
+        `[DebtService] Invalid sort field: ${orderByField}, falling back to dueDate`,
+      );
+      orderByField = "debt.dueDate";
+    }
+
+    qb.orderBy(orderByField, sortOrder);
 
     // Pagination
     const result = await paginateQueryBuilder(qb, {
@@ -600,7 +645,7 @@ async delete(id, user = "system", qr = null) {
       limit: options.limit,
     });
 
-    // ✅ Attach stats object to each debt
+    // Attach stats object to each debt
     const now = new Date();
     now.setHours(0, 0, 0, 0);
     result.data = result.data.map((debt) => {
@@ -713,38 +758,54 @@ async delete(id, user = "system", qr = null) {
 
   /**
    * Get debt statistics
+   * Overdue count should only include debts with remainingAmount > 0
+   * Active count should only include debts with remainingAmount > 0
    */
   async getStatistics() {
     const { debt: debtRepo } = await this.getRepositories();
-    // @ts-ignore
     const qb = debtRepo
       .createQueryBuilder("debt")
       .where("debt.deletedAt IS NULL");
 
-    const totalDebts = await qb.getCount();
+    // Total debts (all non-deleted)
+    const totalDebts = await qb.clone().getCount();
+
+    // Active debts: status = 'active' AND remainingAmount > 0.01
     const totalActive = await qb
       .clone()
       .andWhere("debt.status = 'active'")
+      .andWhere("debt.remainingAmount > 0.01")
       .getCount();
+
+    // Paid debts: status = 'paid' (regardless of remaining, but usually zero)
     const totalPaid = await qb
       .clone()
       .andWhere("debt.status = 'paid'")
       .getCount();
+
+    // Overdue debts: status = 'overdue' AND remainingAmount > 0.01
     const totalOverdue = await qb
       .clone()
       .andWhere("debt.status = 'overdue'")
+      .andWhere("debt.remainingAmount > 0.01")
       .getCount();
+
+    // Defaulted debts: status = 'defaulted'
     const totalDefaulted = await qb
       .clone()
       .andWhere("debt.status = 'defaulted'")
       .getCount();
 
+    // Sum of totalAmount
     const totalAmountSum = await qb
       .clone()
       .select("SUM(debt.totalAmount)", "sum")
       .getRawOne();
+
+    // Sum of remainingAmount (only positive balances)
     const totalRemainingSum = await qb
       .clone()
+      .andWhere("debt.remainingAmount > 0.01")
       .select("SUM(debt.remainingAmount)", "sum")
       .getRawOne();
 
@@ -1536,6 +1597,168 @@ async delete(id, user = "system", qr = null) {
       },
     });
     return count;
+  }
+
+  // services/Debt.js – inside DebtService class
+
+  /**
+   * Get overdue debts (true overdue: status='overdue', remainingAmount > 0, dueDate < today)
+   * @param {Object} options - Pagination and filter options
+   * @param {number} options.page - Page number
+   * @param {number} options.limit - Items per page
+   * @param {string} options.search - Search term
+   * @param {string} options.sortBy - Sort field
+   * @param {string} options.sortOrder - 'ASC' or 'DESC'
+   * @param {number} options.minDaysOverdue - Minimum days overdue (optional)
+   * @returns {Promise<{ data: Debt[], pagination: {...} }>}
+   */
+  async getOverdueDebts(options = {}) {
+    const { debt: debtRepo } = await this.getRepositories();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const qb = debtRepo
+      .createQueryBuilder("debt")
+      .leftJoinAndSelect("debt.borrower", "borrower")
+      .where("debt.status = :status", { status: "overdue" })
+      .andWhere("debt.deletedAt IS NULL")
+      .andWhere("debt.remainingAmount > 0.01")
+      .andWhere("debt.dueDate < :today", { today });
+
+    // Min days overdue filter (optional)
+    if (options.minDaysOverdue) {
+      const days = parseInt(options.minDaysOverdue);
+      const cutoff = new Date(today);
+      cutoff.setDate(today.getDate() - days);
+      qb.andWhere("debt.dueDate <= :cutoff", { cutoff });
+    }
+
+    // Search
+    if (options.search) {
+      qb.andWhere(
+        "(debt.name LIKE :search OR borrower.name LIKE :search OR borrower.contact LIKE :search OR borrower.email LIKE :search)",
+        { search: `%${options.search}%` },
+      );
+    }
+
+    // Subqueries for stats (same as findAll)
+    qb.addSelect((subQ) => {
+      return subQ
+        .select("COALESCE(SUM(payment.amount), 0)")
+        .from("payment_transactions", "payment")
+        .where("payment.debtId = debt.id")
+        .andWhere("payment.deletedAt IS NULL");
+    }, "totalPaid");
+
+    qb.addSelect((subQ) => {
+      return subQ
+        .select("COUNT(payment.id)")
+        .from("payment_transactions", "payment")
+        .where("payment.debtId = debt.id")
+        .andWhere("payment.deletedAt IS NULL");
+    }, "paymentCount");
+
+    qb.addSelect((subQ) => {
+      return subQ
+        .select("MAX(payment.paymentDate)")
+        .from("payment_transactions", "payment")
+        .where("payment.debtId = debt.id")
+        .andWhere("payment.deletedAt IS NULL");
+    }, "lastPaymentDate");
+
+    qb.addSelect((subQ) => {
+      return subQ
+        .select("COALESCE(SUM(penalty.amount), 0)")
+        .from("penalty_transactions", "penalty")
+        .where("penalty.debtId = debt.id")
+        .andWhere("penalty.deletedAt IS NULL");
+    }, "totalPenalty");
+
+    qb.addSelect((subQ) => {
+      return subQ
+        .select("COUNT(penalty.id)")
+        .from("penalty_transactions", "penalty")
+        .where("penalty.debtId = debt.id")
+        .andWhere("penalty.deletedAt IS NULL");
+    }, "penaltyCount");
+
+    // Sorting
+    let sortBy = options.sortBy || "dueDate";
+    const sortOrder = options.sortOrder === "ASC" ? "ASC" : "DESC";
+    const sortFieldMap = {
+      borrowerName: "borrower.name",
+      borrower: "borrower.name",
+      createdAt: "debt.createdAt",
+      updatedAt: "debt.updatedAt",
+      dueDate: "debt.dueDate",
+      name: "debt.name",
+      totalAmount: "debt.totalAmount",
+      paidAmount: "debt.paidAmount",
+      remainingAmount: "debt.remainingAmount",
+      status: "debt.status",
+      id: "debt.id",
+    };
+
+    // Pagination
+    const result = await paginateQueryBuilder(qb, {
+      page: options.page,
+      limit: options.limit,
+    });
+    let orderByField = sortFieldMap[sortBy] || `debt.${sortBy}`;
+
+    // ✅ SAFETY: Whitelist allowed fields
+    const allowedFields = [
+      "debt.id",
+      "debt.name",
+      "debt.totalAmount",
+      "debt.paidAmount",
+      "debt.remainingAmount",
+      "debt.dueDate",
+      "debt.status",
+      "debt.createdAt",
+      "debt.updatedAt",
+      "borrower.name",
+    ];
+
+    if (!allowedFields.includes(orderByField)) {
+      console.warn(
+        `[DebtService] Invalid sort field: ${orderByField}, falling back to dueDate`,
+      );
+      orderByField = "debt.dueDate";
+    }
+
+    qb.orderBy(orderByField, sortOrder);
+
+    // Attach stats object to each debt (same as findAll)
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    result.data = result.data.map((debt) => {
+      const totalPaid = parseFloat(debt.totalPaid || 0);
+      const totalPenalty = parseFloat(debt.totalPenalty || 0);
+      const remainingBalance = debt.totalAmount - totalPaid;
+      let daysOverdue = 0;
+      const dueDate = debt.dueDate ? new Date(debt.dueDate) : null;
+      if (dueDate && dueDate < now && remainingBalance > 0) {
+        const diffTime = now.getTime() - dueDate.getTime();
+        daysOverdue = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      }
+      const isFullyPaid = remainingBalance <= 0.01;
+
+      debt.stats = {
+        totalPaid,
+        totalPenalty,
+        remainingBalance,
+        daysOverdue,
+        paymentCount: parseInt(debt.paymentCount || 0),
+        penaltyCount: parseInt(debt.penaltyCount || 0),
+        lastPaymentDate: debt.lastPaymentDate || null,
+        isFullyPaid,
+      };
+      return debt;
+    });
+
+    await auditLogger.logView("Debt", null, "system");
+    return result;
   }
 }
 

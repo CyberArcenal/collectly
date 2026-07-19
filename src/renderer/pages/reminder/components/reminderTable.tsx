@@ -122,11 +122,11 @@ export const NotificationTable: React.FC<NotificationTableProps> = ({
                 <td className="py-2.5 px-3">
                   <div className="flex items-center gap-2">
                     <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[var(--primary-color)] to-[var(--primary-hover)] flex items-center justify-center text-white text-[10px] font-medium flex-shrink-0">
-                      {getInitials(log.recipient_email)}
+                      {getInitials(log.recipient_email || log.recipient)}
                     </div>
                     <div>
                       <div className="text-[var(--text-primary)] text-sm truncate max-w-[150px]">
-                        {log.recipient_email}
+                        {log.recipient_email || log.recipient}
                       </div>
                     </div>
                   </div>

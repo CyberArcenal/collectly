@@ -166,55 +166,7 @@ const GeneralTab: React.FC<Props> = ({ settings, onUpdate }) => {
         </div>
       </div>
 
-      {/* Sync Mode */}
-      <div className="border-t pt-5" style={{ borderColor: "var(--border-color)" }}>
-        <h4 className="text-md font-medium mb-3" style={{ color: "var(--text-primary)" }}>Sync Mode</h4>
-        <div className="flex flex-col sm:flex-row gap-4">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="radio"
-              name="sync_mode"
-              value="offline"
-              checked={settings.sync_mode === ("offline" as any)}
-              onChange={() => handleSyncModeChange("offline")}
-              className="w-4 h-4 accent-[var(--primary-color)]"
-            />
-            <span className="text-sm" style={{ color: "var(--text-primary)" }}>Offline Mode</span>
-            <span className="text-xs ml-1" style={{ color: "var(--text-tertiary)" }}>Work locally, no sync</span>
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="radio"
-              name="sync_mode"
-              value="online"
-              checked={settings.sync_mode === ("online" as any)}
-              onChange={() => handleSyncModeChange("online")}
-              className="w-4 h-4 accent-[var(--primary-color)]"
-            />
-            <span className="text-sm" style={{ color: "var(--text-primary)" }}>Online Mode</span>
-            <span className="text-xs ml-1" style={{ color: "var(--text-tertiary)" }}>Connect to server</span>
-          </label>
-        </div>
-        {settings.sync_mode === ("online" as any) && settings.server_url && (
-          <div className="mt-3 p-3 rounded-lg" style={{ backgroundColor: "var(--status-success-bg)", border: "1px solid var(--success-color)" }}>
-            <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-              Connected to: <span className="font-mono" style={{ color: "var(--text-primary)" }}>{settings.server_url}</span>
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Server URL Modal */}
-      <ServerModal
-        isOpen={showServerModal}
-        onClose={() => setShowServerModal(false)}
-        serverUrl={tempServerUrl}
-        onServerUrlChange={setTempServerUrl}
-        onConnect={connectServer}
-        connecting={connecting}
-        onUpdate={onUpdate}
-        currentServerUrl={settings.server_url || ""}
-      />
+      {/* REMOVED: Sync Mode section */}
     </div>
   );
 };

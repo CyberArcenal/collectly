@@ -22,6 +22,7 @@ class DebtHandler {
 
     this.getAgingSummary = this.importHandler("./get/aging_summary.ipc");
     this.getDebtsInBucket = this.importHandler("./get/debts_in_bucket.ipc");
+    this.getOverdueDebts = this.importHandler("./get/overdue.ipc");
 
     // ✏️ WRITE OPERATION HANDLERS
     this.createDebt = this.importHandler("./create.ipc");
@@ -29,7 +30,7 @@ class DebtHandler {
     this.deleteDebt = this.importHandler("./delete.ipc");
     this.restoreDebt = this.importHandler("./restore.ipc");
     this.markPeriodPaid = this.importHandler("./mark_period_paid.ipc");
-    this.fixPrecision = this.importHandler('./fix_precision.ipc');
+    this.fixPrecision = this.importHandler("./fix_precision.ipc");
 
     this.permanentlyDeleteDebt = this.importHandler("./permanent_delete.ipc");
     this.recalculateRemainingAmount = this.importHandler(
@@ -86,6 +87,8 @@ class DebtHandler {
           return await this.getDebtsInBucket(params);
         case "getCollectionSchedule":
           return await this.getCollectionSchedule(params);
+        case "getOverdueDebts":
+          return await this.getOverdueDebts(params);
 
         // ✏️ WRITE (with transaction)
         case "createDebt":
@@ -101,8 +104,8 @@ class DebtHandler {
             this.permanentlyDeleteDebt,
             params,
           );
-          case 'fixPrecision':
-  return await this.handleWithTransaction(this.fixPrecision, params);
+        case "fixPrecision":
+          return await this.handleWithTransaction(this.fixPrecision, params);
         case "recalculateRemainingAmount":
           return await this.handleWithTransaction(
             this.recalculateRemainingAmount,
