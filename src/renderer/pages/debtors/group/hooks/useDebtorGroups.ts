@@ -49,6 +49,13 @@ interface UseDebtorGroupsReturn {
   createGroupModalOpen: boolean;
   openCreateGroupModal: () => void;
   closeCreateGroupModal: () => void;
+
+  groupsCurrentPage: number;
+  groupsPageSize: number;
+  groupsTotalItems: number;
+  setGroupsCurrentPage: (page: number) => void;
+  setGroupsPageSize: (size: number) => void;
+
   editGroupModalOpen: boolean;
   editingGroup: DebtorGroup | null;
   openEditGroupModal: (group: DebtorGroup) => void;
@@ -100,6 +107,10 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
   const [editGroupModalOpen, setEditGroupModalOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<DebtorGroup | null>(null);
 
+  const [groupsCurrentPage, setGroupsCurrentPage] = useState(1);
+  const [groupsPageSize, setGroupsPageSize] = useState(10);
+  const [groupsTotalItems, setGroupsTotalItems] = useState(0);
+
   // Fetch group statistics
   const fetchStats = useCallback(async () => {
     setLoadingStats(true);
@@ -121,9 +132,13 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
   const loadGroups = useCallback(async () => {
     setLoadingGroups(true);
     try {
-      const response = await groupsAPI.getAll(1, 100);
+      const response = await groupsAPI.getAll(
+        groupsCurrentPage,
+        groupsPageSize,
+      );
       if (response.status) {
         setGroups(response.data.data);
+        setGroupsTotalItems(response.data.pagination.total);
         setGroupsPagination({
           page: response.data.pagination.page,
           totalPages: response.data.pagination.pages,
@@ -138,7 +153,7 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
     } finally {
       setLoadingGroups(false);
     }
-  }, []);
+  }, [groupsCurrentPage, groupsPageSize]);
 
   // Load members of the selected group
   const loadGroupMembers = useCallback(
@@ -196,7 +211,7 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
         setLoadingMembers(false);
       }
     },
-    []
+    [],
   );
 
   // Load all active debtors
@@ -242,6 +257,17 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
       });
     }
   }, [selectedGroup, membersCurrentPage, membersPageSize, loadGroupMembers]);
+
+  // Reload groups when page or size changes
+  useEffect(() => {
+    loadGroups();
+  }, [loadGroups]);
+
+  // Initial load (only once for other data)
+  useEffect(() => {
+    loadAvailableDebtors();
+    fetchStats();
+  }, []); // groups are loaded via the effect above
 
   // --- CRUD operations ---
   const handleCreateGroup = async (data: {
@@ -292,7 +318,8 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
   const handleDeleteGroup = async (id: number) => {
     const confirmed = await dialogs.confirm({
       title: "Delete Group",
-      message: "Are you sure? This will remove all debtor assignments from this group.",
+      message:
+        "Are you sure? This will remove all debtor assignments from this group.",
     });
     if (!confirmed) return;
     try {
@@ -316,7 +343,11 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
     try {
       const response = await groupsAPI.assignDebtor(selectedGroup.id, debtorId);
       if (response.status) {
-        await loadGroupMembers(selectedGroup.id, membersCurrentPage, membersPageSize);
+        await loadGroupMembers(
+          selectedGroup.id,
+          membersCurrentPage,
+          membersPageSize,
+        );
         await fetchStats(); // Refresh stats
         dialogs.success("Debtor assigned");
       } else {
@@ -332,7 +363,11 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
     try {
       const response = await groupsAPI.removeDebtor(selectedGroup.id, debtorId);
       if (response.status) {
-        await loadGroupMembers(selectedGroup.id, membersCurrentPage, membersPageSize);
+        await loadGroupMembers(
+          selectedGroup.id,
+          membersCurrentPage,
+          membersPageSize,
+        );
         await fetchStats(); // Refresh stats
         dialogs.success("Debtor removed from group");
       } else {
@@ -348,7 +383,11 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
     try {
       const response = await groupsAPI.bulkAssign(selectedGroup.id, debtorIds);
       if (response.status) {
-        await loadGroupMembers(selectedGroup.id, membersCurrentPage, membersPageSize);
+        await loadGroupMembers(
+          selectedGroup.id,
+          membersCurrentPage,
+          membersPageSize,
+        );
         await fetchStats(); // Refresh stats
         dialogs.success(`${debtorIds.length} debtor(s) assigned to group`);
       } else {
@@ -388,6 +427,11 @@ const useDebtorGroups = (): UseDebtorGroupsReturn => {
     closeCreateGroupModal: () => setCreateGroupModalOpen(false),
     editGroupModalOpen,
     editingGroup,
+    groupsCurrentPage,
+    groupsPageSize,
+    groupsTotalItems,
+    setGroupsCurrentPage,
+    setGroupsPageSize,
     openEditGroupModal: (group) => {
       setEditingGroup(group);
       setEditGroupModalOpen(true);

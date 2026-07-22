@@ -5,6 +5,7 @@ import { Filter, X } from 'lucide-react';
 interface NotificationFilterPanelProps {
   filters: {
     status?: string;
+    channel?: string;
     startDate?: string;
     endDate?: string;
     sortBy?: string;
@@ -25,6 +26,7 @@ export const NotificationFilterPanel: React.FC<NotificationFilterPanelProps> = (
 }) => {
   const hasFilters = !!(
     filters.status ||
+    filters.channel ||
     filters.startDate ||
     filters.endDate
   );
@@ -39,7 +41,7 @@ export const NotificationFilterPanel: React.FC<NotificationFilterPanelProps> = (
     <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border-color)] p-4 space-y-3">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-[var(--text-secondary)] flex items-center gap-2">
-          <Filter className="w-4 h-4" /> Filter Email Logs
+          <Filter className="w-4 h-4" /> Filter Notification Logs
         </span>
         {hasFilters && (
           <button
@@ -72,6 +74,27 @@ export const NotificationFilterPanel: React.FC<NotificationFilterPanelProps> = (
             <option value="sent">Sent</option>
             <option value="failed">Failed</option>
             <option value="resend">Resent</option>
+          </select>
+        </div>
+
+        {/* Channel */}
+        <div>
+          <label className="block text-[10px] font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-1">
+            Channel
+          </label>
+          <select
+            value={filters.channel || ''}
+            onChange={(e) => updateFilter('channel', e.target.value || undefined)}
+            className="w-full px-3 py-1.5 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]"
+            style={{
+              backgroundColor: "var(--input-bg)",
+              borderColor: "var(--input-border)",
+              color: "var(--text-primary)",
+            }}
+          >
+            <option value="">All channels</option>
+            <option value="email">Email</option>
+            <option value="sms">SMS</option>
           </select>
         </div>
 

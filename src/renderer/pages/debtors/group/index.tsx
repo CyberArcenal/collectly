@@ -1,16 +1,16 @@
 // src/renderer/pages/debtors/group/index.tsx
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Layers, RefreshCw, Users } from "lucide-react";
 import useDebtorGroups from "./hooks/useDebtorGroups";
 import GroupList from "./components/GroupList";
 import GroupMembers from "./components/GroupMembers";
 import GroupFormDialog from "./components/GroupFormDialog";
-import GroupSummaryCards from "./components/GroupSummaryCards"; // NEW
+import GroupSummaryCards from "./components/GroupSummaryCards";
 import { dialogs } from "../../../utils/dialogs";
 import DebtorViewDialog from "../components/DebtorViewDialog";
-import DebtorFormDialog from "../components/DebtorFormDialog";
-import LoadingSpinner from "../../../components/Shared/LoadingSpinner";
 import { showError } from "../../../utils/notification";
+import { usePagination } from "../../../contexts/PaginationContext";
+import Pagination from "../../../components/UI/Pagination";
 
 const DebtorGroupsPage: React.FC = () => {
   const {
@@ -32,6 +32,11 @@ const DebtorGroupsPage: React.FC = () => {
     closeCreateGroupModal,
     editGroupModalOpen,
     editingGroup,
+    groupsCurrentPage,
+    groupsPageSize,
+    groupsTotalItems,
+    setGroupsCurrentPage,
+    setGroupsPageSize,
     openEditGroupModal,
     closeEditGroupModal,
     handleCreateGroup,
@@ -41,13 +46,65 @@ const DebtorGroupsPage: React.FC = () => {
     removeDebtor,
     bulkAssign,
     refresh,
-    stats, // NEW
-    loadingStats, // NEW
+    stats,
+    loadingStats,
   } = useDebtorGroups();
 
   const [viewOpen, setViewOpen] = useState(false);
   const [viewingDebtor, setViewingDebtor] = useState<any>(null);
+  const { setPagination, clearPagination } = usePagination();
 
+  // --------------------------------------------
+  // 1. GLOBAL PAGINATION for GROUPS (only when no group selected)
+  // --------------------------------------------
+  const handlePageChange = useCallback(
+    (newPage: number) => setGroupsCurrentPage(newPage),
+    [setGroupsCurrentPage]
+  );
+  const handlePageSizeChange = useCallback(
+    (newSize: number) => {
+      setGroupsPageSize(newSize);
+      setGroupsCurrentPage(1);
+    },
+    [setGroupsPageSize, setGroupsCurrentPage]
+  );
+
+  const handlersRef = useRef({
+    onPageChange: handlePageChange,
+    onPageSizeChange: handlePageSizeChange,
+  });
+  useEffect(() => {
+    handlersRef.current = {
+      onPageChange: handlePageChange,
+      onPageSizeChange: handlePageSizeChange,
+    };
+  }, [handlePageChange, handlePageSizeChange]);
+
+  // 🔹 Show global pagination ONLY when NO group is selected
+  useEffect(() => {
+    if (!selectedGroup) {
+      setPagination({
+        currentPage: groupsCurrentPage,
+        totalItems: groupsTotalItems,
+        pageSize: groupsPageSize,
+        onPageChange: handlersRef.current.onPageChange,
+        onPageSizeChange: handlersRef.current.onPageSizeChange,
+        pageSizeOptions: [5, 10, 25, 50],
+        showPageSize: true,
+      });
+    } else {
+      clearPagination(); // hide global pagination when a group is selected
+    }
+  }, [selectedGroup, groupsCurrentPage, groupsTotalItems, groupsPageSize, setPagination, clearPagination]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => clearPagination();
+  }, [clearPagination]);
+
+  // --------------------------------------------
+  // 2. VIEW DEBTOR
+  // --------------------------------------------
   const openView = async (debtor: any) => {
     if (!debtor.id) {
       showError("Ops! Something went wrong.");
@@ -82,7 +139,7 @@ const DebtorGroupsPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Summary Cards - NEW */}
+      {/* Summary Cards */}
       <GroupSummaryCards stats={stats} loading={loadingStats} />
 
       {/* Main Grid */}
@@ -129,10 +186,22 @@ const DebtorGroupsPage: React.FC = () => {
                   onRefresh={refresh}
                 />
               </div>
-              {/* Pagination for members */}
+              {/* 🔹 INLINE PAGINATION for MEMBERS (only when needed) */}
               {membersPagination.totalPages > 1 && (
                 <div className="mt-3 flex-shrink-0">
-                  {/* Will use the global pagination or inline */}
+                  <Pagination
+                    variant="compact"
+                    currentPage={membersCurrentPage}
+                    totalItems={membersPagination.totalItems}
+                    pageSize={membersPageSize}
+                    onPageChange={setMembersCurrentPage}
+                    onPageSizeChange={(size) => {
+                      setMembersPageSize(size);
+                      setMembersCurrentPage(1);
+                    }}
+                    pageSizeOptions={[5, 10, 25, 50]}
+                    showPageSize={true}
+                  />
                 </div>
               )}
             </>

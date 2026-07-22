@@ -9,14 +9,19 @@ module.exports = async (params) => {
   onlineClient.setBaseUrl(url);
 
   // ✅ Convert grouped object to array format expected by backend
-   const settingsArray = [];
+  const settingsArray = [];
   Object.entries(configData).forEach(([category, settings]) => {
     if (settings && typeof settings === "object") {
       Object.entries(settings).forEach(([key, value]) => {
         if (value !== undefined && value !== null && value !== "") {
+          // Convert boolean to lowercase string
+          let normalizedValue = value;
+          if (typeof normalizedValue === 'boolean') {
+            normalizedValue = normalizedValue ? 'true' : 'false';
+          }
           settingsArray.push({
             key,
-            value,
+            value: normalizedValue,
             setting_type: category,
             description: `Setting for ${category}.${key}`,
             is_public: false,

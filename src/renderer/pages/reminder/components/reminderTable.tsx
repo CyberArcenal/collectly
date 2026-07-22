@@ -10,8 +10,8 @@ import {
   XCircle,
   RotateCw,
   Mail,
+  Smartphone,
   Loader2,
-  User,
 } from "lucide-react";
 import { formatDate } from "../../../utils/formatters";
 import type { NotificationLogEntry } from "../../../api/core/reminder_log";
@@ -77,7 +77,7 @@ export const NotificationTable: React.FC<NotificationTableProps> = ({
     return (
       <div className="text-center py-8 text-[var(--text-tertiary)] border border-[var(--border-color)] rounded-xl bg-[var(--card-bg)] text-sm">
         <Mail className="w-8 h-8 mx-auto mb-2 text-[var(--text-tertiary)]" />
-        <p>No email records found</p>
+        <p>No notification records found</p>
         <p className="text-xs text-[var(--text-tertiary)] mt-1">Try adjusting your filters</p>
       </div>
     );
@@ -93,6 +93,9 @@ export const NotificationTable: React.FC<NotificationTableProps> = ({
             </th>
             <th className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
               Subject
+            </th>
+            <th className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
+              Channel
             </th>
             <th className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
               Status
@@ -137,6 +140,12 @@ export const NotificationTable: React.FC<NotificationTableProps> = ({
                   </span>
                 </td>
                 <td className="py-2.5 px-3">
+                  <span className="inline-flex items-center gap-1 text-xs text-[var(--text-secondary)]">
+                    {log.channel === 'email' ? <Mail className="w-3 h-3" /> : <Smartphone className="w-3 h-3" />}
+                    {log.channel}
+                  </span>
+                </td>
+                <td className="py-2.5 px-3">
                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full ${statusBadge.bg} ${statusBadge.text}`}>
                     {getStatusIcon(log.status)}
                     {log.status}
@@ -167,7 +176,7 @@ export const NotificationTable: React.FC<NotificationTableProps> = ({
                         onClick={() => onRetry(log.id)}
                         disabled={isSending}
                         className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors disabled:opacity-50"
-                        title="Retry failed email"
+                        title="Retry failed notification"
                       >
                         {isSending ? (
                           <Loader2 className="w-4 h-4 animate-spin text-[var(--primary-color)]" />
@@ -181,7 +190,7 @@ export const NotificationTable: React.FC<NotificationTableProps> = ({
                         onClick={() => onResend(log.id)}
                         disabled={isSending}
                         className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors disabled:opacity-50"
-                        title="Resend email"
+                        title="Resend notification"
                       >
                         {isSending ? (
                           <Loader2 className="w-4 h-4 animate-spin text-[var(--primary-color)]" />

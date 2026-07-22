@@ -868,7 +868,6 @@ function registerIpcHandlers() {
   try {
     const ipcModules = [
       "./ipc/core/reminder/index.ipc.js",
-      "./ipc/core/notificationLog/index.ipc.js",
       "./ipc/core/dashboard/index.ipc.js",
       "./ipc/utils/activation.ipc.js",
       "./ipc/utils/printer/index.ipc.js",

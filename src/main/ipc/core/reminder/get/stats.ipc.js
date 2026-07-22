@@ -25,12 +25,11 @@ module.exports = async (params) => {
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
     const serverResult = await response.json();
-    const stats = transformKeysToCamelCase(serverResult);
-    console.log("Retrieved statistics from server:", stats);
+    console.log("Retrieved statistics from server:", JSON.stringify(serverResult));
     return {
       status: true,
-      message: stats.message || "Statistics retrieved from server",
-      data: stats.data,
+      message: serverResult.message || "Statistics retrieved from server",
+      data: serverResult.data,
     };
   } else {
     const stats = await reminderLogService.getReminderStats({ startDate, endDate });
