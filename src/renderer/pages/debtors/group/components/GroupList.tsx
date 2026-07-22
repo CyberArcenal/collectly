@@ -67,7 +67,9 @@ const GroupList: React.FC<GroupListProps> = ({
                       : "hover:bg-[var(--card-hover-bg)]"
                   }`}
                   style={{
-                    borderLeft: isSelected ? `3px solid var(--primary-color)` : "3px solid transparent",
+                    borderLeft: isSelected
+                      ? `3px solid var(--primary-color)`
+                      : "3px solid transparent",
                   }}
                   onClick={() => onSelectGroup(group)}
                 >
@@ -94,18 +96,20 @@ const GroupList: React.FC<GroupListProps> = ({
                           e.stopPropagation();
                           onEditGroup(group);
                         }}
-                        className="p-1 rounded hover:bg-[var(--card-hover-bg)] transition-colors opacity-0 group-hover:opacity-100"
+                        className="p-1 rounded hover:bg-[var(--card-hover-bg)] transition-colors text-[var(--text-tertiary)] hover:text-yellow-500"
+                        title="Edit group"
                       >
-                        <Edit className="w-3.5 h-3.5 text-yellow-500" />
+                        <Edit className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           onDeleteGroup(group.id);
                         }}
-                        className="p-1 rounded hover:bg-[var(--card-hover-bg)] transition-colors opacity-0 group-hover:opacity-100"
+                        className="p-1 rounded hover:bg-[var(--card-hover-bg)] transition-colors text-[var(--text-tertiary)] hover:text-[var(--danger-color)]"
+                        title="Delete group"
                       >
-                        <Trash2 className="w-3.5 h-3.5 text-[var(--danger-color)]" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                       {isSelected && (
                         <ChevronRight className="w-4 h-4 text-[var(--primary-color)]" />

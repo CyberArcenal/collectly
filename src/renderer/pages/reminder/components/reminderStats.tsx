@@ -51,7 +51,7 @@ export const NotificationStats: React.FC<NotificationStatsProps> = ({
     },
     {
       title: "Successfully Sent",
-      value: stats.byStatus?.sent || stats.by_status.filter((p: { status: string; }) => p.status === "sent").count || 0,
+      value: stats.byStatus?.sent || stats.by_status?.find((p: { status: string; }) => p.status === "sent")?.count || 0,
       icon: CheckCircle,
       color: "bg-green-500",
       format: (v: number) => v?.toLocaleString(),
