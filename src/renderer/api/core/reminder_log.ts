@@ -6,6 +6,7 @@ export interface NotificationLogEntry {
   recipient: string;
   id: number;
   recipient_email: string;
+  channel: "sms" | "email";
   subject: string | null;
   payload: string | null;
   status: "queued" | "sent" | "failed" | "resend";
@@ -19,6 +20,9 @@ export interface NotificationLogEntry {
 }
 
 export interface NotificationStats {
+  by_status: any;
+  avg_retry_failed: number;
+  last_24h: number;
   total: number;
   byStatus: Record<string, number>;
   avgRetryFailed: number;

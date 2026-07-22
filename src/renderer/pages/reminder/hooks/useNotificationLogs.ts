@@ -1,15 +1,14 @@
 // src/renderer/pages/notification/hooks/useNotificationLogs.ts
 import { useState, useEffect, useCallback } from "react";
-import type {
-  NotificationLogEntry,
-  NotificationStats,
-} from "../../../api/core/reminder_log";
+import type { NotificationLogEntry, NotificationStats } from "../../../api/core/reminder_log";
 import reminderLogAPI from "../../../api/core/reminder_log";
+
 
 interface UseNotificationLogsParams {
   page?: number;
   limit?: number;
   status?: string;
+  channel?: string;
   startDate?: string;
   endDate?: string;
   keyword?: string;
@@ -33,7 +32,6 @@ export const useNotificationLogs = (
     ...initialParams,
   });
 
-  // Derive currentPage and pageSize from filters
   const currentPage = filters.page || 1;
   const pageSize = filters.limit || 10;
 
@@ -53,6 +51,7 @@ export const useNotificationLogs = (
           page: filters.page,
           limit: filters.limit,
           status: filters.status,
+          channel: filters.channel,
           startDate: filters.startDate,
           endDate: filters.endDate,
           sortBy: filters.sortBy,
@@ -61,14 +60,14 @@ export const useNotificationLogs = (
       }
 
       if (response.status) {
-        console.log(response)
+        // response.data is PaginatedResult<NotificationLogEntry>
         setLogs(response.data.data);
         setTotalItems(response.data.pagination.total);
       } else {
         throw new Error(response.message);
       }
     } catch (err: any) {
-      console.error("Error fetching reminder logs:", err);
+      console.error("Error fetching notification logs:", err);
       setError(err.message || "Failed to fetch notification logs");
     } finally {
       setLoading(false);

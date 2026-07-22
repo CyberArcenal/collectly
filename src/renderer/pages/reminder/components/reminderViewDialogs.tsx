@@ -1,6 +1,6 @@
 // src/renderer/pages/notification/components/reminderViewDialogs.tsx
 import React from "react";
-import { X, Mail, AlertCircle, User, FileText, Clock, Hash, CheckCircle, XCircle } from "lucide-react";
+import { X, Mail, Smartphone, AlertCircle, User, FileText, Clock, CheckCircle, XCircle } from "lucide-react";
 import { formatDate } from "../../../utils/formatters";
 import type { NotificationLogEntry } from "../../../api/core/reminder_log";
 
@@ -57,7 +57,7 @@ export const NotificationViewDialog: React.FC<NotificationViewDialogProps> = ({
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-color)] flex-shrink-0">
           <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
             <Mail className="w-4 h-4 text-[var(--primary-color)]" />
-            Email Reminder Details
+            Notification Details
             <span className="text-xs font-normal text-[var(--text-tertiary)] ml-1">
               #{log.id}
             </span>
@@ -81,6 +81,15 @@ export const NotificationViewDialog: React.FC<NotificationViewDialogProps> = ({
             <span className="text-xs text-[var(--text-tertiary)]">
               ID: #{log.id}
             </span>
+          </div>
+
+          {/* Channel */}
+          <div className="flex items-start gap-3 p-3 rounded-lg" style={{ backgroundColor: "var(--card-secondary-bg)" }}>
+            {log.channel === 'email' ? <Mail className="w-4 h-4 text-[var(--text-tertiary)] flex-shrink-0 mt-0.5" /> : <Smartphone className="w-4 h-4 text-[var(--text-tertiary)] flex-shrink-0 mt-0.5" />}
+            <div>
+              <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">Channel</p>
+              <p className="text-sm font-medium text-[var(--text-primary)]">{log.channel}</p>
+            </div>
           </div>
 
           {/* Recipient */}

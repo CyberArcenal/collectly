@@ -1,10 +1,8 @@
 // src/renderer/pages/notification/index.tsx
 import React, { useState, useCallback, useRef, useEffect } from "react";
-import { Filter, RefreshCw, Mail, Eye, EyeOff, Download } from "lucide-react";
+import { Filter, RefreshCw, Mail, Eye, EyeOff } from "lucide-react";
 import { dialogs } from "../../utils/dialogs";
-import reminderLogAPI from "../../api/core/reminder_log";
 import { showSuccess, showError } from "../../utils/notification";
-import type { NotificationLogEntry } from "../../api/core/reminder_log";
 import { useNotificationLogs } from "./hooks/useNotificationLogs";
 import { NotificationStats } from "./components/reminderStats";
 import { NotificationSearch } from "./components/reminderSearch";
@@ -13,7 +11,8 @@ import { NotificationTable } from "./components/reminderTable";
 import { NotificationViewDialog } from "./components/reminderViewDialogs";
 import { usePagination } from "../../contexts/PaginationContext";
 import LoadingSpinner from "../../components/Shared/LoadingSpinner";
-import Button from "../../components/UI/Button";
+import type { NotificationLogEntry } from "../../api/core/reminder_log";
+import reminderLogAPI from "../../api/core/reminder_log";
 
 const NotificationLogPage: React.FC = () => {
   const {
@@ -41,12 +40,7 @@ const NotificationLogPage: React.FC = () => {
 
   const { setPagination, clearPagination } = usePagination();
 
-  const hasFilters = !!(
-    searchQuery ||
-    filters.status ||
-    filters.startDate ||
-    filters.endDate
-  );
+  const hasFilters = !!(searchQuery || filters.status || filters.startDate || filters.endDate || filters.channel);
 
   // Stable pagination handlers
   const handlePageChange = useCallback(
@@ -215,10 +209,10 @@ const NotificationLogPage: React.FC = () => {
         <div>
           <h1 className="text-xl font-bold text-[var(--text-primary)] flex items-center gap-2">
             <Mail className="w-5 h-5 text-[var(--primary-color)]" />
-            Email Reminder Logs
+            Notification Logs
           </h1>
           <p className="text-sm text-[var(--text-secondary)] mt-0.5">
-            Track all email reminders sent to debtors
+            Track all email and SMS notifications sent to debtors
           </p>
         </div>
         <div className="flex gap-2">
@@ -274,6 +268,7 @@ const NotificationLogPage: React.FC = () => {
       <NotificationFilterPanel
         filters={{
           status: filters.status,
+          channel: filters.channel,
           startDate: filters.startDate,
           endDate: filters.endDate,
           sortBy: filters.sortBy,
@@ -314,9 +309,9 @@ const NotificationLogPage: React.FC = () => {
       ) : logs.length === 0 ? (
         <div className="text-center py-8 text-[var(--text-tertiary)] border border-[var(--border-color)] rounded-xl bg-[var(--card-bg)] text-sm">
           <Mail className="w-8 h-8 mx-auto mb-2 text-[var(--text-tertiary)]" />
-          <p>No email records found</p>
+          <p>No notification records found</p>
           <p className="text-xs text-[var(--text-tertiary)] mt-1">
-            {hasFilters || searchQuery ? "Try adjusting your filters" : "Email reminders will appear here when sent"}
+            {hasFilters || searchQuery ? "Try adjusting your filters" : "Notifications will appear here when sent"}
           </p>
         </div>
       ) : (

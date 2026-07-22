@@ -38,7 +38,7 @@ module.exports = async (params) => {
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
     const serverResult = await response.json();
-    logger.debug(`Server response for notification logs: ${JSON.stringify(serverResult)}`);
+    // logger.debug(`Server response for notification logs: ${JSON.stringify(serverResult)}`);
     return transformPaginatedResult(serverResult);
   } else {
     const result = await reminderLogService.getAllReminders(params);
