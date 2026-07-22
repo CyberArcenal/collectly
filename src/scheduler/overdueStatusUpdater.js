@@ -16,8 +16,8 @@ class OverdueStatusUpdater {
     try {
       logger.info("🚀 Starting Overdue Status Updater Scheduler...");
 
-      // Run once on startup (but only if not already run today)
-      await this.updateOverdueStatuses();
+      // ✅ Force run on startup (bypasses the "already ran today" check)
+      await this._performUpdate();
 
       // Schedule daily
       this.intervalId = setInterval(async () => {
@@ -84,38 +84,33 @@ class OverdueStatusUpdater {
     await settingRepo.save(setting);
   }
 
-  async updateOverdueStatuses() {
+  /**
+   * Internal: perform the actual update without checking if already ran today.
+   * Uses date() to compare only dates (ignoring time and timezone).
+   */
+  async _performUpdate() {
     try {
-      if (await this.alreadyRanToday()) {
-        logger.debug("[OVERDUE STATUS] Already ran today, skipping");
-        return;
-      }
-
       if (!AppDataSource.isInitialized) {
         logger.warn("[OVERDUE STATUS] Database not ready, skipping");
         return;
       }
 
-      logger.info(
-        "[OVERDUE STATUS] Checking for debts that should become overdue...",
-      );
+      logger.info("[OVERDUE STATUS] Checking for debts that should become overdue...");
 
       const debtRepo = AppDataSource.getRepository(Debt);
-      const now = new Date();
 
-      // Hanapin ang mga active debts na dueDate < ngayon, remainingAmount > 0, at hindi pa overdue
+      // ✅ Use date() function to compare dates only (no timezone issues)
       const debtsToUpdate = await debtRepo
         .createQueryBuilder("debt")
         .leftJoinAndSelect("debt.borrower", "borrower")
         .where("debt.status = :status", { status: "active" })
-        .andWhere("debt.dueDate < :now", { now })
+        .andWhere("date(debt.dueDate) < date('now')")
         .andWhere("debt.remainingAmount > 0")
         .andWhere("debt.deletedAt IS NULL")
         .getMany();
 
       if (debtsToUpdate.length === 0) {
         logger.info("[OVERDUE STATUS] No debts need to be marked overdue");
-        await this.markRanToday();
         return;
       }
 
@@ -128,7 +123,6 @@ class OverdueStatusUpdater {
 
       for (const debt of debtsToUpdate) {
         try {
-          // Tawagin ang onOverdue transition (magse-set ng status, mag-aapply ng penalty, magse-send ng email)
           await transitionService.onOverdue(debt, "system");
           updatedCount++;
           logger.info(`[OVERDUE STATUS] Debt #${debt.id} marked as overdue`);
@@ -142,7 +136,6 @@ class OverdueStatusUpdater {
       }
 
       logger.info(`[OVERDUE STATUS] Completed: ${updatedCount} debts updated`);
-      await this.markRanToday();
     } catch (error) {
       // @ts-ignore
       logger.error("[OVERDUE STATUS] Error during update:", error);
@@ -150,11 +143,24 @@ class OverdueStatusUpdater {
   }
 
   /**
-   * Force a manual run
+   * Public update – includes the "already ran today" check.
+   */
+  async updateOverdueStatuses() {
+    if (await this.alreadyRanToday()) {
+      logger.debug("[OVERDUE STATUS] Already ran today, skipping");
+      return;
+    }
+    await this._performUpdate();
+    await this.markRanToday();
+  }
+
+  /**
+   * Force a manual run (bypasses daily check)
    */
   async forceRun() {
     logger.info("🔄 Force overdue status update triggered");
-    await this.updateOverdueStatuses();
+    await this._performUpdate();
+    await this.markRanToday();
   }
 
   getStatus() {
