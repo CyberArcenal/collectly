@@ -5,12 +5,24 @@ import systemConfigAPI from "../../api/utils/system_config";
 import { dialogs } from "../../utils/dialogs";
 import handshakeAPI from "../../api/utils/handshake";
 import { ServerModal } from "../Settings/components/ServerModal";
-import { Wifi, WifiOff, Server, Globe, CheckCircle, AlertCircle, RefreshCw, Shield, Zap } from "lucide-react";
+import {
+  Wifi,
+  WifiOff,
+  Server,
+  Globe,
+  CheckCircle,
+  AlertCircle,
+  RefreshCw,
+  Shield,
+  Zap,
+} from "lucide-react";
 
 const ModeSwitchPage: React.FC = () => {
   const { getSetting, refreshSettings } = useSettings();
   const [showServerModal, setShowServerModal] = useState(false);
-  const [tempServerUrl, setTempServerUrl] = useState(getSetting("general", "server_url", ""));
+  const [tempServerUrl, setTempServerUrl] = useState(
+    getSetting("general", "server_url", ""),
+  );
   const [connecting, setConnecting] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -33,7 +45,10 @@ const ModeSwitchPage: React.FC = () => {
           isPublic: false,
         });
         await refreshSettings();
-        dialogs.success("Offline mode activated", "You are now working offline.");
+        dialogs.success(
+          "Offline mode activated",
+          "You are now working offline.",
+        );
         window.location.reload();
       } else {
         setTempServerUrl(serverUrl || "");
@@ -86,17 +101,32 @@ const ModeSwitchPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6" style={{ backgroundColor: "var(--background-color)" }}>
+    <div
+      className="min-h-screen flex items-center justify-center p-6"
+      style={{ backgroundColor: "var(--background-color)" }}
+    >
       <div className="w-full max-w-3xl">
         {/* Header with glow effect */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center p-3 rounded-2xl mb-4" style={{ backgroundColor: "var(--primary-color)/10" }}>
-            <Globe className="w-8 h-8" style={{ color: "var(--primary-color)" }} />
+          <div
+            className="inline-flex items-center justify-center p-3 rounded-2xl mb-4"
+            style={{ backgroundColor: "var(--primary-color)/10" }}
+          >
+            <Globe
+              className="w-8 h-8"
+              style={{ color: "var(--primary-color)" }}
+            />
           </div>
-          <h1 className="text-3xl font-bold" style={{ color: "var(--text-primary)" }}>
+          <h1
+            className="text-3xl font-bold"
+            style={{ color: "var(--text-primary)" }}
+          >
             Connection Mode
           </h1>
-          <p className="text-sm mt-2" style={{ color: "var(--text-secondary)" }}>
+          <p
+            className="text-sm mt-2"
+            style={{ color: "var(--text-secondary)" }}
+          >
             Choose how your system connects to the server
           </p>
         </div>
@@ -112,17 +142,29 @@ const ModeSwitchPage: React.FC = () => {
           >
             {isOnline ? (
               <>
-                <Wifi className="w-4 h-4" style={{ color: "var(--success-color)" }} />
+                <Wifi
+                  className="w-4 h-4"
+                  style={{ color: "var(--success-color)" }}
+                />
                 <span style={{ color: "var(--success-color)" }}>● Online</span>
               </>
             ) : (
               <>
-                <WifiOff className="w-4 h-4" style={{ color: "var(--warning-color)" }} />
+                <WifiOff
+                  className="w-4 h-4"
+                  style={{ color: "var(--warning-color)" }}
+                />
                 <span style={{ color: "var(--warning-color)" }}>● Offline</span>
               </>
             )}
             {isOnline && serverUrl && (
-              <span className="text-xs ml-2 px-2 py-0.5 rounded" style={{ backgroundColor: "var(--card-secondary-bg)", color: "var(--text-tertiary)" }}>
+              <span
+                className="text-xs ml-2 px-2 py-0.5 rounded"
+                style={{
+                  backgroundColor: "var(--card-secondary-bg)",
+                  color: "var(--text-tertiary)",
+                }}
+              >
                 {serverUrl}
               </span>
             )}
@@ -132,19 +174,36 @@ const ModeSwitchPage: React.FC = () => {
         {/* Main Card */}
         <div
           className="rounded-2xl border shadow-xl overflow-hidden"
-          style={{ backgroundColor: "var(--card-bg)", borderColor: "var(--border-color)" }}
+          style={{
+            backgroundColor: "var(--card-bg)",
+            borderColor: "var(--border-color)",
+          }}
         >
           {/* Card Header with gradient accent */}
           <div
             className="px-6 py-4 border-b flex items-center justify-between"
-            style={{ borderColor: "var(--border-color)", backgroundColor: "var(--card-secondary-bg)" }}
+            style={{
+              borderColor: "var(--border-color)",
+              backgroundColor: "var(--card-secondary-bg)",
+            }}
           >
             <div className="flex items-center gap-2">
-              <Shield className="w-5 h-5" style={{ color: "var(--primary-color)" }} />
-              <span className="font-semibold" style={{ color: "var(--text-primary)" }}>Sync Configuration</span>
+              <Shield
+                className="w-5 h-5"
+                style={{ color: "var(--primary-color)" }}
+              />
+              <span
+                className="font-semibold"
+                style={{ color: "var(--text-primary)" }}
+              >
+                Sync Configuration
+              </span>
             </div>
             {loading && (
-              <div className="flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
+              <div
+                className="flex items-center gap-2 text-xs"
+                style={{ color: "var(--text-secondary)" }}
+              >
                 <RefreshCw className="w-3 h-3 animate-spin" />
                 Saving...
               </div>
@@ -162,7 +221,9 @@ const ModeSwitchPage: React.FC = () => {
                     : "border-[var(--border-color)] hover:border-[var(--primary-color)]/50"
                 }`}
                 style={{
-                  backgroundColor: !isOnline ? "var(--primary-color)/5" : "var(--card-bg)",
+                  backgroundColor: !isOnline
+                    ? "var(--primary-color)/5"
+                    : "var(--card-bg)",
                 }}
               >
                 <input
@@ -170,19 +231,49 @@ const ModeSwitchPage: React.FC = () => {
                   name="sync_mode"
                   value="offline"
                   checked={!isOnline}
-                  onChange={() => handleSyncModeChange("offline")}
+                  onChange={async () => {
+                    if (
+                      await dialogs.confirm({
+                        title: "Offline",
+                        message:
+                          "Are you sure do you want to switch on offline mode?",
+                      })
+                    ) {
+                      handleSyncModeChange("offline");
+                    }
+                  }}
                   disabled={loading}
                   className="absolute top-3 right-3 w-4 h-4 accent-[var(--primary-color)]"
                 />
-                <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: "var(--primary-color)/10" }}>
-                  <WifiOff className="w-7 h-7" style={{ color: "var(--warning-color)" }} />
+                <div
+                  className="w-14 h-14 rounded-full flex items-center justify-center mb-3"
+                  style={{ backgroundColor: "var(--primary-color)/10" }}
+                >
+                  <WifiOff
+                    className="w-7 h-7"
+                    style={{ color: "var(--warning-color)" }}
+                  />
                 </div>
-                <h3 className="font-semibold" style={{ color: "var(--text-primary)" }}>Offline Mode</h3>
-                <p className="text-xs text-center mt-1" style={{ color: "var(--text-tertiary)" }}>
+                <h3
+                  className="font-semibold"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  Offline Mode
+                </h3>
+                <p
+                  className="text-xs text-center mt-1"
+                  style={{ color: "var(--text-tertiary)" }}
+                >
                   Work locally without server connection
                 </p>
                 {!isOnline && (
-                  <span className="mt-3 text-xs font-medium px-3 py-0.5 rounded-full" style={{ backgroundColor: "var(--primary-color)/10", color: "var(--primary-color)" }}>
+                  <span
+                    className="mt-3 text-xs font-medium px-3 py-0.5 rounded-full"
+                    style={{
+                      backgroundColor: "var(--primary-color)/10",
+                      color: "var(--primary-color)",
+                    }}
+                  >
                     ● Active
                   </span>
                 )}
@@ -196,7 +287,9 @@ const ModeSwitchPage: React.FC = () => {
                     : "border-[var(--border-color)] hover:border-[var(--primary-color)]/50"
                 }`}
                 style={{
-                  backgroundColor: isOnline ? "var(--primary-color)/5" : "var(--card-bg)",
+                  backgroundColor: isOnline
+                    ? "var(--primary-color)/5"
+                    : "var(--card-bg)",
                 }}
               >
                 <input
@@ -204,19 +297,49 @@ const ModeSwitchPage: React.FC = () => {
                   name="sync_mode"
                   value="online"
                   checked={isOnline}
-                  onChange={() => handleSyncModeChange("online")}
+                      onChange={async () => {
+                    if (
+                      await dialogs.confirm({
+                        title: "Online",
+                        message:
+                          "Are you sure do you want to switch on online mode?",
+                      })
+                    ) {
+                      handleSyncModeChange("online");
+                    }
+                  }}
                   disabled={loading}
                   className="absolute top-3 right-3 w-4 h-4 accent-[var(--primary-color)]"
                 />
-                <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: "var(--primary-color)/10" }}>
-                  <Wifi className="w-7 h-7" style={{ color: "var(--success-color)" }} />
+                <div
+                  className="w-14 h-14 rounded-full flex items-center justify-center mb-3"
+                  style={{ backgroundColor: "var(--primary-color)/10" }}
+                >
+                  <Wifi
+                    className="w-7 h-7"
+                    style={{ color: "var(--success-color)" }}
+                  />
                 </div>
-                <h3 className="font-semibold" style={{ color: "var(--text-primary)" }}>Online Mode</h3>
-                <p className="text-xs text-center mt-1" style={{ color: "var(--text-tertiary)" }}>
+                <h3
+                  className="font-semibold"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  Online Mode
+                </h3>
+                <p
+                  className="text-xs text-center mt-1"
+                  style={{ color: "var(--text-tertiary)" }}
+                >
                   Connect to server for full features
                 </p>
                 {isOnline && (
-                  <span className="mt-3 text-xs font-medium px-3 py-0.5 rounded-full" style={{ backgroundColor: "var(--success-color)/10", color: "var(--success-color)" }}>
+                  <span
+                    className="mt-3 text-xs font-medium px-3 py-0.5 rounded-full"
+                    style={{
+                      backgroundColor: "var(--success-color)/10",
+                      color: "var(--success-color)",
+                    }}
+                  >
                     ● Active
                   </span>
                 )}
@@ -227,14 +350,33 @@ const ModeSwitchPage: React.FC = () => {
             {isOnline && serverUrl && (
               <div
                 className="flex items-center gap-3 p-4 rounded-xl border"
-                style={{ backgroundColor: "var(--card-secondary-bg)", borderColor: "var(--border-color)" }}
+                style={{
+                  backgroundColor: "var(--card-secondary-bg)",
+                  borderColor: "var(--border-color)",
+                }}
               >
-                <Server className="w-5 h-5 flex-shrink-0" style={{ color: "var(--text-secondary)" }} />
+                <Server
+                  className="w-5 h-5 flex-shrink-0"
+                  style={{ color: "var(--text-secondary)" }}
+                />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Connected Server</p>
-                  <p className="text-sm font-mono truncate" style={{ color: "var(--text-primary)" }}>{serverUrl}</p>
+                  <p
+                    className="text-xs font-medium"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    Connected Server
+                  </p>
+                  <p
+                    className="text-sm font-mono truncate"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    {serverUrl}
+                  </p>
                 </div>
-                <div className="flex items-center gap-1 text-xs" style={{ color: "var(--success-color)" }}>
+                <div
+                  className="flex items-center gap-1 text-xs"
+                  style={{ color: "var(--success-color)" }}
+                >
                   <CheckCircle className="w-4 h-4" />
                   <span>Connected</span>
                 </div>
@@ -245,12 +387,29 @@ const ModeSwitchPage: React.FC = () => {
             {!isOnline && (
               <div
                 className="flex items-start gap-3 p-4 rounded-xl border"
-                style={{ backgroundColor: "var(--card-secondary-bg)", borderColor: "var(--border-color)" }}
+                style={{
+                  backgroundColor: "var(--card-secondary-bg)",
+                  borderColor: "var(--border-color)",
+                }}
               >
-                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: "var(--text-tertiary)" }} />
-                <div className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                  <p className="font-medium" style={{ color: "var(--text-primary)" }}>Offline Mode Active</p>
-                  <p className="text-xs mt-0.5">All data is stored locally. Switch to online mode to connect to the server.</p>
+                <AlertCircle
+                  className="w-5 h-5 flex-shrink-0 mt-0.5"
+                  style={{ color: "var(--text-tertiary)" }}
+                />
+                <div
+                  className="text-sm"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  <p
+                    className="font-medium"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    Offline Mode Active
+                  </p>
+                  <p className="text-xs mt-0.5">
+                    All data is stored locally. Switch to online mode to connect
+                    to the server.
+                  </p>
                 </div>
               </div>
             )}
