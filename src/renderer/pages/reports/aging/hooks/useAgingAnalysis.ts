@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import debtsAPI from "../../../../api/core/debt";
 import type { AgingSummary } from "../types";
+import { toCamelCase } from "../../../../utils/objectUtils";
 
 const useAgingAnalysis = () => {
   const [loading, setLoading] = useState(true);
@@ -15,7 +16,9 @@ const useAgingAnalysis = () => {
     try {
       const response = await debtsAPI.getAgingSummary(asOfDate);
       if (!response.status) throw new Error(response.message);
-      setAgingSummary(response.data);
+      const normalizedData = toCamelCase(response.data);
+         
+      setAgingSummary(normalizedData);
     } catch (err: any) {
       setError(err.message);
     } finally {

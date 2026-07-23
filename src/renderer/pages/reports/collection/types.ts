@@ -6,6 +6,12 @@ export interface CollectionDataPoint {
 }
 
 export interface CollectionReport {
+  payments_by_debtor: { debtorId: number; debtorName: string; totalPaid: number; transactionCount: number; lastPaymentDate: string; }[];
+  data_points: CollectionDataPoint[];
+  average_per_day: number;
+  collection_rate: number;
+  total_expected: number;
+  total_actual: number;
   period: {
     from: string;
     to: string;

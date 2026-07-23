@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { format, subDays } from "date-fns";
 import paymentsAPI from "../../../../api/core/payment_transaction";
 import type { CollectionReport } from "../types";
+import { toCamelCase } from "../../../../utils/objectUtils";
 
 const useCollectionReport = () => {
   const [loading, setLoading] = useState(true);
@@ -21,7 +22,8 @@ const useCollectionReport = () => {
     try {
       const response = await paymentsAPI.getCollectionReport(period.from, period.to, target);
       if (!response.status) throw new Error(response.message);
-      setReport(response.data);
+      const normalizedData = toCamelCase(response.data);
+      setReport(normalizedData);
     } catch (err: any) {
       setError(err.message);
     } finally {
