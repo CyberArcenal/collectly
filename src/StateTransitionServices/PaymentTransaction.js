@@ -374,73 +374,116 @@ class PaymentTransactionStateTransitionService {
     const { updateDb } = require("../utils/dbUtils/dbActions");
     logger.info(`[Transition] Confirming payment #${payment.id} by ${user}`);
 
-    // 1. Apply payment (update debt paidAmount, remainingAmount)
-    await this.applyPayment(payment, user, queryRunner);
+    // --- VALIDATION CHECKS ---
+    // 1. Skip if already confirmed
+    if (payment.confirmed) {
+      logger.warn(
+        `[Transition] Payment #${payment.id} already confirmed, skipping`,
+      );
+      return;
+    }
 
-    // 2. Reload debt to get updated remainingAmount (with borrower for later)
+    // 2. Validate payment amount
+    if (!payment.amount || payment.amount <= 0) {
+      throw new Error(`Invalid payment amount: ${payment.amount}`);
+    }
+
+    // 3. Validate debt existence and ensure not soft-deleted
     const debtWithBorrower = await this._getDebtWithBorrower(
       payment.debt.id,
       queryRunner,
     );
+    if (!debtWithBorrower) {
+      throw new Error(`Debt #${payment.debt.id} not found`);
+    }
+    if (debtWithBorrower.deletedAt) {
+      throw new Error(`Debt #${payment.debt.id} is soft-deleted`);
+    }
 
+    // 4. Check if payment amount exceeds remaining balance (with tolerance)
+    const remainingBefore = debtWithBorrower.remainingAmount || 0;
+    if (payment.amount > remainingBefore + 0.01) {
+      throw new Error(
+        `Payment amount (${payment.amount}) exceeds remaining balance (${remainingBefore})`,
+      );
+    }
+
+    // 5. Partial payment check (if disabled)
     const allowPartial = await enablePartialPayment();
-    const remainingAfter = debtWithBorrower.remainingAmount - payment.amount;
+    const remainingAfter = remainingBefore - payment.amount;
     if (!allowPartial && remainingAfter > 0.01) {
       throw new Error(
         "Partial payments are disabled. You can only pay the full remaining amount.",
       );
     }
 
-    // 3. If debt is fully paid, mark status as 'paid'
-    if (
-      debtWithBorrower.remainingAmount <= 0 &&
-      debtWithBorrower.status !== "paid"
-    ) {
-      const debtRepo = this._getRepo(queryRunner, Debt);
-      debtWithBorrower.status = "paid";
-      debtWithBorrower.updatedAt = new Date();
-      await updateDb(debtRepo, debtWithBorrower, {
-        // @ts-ignore
-        queryRunner,
-        skipSignal: false,
-      });
-      logger.info(
-        `[Transition] Debt #${debtWithBorrower.id} fully paid, status updated to 'paid'`,
+    // --- APPLY PAYMENT TO DEBT ---
+    await this.applyPayment(payment, user, queryRunner);
+
+    // Reload debt to get updated values
+    const updatedDebt = await this._getDebtWithBorrower(
+      payment.debt.id,
+      queryRunner,
+    );
+
+    // --- POST-UPDATE VERIFICATION ---
+    const expectedPaid = (debtWithBorrower.paidAmount || 0) + payment.amount;
+    const expectedRemaining =
+      (debtWithBorrower.remainingAmount || 0) - payment.amount;
+    if (Math.abs(updatedDebt.paidAmount - expectedPaid) > 0.01) {
+      throw new Error(
+        `Debt paidAmount mismatch: expected ${expectedPaid}, got ${updatedDebt.paidAmount}`,
+      );
+    }
+    if (Math.abs(updatedDebt.remainingAmount - expectedRemaining) > 0.01) {
+      throw new Error(
+        `Debt remainingAmount mismatch: expected ${expectedRemaining}, got ${updatedDebt.remainingAmount}`,
       );
     }
 
-    // 4. Update payment record: mark as confirmed
+    // --- IF DEBT FULLY PAID, UPDATE STATUS TO 'paid' ---
+    if (updatedDebt.remainingAmount <= 0.01 && updatedDebt.status !== "paid") {
+      const debtRepo = this._getRepo(queryRunner, Debt);
+      updatedDebt.status = "paid";
+      updatedDebt.updatedAt = new Date();
+      await updateDb(debtRepo, updatedDebt, {
+        queryRunner,
+        skipSignal: false, // allow status transition subscriber to run
+      });
+      logger.info(
+        `[Transition] Debt #${updatedDebt.id} fully paid, status updated to 'paid'`,
+      );
+    }
+
+    // --- MARK PAYMENT AS CONFIRMED ---
     const paymentRepo = this._getRepo(queryRunner, PaymentTransaction);
     payment.confirmed = true;
     payment.updatedAt = new Date();
-    // @ts-ignore
     await updateDb(paymentRepo, payment, { queryRunner, skipSignal: true });
 
-    // 5. Receipt printing (non-critical, use setTimeout)
+    // --- RECEIPT PRINTING (non-critical) ---
     try {
       const printerService = require("../services/Printer");
       setTimeout(async () => {
         try {
-          await printerService.printReceipt(debtWithBorrower.id, queryRunner);
+          await printerService.printReceipt(updatedDebt.id, queryRunner);
         } catch (err) {
           logger.warn(
-            `Failed to print receipt for debt #${debtWithBorrower.id}:`,
-            // @ts-ignore
+            `Failed to print receipt for debt #${updatedDebt.id}:`,
             err,
           );
         }
       }, 0);
     } catch (err) {
-      // @ts-ignore
       logger.warn(`Failed to schedule receipt printing:`, err);
     }
 
-    // 6. In-app notification (for admin)
+    // --- IN-APP NOTIFICATION (for admin) ---
     await notificationService.create(
       {
         userId: 1,
         title: "Payment Confirmed",
-        message: `Payment of ${payment.amount} for debt "${debtWithBorrower.name}" has been confirmed.`,
+        message: `Payment of ${payment.amount} for debt "${updatedDebt.name}" has been confirmed.`,
         type: "payment_confirmation",
         metadata: { paymentId: payment.id, debtId: payment.debt.id },
       },
@@ -448,83 +491,70 @@ class PaymentTransactionStateTransitionService {
       queryRunner,
     );
 
-    // ================================================================
-    // 🆕 7. Send Email to Debtor
-    // ================================================================
+    // --- SEND EMAIL & SMS TO DEBTOR ---
     const canSendEmail = await emailEnabled();
     const canSendSms = await smsEnabled();
 
-    // Format payment amount for email
-    const formattedAmount = payment.amount.toFixed(2);
-    const formattedRemaining = debtWithBorrower.remainingAmount.toFixed(2);
-    // @ts-ignore
-    const formattedTotal = debtWithBorrower.totalAmount.toFixed(2);
-
-    // Send email if enabled and debtor has email
-    if (canSendEmail && debtWithBorrower.borrower?.email) {
+    if (canSendEmail && updatedDebt.borrower?.email) {
       try {
         const emailData = await this._getEmailData();
-
         const html = generatePaidEmail({
-          debtorName: debtWithBorrower.borrower.name,
-          debtId: debtWithBorrower.id,
-          originalAmount: debtWithBorrower.totalAmount,
+          debtorName: updatedDebt.borrower.name,
+          debtId: updatedDebt.id,
+          originalAmount: updatedDebt.totalAmount,
           totalPaid: payment.amount,
-          remainingBalance: debtWithBorrower.remainingAmount,
-          // @ts-ignore
+          remainingBalance: updatedDebt.remainingAmount,
           paymentDate: payment.paymentDate || new Date(),
           ...emailData,
         });
-
         await this._sendEmail(
-          debtWithBorrower.borrower.email,
+          updatedDebt.borrower.email,
           "✅ Payment Confirmed – Thank You!",
           html,
           user,
           queryRunner,
         );
         logger.info(
-          `[Transition] Payment confirmation email sent to ${debtWithBorrower.borrower.email}`,
+          `[Transition] Payment confirmation email sent to ${updatedDebt.borrower.email}`,
         );
       } catch (err) {
         logger.error(
           `[Transition] Failed to send payment confirmation email:`,
-          // @ts-ignore
           err,
         );
       }
     } else {
       logger.info(
-        `[Transition] Email not sent. emailEnabled=${canSendEmail}, hasEmail=${!!debtWithBorrower.borrower?.email}`,
+        `[Transition] Email not sent. emailEnabled=${canSendEmail}, hasEmail=${!!updatedDebt.borrower?.email}`,
       );
     }
 
-    // Send SMS if enabled and debtor has contact number
-    if (canSendSms && debtWithBorrower.borrower?.contact) {
+    if (canSendSms && updatedDebt.borrower?.contact) {
       try {
+        const formattedAmount = payment.amount.toFixed(2);
+        const formattedRemaining = updatedDebt.remainingAmount.toFixed(2);
         await this._sendSms(
-          debtWithBorrower.borrower.contact,
-          `Dear ${debtWithBorrower.borrower.name}, your payment of ₱${formattedAmount} for debt "${debtWithBorrower.name}" has been confirmed. Remaining balance: ₱${formattedRemaining}. Thank you!`,
+          updatedDebt.borrower.contact,
+          `Dear ${updatedDebt.borrower.name}, your payment of ₱${formattedAmount} for debt "${updatedDebt.name}" has been confirmed. Remaining balance: ₱${formattedRemaining}. Thank you!`,
           user,
           queryRunner,
         );
         logger.info(
-          `[Transition] Payment confirmation SMS sent to ${debtWithBorrower.borrower.contact}`,
+          `[Transition] Payment confirmation SMS sent to ${updatedDebt.borrower.contact}`,
         );
       } catch (err) {
         logger.error(
           `[Transition] Failed to send payment confirmation SMS:`,
-          // @ts-ignore
           err,
         );
       }
     } else {
       logger.info(
-        `[Transition] SMS not sent. smsEnabled=${canSendSms}, hasContact=${!!debtWithBorrower.borrower?.contact}`,
+        `[Transition] SMS not sent. smsEnabled=${canSendSms}, hasContact=${!!updatedDebt.borrower?.contact}`,
       );
     }
 
-    // 8. Audit log
+    // --- AUDIT LOG ---
     await auditLogger.logUpdate(
       "PaymentTransaction",
       payment.id,
@@ -532,6 +562,8 @@ class PaymentTransactionStateTransitionService {
       { confirmed: true },
       user,
     );
+
+    logger.info(`[Transition] Payment #${payment.id} confirmed successfully`);
   }
 }
 

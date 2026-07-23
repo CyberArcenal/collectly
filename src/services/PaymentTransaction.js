@@ -8,6 +8,9 @@ const {
 } = require("../utils/system");
 const { paginateQueryBuilder } = require("../utils/dbUtils/pagination");
 const interestAccrualService = require("./InterestAccrualService");
+const {
+  PaymentTransactionStateTransitionService,
+} = require("../StateTransitionServices/PaymentTransaction");
 // Time limit for editing payments (in hours)
 const EDIT_TIME_LIMIT_HOURS = 24;
 
@@ -16,6 +19,7 @@ class PaymentTransactionService {
     this.paymentRepository = null;
     this.debtRepository = null;
     this.methodRepository = null;
+    this.transitionService = null;
   }
 
   async initialize() {
@@ -30,7 +34,21 @@ class PaymentTransactionService {
     this.paymentRepository = AppDataSource.getRepository(PaymentTransaction);
     this.debtRepository = AppDataSource.getRepository(Debt);
     this.methodRepository = AppDataSource.getRepository(PaymentMethod);
+    // Instantiate transition service with AppDataSource
+    this.transitionService = new PaymentTransactionStateTransitionService(
+      AppDataSource,
+    );
     console.log("PaymentTransactionService initialized");
+  }
+
+  _getTransitionService() {
+    if (!this.transitionService) {
+      const { AppDataSource } = require("../main/db/data-source");
+      this.transitionService = new PaymentTransactionStateTransitionService(
+        AppDataSource,
+      );
+    }
+    return this.transitionService;
   }
 
   async getRepositories() {
@@ -76,14 +94,10 @@ class PaymentTransactionService {
    * @param {import("typeorm").QueryRunner | null} qr
    */
   async create(paymentData, user = "system", qr = null) {
-    // @ts-ignore
     const { saveDb, updateDb } = require("../utils/dbUtils/dbActions");
     const PaymentTransaction = require("../entities/PaymentTransaction");
-    // @ts-ignore
     const paymentRepo = this._getRepo(qr, PaymentTransaction);
-    // @ts-ignore
     const debtRepo = this._getRepo(qr, require("../entities/Debt"));
-    // @ts-ignore
     const methodRepo = this._getRepo(qr, require("../entities/PaymentMethod"));
 
     // Start a transaction if none provided
@@ -98,48 +112,90 @@ class PaymentTransactionService {
     }
 
     try {
+      // --- Step 0: Security & Validation Checks ---
+      // Validate via existing utility (covers required fields)
       const validation = validatePaymentData(paymentData);
       if (!validation.valid) {
         throw new Error(validation.errors.join(", "));
       }
 
-      // @ts-ignore
+      // Extract data
       let { amount, paymentDate, reference, notes, debtId, methodId } =
         paymentData;
-      let originalAmount = amount;
+      const originalAmount = amount;
 
-      // 1. Validate debt existence (using transactional repo)
-      const debt = await debtRepo.findOne({ where: { id: debtId } });
-      if (!debt) {
-        throw new Error(`Debt with ID ${debtId} not found`);
+      // --- Additional explicit checks for null/undefined/invalid values ---
+      // Amount: must be a positive number
+      if (
+        amount === undefined ||
+        amount === null ||
+        isNaN(parseFloat(amount)) ||
+        amount <= 0
+      ) {
+        throw new Error(
+          "Valid payment amount is required (must be greater than 0)",
+        );
+      }
+      amount = parseFloat(amount);
+
+      // Payment date: must be a valid date string
+      if (!paymentDate) {
+        throw new Error("Payment date is required");
+      }
+      const parsedPaymentDate = new Date(paymentDate);
+      if (isNaN(parsedPaymentDate.getTime())) {
+        throw new Error("Invalid payment date format");
       }
 
-      // 2. Accrue interest up to the payment date (updates debt.remainingAmount)
+      // Debt ID: must be a valid number
+      if (!debtId || isNaN(parseInt(debtId))) {
+        throw new Error("Valid Debt ID is required");
+      }
+      debtId = parseInt(debtId);
+
+      // Method ID: if provided, must be a number
+      if (
+        methodId !== undefined &&
+        methodId !== null &&
+        isNaN(parseInt(methodId))
+      ) {
+        throw new Error("Invalid payment method ID");
+      }
+      if (methodId !== undefined && methodId !== null) {
+        methodId = parseInt(methodId);
+      }
+
+      // --- Step 1: Validate debt existence (excluding soft-deleted) ---
+      const debt = await debtRepo.findOne({
+        where: { id: debtId, deletedAt: null }, // <-- added deletedAt: null
+      });
+      if (!debt) {
+        throw new Error(`Debt with ID ${debtId} not found or is deleted`);
+      }
+
+      // --- Step 2: Accrue interest up to the payment date ---
       const updatedDebt = await interestAccrualService.applyAccrual(
         debt,
-        new Date(paymentDate),
-        queryRunner, // pass the transaction queryRunner
+        parsedPaymentDate,
+        queryRunner,
       );
 
-      // @ts-ignore
       const remainingBeforePayment = updatedDebt.remainingAmount;
 
-      // 3. Validate payment amount does not exceed remaining balance
+      // --- Step 3: Validate payment amount does not exceed remaining balance ---
       if (amount > remainingBeforePayment) {
         throw new Error(
           `Payment amount (${amount}) exceeds remaining balance (${remainingBeforePayment})`,
         );
       }
 
-      // 4. Early payment discount logic (optional)
+      // --- Step 4: Early payment discount logic (optional) ---
       const discountEnabled = await enableEarlyPaymentDiscount();
       let discountApplied = false;
       if (discountEnabled) {
         const dueDate = new Date(debt.dueDate);
-        const paymentDateObj = new Date(paymentDate);
-        const isEarly = paymentDateObj < dueDate;
-        // @ts-ignore
-        const currentRemaining = updatedDebt.remainingAmount; // already with interest
+        const isEarly = parsedPaymentDate < dueDate;
+        const currentRemaining = updatedDebt.remainingAmount;
         const isFullPayment =
           Math.abs(parseFloat(amount) - currentRemaining) < 0.01;
         if (isEarly && isFullPayment) {
@@ -158,14 +214,14 @@ class PaymentTransactionService {
         }
       }
 
-      // 5. Auto-generate reference if empty
+      // --- Step 5: Auto-generate reference if empty ---
       let finalReference = reference;
       if (!reference || reference.trim() === "") {
         finalReference = await this.generateUniqueReference(paymentRepo);
         console.log(`Auto-generated reference: ${finalReference}`);
       }
 
-      // 6. Validate payment method if provided
+      // --- Step 6: Validate payment method if provided ---
       if (methodId) {
         const paymentMethod = await methodRepo.findOne({
           where: { id: methodId },
@@ -175,21 +231,20 @@ class PaymentTransactionService {
         }
       }
 
-      // 7. Create payment record (debt already includes accrued interest)
+      // --- Step 7: Create payment record ---
       const payment = paymentRepo.create({
-        amount: parseFloat(amount),
-        paymentDate: new Date(paymentDate),
+        amount: amount,
+        paymentDate: parsedPaymentDate,
         reference: finalReference,
         notes: notes || null,
         recordedAt: new Date(),
         methodId: methodId || null,
-        debt: updatedDebt, // associate with debt (no need to update debt here, will be done by subscriber)
+        debt: updatedDebt,
       });
 
-      // @ts-ignore
       const saved = await saveDb(paymentRepo, payment, { queryRunner });
 
-      // 8. Commit transaction if we started it (subscriber will trigger after commit)
+      // --- Step 8: Commit transaction ---
       if (ownTransaction) {
         await queryRunner.commitTransaction();
       }
@@ -198,7 +253,6 @@ class PaymentTransactionService {
       return saved;
     } catch (error) {
       if (ownTransaction) await queryRunner.rollbackTransaction();
-      // @ts-ignore
       console.error("Failed to create payment:", error.message);
       throw error;
     } finally {
@@ -207,7 +261,7 @@ class PaymentTransactionService {
   }
 
   /**
-   * Update an existing payment transaction (no side effects)
+   * Update an existing payment transaction
    * @param {number} id
    * @param {Object} paymentData
    * @param {string} user
@@ -218,11 +272,8 @@ class PaymentTransactionService {
     const { updateDb } = require("../utils/dbUtils/dbActions");
     const PaymentTransaction = require("../entities/PaymentTransaction");
     const PaymentMethod = require("../entities/PaymentMethod");
-    // @ts-ignore
     const paymentRepo = this._getRepo(qr, PaymentTransaction);
-    // @ts-ignore
     const methodRepo = this._getRepo(qr, PaymentMethod);
-    // @ts-ignore
     const debtRepo = this._getRepo(qr, require("../entities/Debt"));
 
     try {
@@ -235,7 +286,6 @@ class PaymentTransactionService {
       // Time limit check
       const createdAt = existing.recordedAt;
       const hoursSinceCreation =
-        // @ts-ignore
         (Date.now() - new Date(createdAt)) / (1000 * 60 * 60);
       if (hoursSinceCreation > EDIT_TIME_LIMIT_HOURS && !isAdmin) {
         throw new Error(
@@ -243,82 +293,88 @@ class PaymentTransactionService {
         );
       }
 
-      const oldData = { ...existing };
+      // --- Store old values for transition ---
+      const oldAmount = existing.amount;
       const oldDebtId = existing.debt.id;
-      // @ts-ignore
       let newDebtId = null;
 
-      // Update debt if changed (but do NOT recalculate balances here)
-      // @ts-ignore
+      // --- Handle amount change ---
+      if (paymentData.amount !== undefined && paymentData.amount !== null) {
+        const newAmount = parseFloat(paymentData.amount);
+        if (newAmount !== oldAmount) {
+          // Adjust debt balances for the amount change
+          await this._getTransitionService().updatePaymentAmount(
+            existing,
+            oldAmount,
+            newAmount,
+            user,
+            qr,
+          );
+          // Update the payment object's amount
+          existing.amount = newAmount;
+        }
+        delete paymentData.amount; // prevent double assignment
+      }
+
+      // --- Handle debt change ---
       if (paymentData.debtId && paymentData.debtId !== oldDebtId) {
-        const newDebt = await debtRepo.findOne({
-          // @ts-ignore
-          where: { id: paymentData.debtId },
-        });
-        // @ts-ignore
-        if (!newDebt) throw new Error(`Debt ${paymentData.debtId} not found`);
+        newDebtId = parseInt(paymentData.debtId);
+        const newDebt = await debtRepo.findOne({ where: { id: newDebtId } });
+        if (!newDebt) throw new Error(`Debt ${newDebtId} not found`);
+
+        // Transfer payment from old debt to new debt
+        await this._getTransitionService().transferPayment(
+          existing,
+          oldDebtId,
+          newDebtId,
+          user,
+          qr,
+        );
+        // Update the payment's debt reference
         existing.debt = newDebt;
-        // @ts-ignore
-        newDebtId = paymentData.debtId;
-        // @ts-ignore
         delete paymentData.debtId;
       }
 
-      // Update payment method if provided
-      // @ts-ignore
+      // --- Update payment method if provided ---
       if (paymentData.methodId !== undefined) {
-        // @ts-ignore
         if (paymentData.methodId === null || paymentData.methodId === "") {
           existing.methodId = null;
         } else {
           const newMethod = await methodRepo.findOne({
-            // @ts-ignore
             where: { id: paymentData.methodId },
           });
           if (!newMethod)
-            // @ts-ignore
             throw new Error(`Payment method ${paymentData.methodId} not found`);
-          // @ts-ignore
           existing.methodId = paymentData.methodId;
         }
-        // @ts-ignore
         delete paymentData.methodId;
       }
 
-      // Update other fields
-      // @ts-ignore
-      if (paymentData.amount !== undefined)
-        // @ts-ignore
-        paymentData.amount = parseFloat(paymentData.amount);
-      // @ts-ignore
-      if (paymentData.paymentDate)
-        // @ts-ignore
+      // --- Update other fields (paymentDate, reference, notes) ---
+      if (paymentData.paymentDate) {
         paymentData.paymentDate = new Date(paymentData.paymentDate);
+      }
       Object.assign(existing, paymentData);
       existing.updatedAt = new Date();
 
-      // Note: No validation against remaining balance because side effects are handled elsewhere.
-      // The state transition service will handle consistency when needed (e.g., on confirm/void/refund).
-
-      // @ts-ignore
+      // Save the payment
       const saved = await updateDb(paymentRepo, existing, { queryRunner: qr });
       await auditLogger.logUpdate(
         "PaymentTransaction",
         id,
-        oldData,
+        existing,
         saved,
         user,
       );
       return saved;
     } catch (error) {
-      // @ts-ignore
       console.error("Update payment failed:", error.message);
       throw error;
     }
   }
 
   /**
-   * Soft delete a payment transaction (no side effects)
+   * Soft delete a payment transaction (reverse effect on debt)
    * @param {number} id
    * @param {string} user
    * @param {import("typeorm").QueryRunner | null} qr
@@ -326,7 +382,6 @@ class PaymentTransactionService {
   async delete(id, user = "system", qr = null) {
     const { updateDb } = require("../utils/dbUtils/dbActions");
     const PaymentTransaction = require("../entities/PaymentTransaction");
-    // @ts-ignore
     const paymentRepo = this._getRepo(qr, PaymentTransaction);
 
     try {
@@ -338,24 +393,25 @@ class PaymentTransactionService {
       if (payment.deletedAt)
         throw new Error(`Payment #${id} is already deleted`);
 
+      // Reverse the effect of this payment on the debt
+      await this._getTransitionService().reversePayment(payment, user, qr);
+
       const oldData = { ...payment };
       payment.deletedAt = new Date();
       payment.updatedAt = new Date();
 
-      // @ts-ignore
       const saved = await updateDb(paymentRepo, payment, { queryRunner: qr });
       await auditLogger.logDelete("PaymentTransaction", id, oldData, user);
-      console.log(`Payment #${id} soft deleted`);
+      console.log(`Payment #${id} soft deleted, debt reversed`);
       return saved;
     } catch (error) {
-      // @ts-ignore
       console.error("Failed to delete payment:", error.message);
       throw error;
     }
   }
 
   /**
-   * Restore a soft-deleted payment transaction (no side effects)
+   * Restore a soft-deleted payment (re-apply effect on debt)
    * @param {number} id
    * @param {string} user
    * @param {import("typeorm").QueryRunner | null} qr
@@ -363,7 +419,6 @@ class PaymentTransactionService {
   async restore(id, user = "system", qr = null) {
     const { updateDb } = require("../utils/dbUtils/dbActions");
     const PaymentTransaction = require("../entities/PaymentTransaction");
-    // @ts-ignore
     const paymentRepo = this._getRepo(qr, PaymentTransaction);
 
     try {
@@ -375,11 +430,12 @@ class PaymentTransactionService {
       if (!payment) throw new Error(`Payment #${id} not found`);
       if (!payment.deletedAt) throw new Error(`Payment #${id} is not deleted`);
 
-      // No validation against remaining balance here – state transition service will handle consistency
+      // Re-apply the payment to the debt
+      await this._getTransitionService().applyPayment(payment, user, qr);
+
       payment.deletedAt = null;
       payment.updatedAt = new Date();
 
-      // @ts-ignore
       const saved = await updateDb(paymentRepo, payment, { queryRunner: qr });
       await auditLogger.logUpdate(
         "PaymentTransaction",
@@ -388,17 +444,16 @@ class PaymentTransactionService {
         { deletedAt: null },
         user,
       );
-      console.log(`Payment #${id} restored`);
+      console.log(`Payment #${id} restored, debt re-applied`);
       return saved;
     } catch (error) {
-      // @ts-ignore
       console.error("Failed to restore payment:", error.message);
       throw error;
     }
   }
 
   /**
-   * Permanently delete a payment transaction (no side effects)
+   * Permanently delete a payment (reverse effect first)
    * @param {number} id
    * @param {string} user
    * @param {import("typeorm").QueryRunner | null} qr
@@ -406,7 +461,6 @@ class PaymentTransactionService {
   async permanentlyDelete(id, user = "system", qr = null) {
     const { removeDb } = require("../utils/dbUtils/dbActions");
     const PaymentTransaction = require("../entities/PaymentTransaction");
-    // @ts-ignore
     const paymentRepo = this._getRepo(qr, PaymentTransaction);
 
     const payment = await paymentRepo.findOne({
@@ -416,10 +470,12 @@ class PaymentTransactionService {
     });
     if (!payment) throw new Error(`Payment #${id} not found`);
 
-    // @ts-ignore
+    // Reverse effect before permanent deletion
+    await this._getTransitionService().reversePayment(payment, user, qr);
+
     await removeDb(paymentRepo, payment);
     await auditLogger.logDelete("PaymentTransaction", id, payment, user);
-    console.log(`Payment #${id} permanently deleted`);
+    console.log(`Payment #${id} permanently deleted, debt reversed`);
   }
 
   /**

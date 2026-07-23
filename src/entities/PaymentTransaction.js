@@ -12,6 +12,11 @@ const PaymentTransaction = new EntitySchema({
     notes: { type: String, nullable: true },
     deletedAt: { type: Date, nullable: true },
     recordedAt: { type: Date, createDate: true },
+
+    confirmed: { type: Boolean, default: false },
+    voided: { type: Boolean, default: false },
+    refundAmount: { type: "decimal", precision: 12, scale: 2, nullable: true },
+    updatedAt: { type: Date, updateDate: true },
   },
   relations: {
     debt: {
