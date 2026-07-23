@@ -4,7 +4,7 @@
   <img src="https://github.com/CyberArcenal/collectly/blob/main/screenshots/thumbnail.png?raw=true" width="45%" />
 </p>
 
-**Collectly** is a cross‑platform desktop application for managing loans, collections, and borrower relationships. Built with Electron, React, TypeScript, and TypeORM (SQLite), it provides a modern UI for tracking debts, payments, penalties, and notifications. The system includes audit logging, customizable payment plans, and multi‑user support.
+**Collectly** is a cross‑platform desktop application for managing loans, collections, and borrower relationships. Built with Electron, React, TypeScript, and TypeORM (SQLite), it provides a modern UI for tracking debts, payments, penalties, and notifications. The system includes a robust **state transition layer** that automatically handles business rules, audit logging, and data consistency, making it reliable even in complex workflows.
 
 ![Electron](https://img.shields.io/badge/Electron-40.x-blue)
 ![React](https://img.shields.io/badge/React-19.x-61dafb)
@@ -20,17 +20,21 @@
 - **Debtor Directory** – searchable, paginated list of all borrowers with contact details and outstanding debt.
 - **Credit Checks** – internal scoring based on payment history and overdue flags; full audit log of every check.
 - **Debtor Groups / Segments** – create groups (VIP, High‑Risk, etc.) and assign debtors for targeted collections.
+- **State Transitions** – automatic handling of borrower activation/deactivation, which updates all related debts (e.g., marks active loans as defaulted upon deactivation).
 
 ### Loans & Debts
 - **Active Loans** – view all active debts with days left, filter by due date range or remaining amount.
 - **Overdue Accounts** – dedicated page with penalty application, bulk reminders, and partial payments.
 - **Closed Loans** – archive of fully paid debts with summary stats and ability to reopen.
-- **Loan Applications** – manage new loan requests; approval automatically creates an active debt.
+- **Loan Applications** – manage new loan requests; approval automatically creates an active debt and, if configured, generates a PDF loan agreement.
+- **Forgiveness & Corrections** – apply forgiveness with notifications, or correct total amounts without triggering forgiveness flows.
+- **State Transitions** – debt status changes (`active` → `overdue` → `defaulted` → `paid`) are managed by a dedicated transition service that applies penalties, sends notifications, updates credit scores, and prints receipts.
 
 ### Collections
 - **Payment Schedule** – calendar or list view of upcoming expected payments; mark payments as paid directly.
 - **Transaction Log** – complete history of all payments, exportable to CSV/JSON, with admin edit/delete.
 - **Payment Methods** – CRUD for payment types (Cash, Bank Transfer, etc.), set default, view usage stats.
+- **Payment State Transitions** – when a payment is created, it is automatically confirmed and applied to the debt within a transaction. Editing, deleting, or restoring a payment will **automatically adjust the debt's paid and remaining amounts** to maintain consistency, thanks to the payment transition service.
 
 ### Reports
 - **Aging Analysis** – AR aging buckets (0‑30, 31‑60, 61‑90, 90+ days) with bar chart and drill‑down to debts.
@@ -43,6 +47,8 @@
 - **Notification Logs** – track email/SMS notifications sent to borrowers.
 - **Device (Printer) Manager** – configure receipt printers (USB, network, Bluetooth), test print, set default.
 - **System Settings** – centralised configuration for general, collections, loans, notifications, reports, integrations, and audit/security.
+- **Robust Transaction Safety** – all write operations are wrapped in database transactions. If any step fails, changes are rolled back. The payment creation includes **explicit validations** (e.g., debt existence, positive amount, valid date, and soft‑delete check) to catch errors early.
+- **Built‑in Reconciliation** – the system can recalculate `paidAmount` from the sum of active payments to fix any rare inconsistencies (available as an admin tool).
 
 ### Additional
 - **Dark / Light Theme** – theme toggling via CSS variables.
@@ -112,9 +118,11 @@ debt-management/
 ├── src/
 │   ├── main/                # Electron main process
 │   │   ├── db/              # Data source & migrations
-│   │   ├── entities/        # TypeORM entities
+│   │   ├── entities/        # TypeORM entities (Debt, Payment, Borrower, etc.)
 │   │   ├── ipc/             # IPC handlers (debt, borrower, group, loanApp, etc.)
-│   │   ├── services/        # Business logic (DebtService, GroupService, ...)
+│   │   ├── services/        # Core business logic (DebtService, PaymentService, etc.)
+│   │   ├── StateTransitionServices/   # Business rules for status changes (Debt, Payment, Borrower, etc.)
+│   │   ├── subscribers/     # TypeORM subscribers that trigger state transitions
 │   │   └── index.js         # Main entry point
 │   ├── renderer/            # React frontend
 │   │   ├── api/             # API clients (IPC wrappers)
