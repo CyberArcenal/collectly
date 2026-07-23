@@ -18,6 +18,8 @@ export interface DebtStats {
 }
 
 export interface Debt {
+  accrued_interest: number;
+  accruedInterest: number;
   borrowerName: string | undefined;
   borrower_name: string | undefined;
   id: number;
@@ -28,6 +30,7 @@ export interface Debt {
   dueDate: string; // ISO date string
   status: "active" | "paid" | "overdue" | "defaulted";
   interestCalculationPeriod: "per_annum" | "per_month";
+  lastInterestAccrualDate?: string | null;
   interestRate: number | null;
   penaltyRate: number | null;
   createdAt: string;
@@ -40,6 +43,7 @@ export interface Debt {
     email: string | null;
   };
   stats?: DebtStats;
+  
 }
 
 export interface BorrowerFilters {

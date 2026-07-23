@@ -1,5 +1,5 @@
 // src/renderer/pages/loans/active/components/ActiveLoansTable.tsx
-import React from "react";
+import React, { useMemo } from "react";
 import { ChevronUp, ChevronDown, User, Calendar, Clock } from "lucide-react";
 import ActiveLoanActionsDropdown from "./ActiveLoanActionsDropdown";
 import type { Debt } from "../../../../api/core/debt";
@@ -85,6 +85,8 @@ const ActiveLoansTable: React.FC<ActiveLoansTableProps> = ({
   const allSelected = loans.length > 0 && selectedLoans.length === loans.length;
   const someSelected = selectedLoans.length > 0 && !allSelected;
 
+  console.log(loans)
+
   return (
     <div className="overflow-x-auto rounded-xl border border-[var(--border-color)] bg-[var(--card-bg)]">
       <table className="w-full text-sm">
@@ -133,6 +135,9 @@ const ActiveLoansTable: React.FC<ActiveLoansTableProps> = ({
                 Remaining {getSortIcon("remainingAmount")}
               </div>
             </th>
+             <th className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
+              Accrued Interest
+            </th>
             <th
               className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider cursor-pointer hover:text-[var(--primary-color)]"
               onClick={() => onSort("dueDate")}
@@ -147,6 +152,7 @@ const ActiveLoansTable: React.FC<ActiveLoansTableProps> = ({
             <th className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
               Status
             </th>
+            
             <th className="text-center py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
               Actions
             </th>
@@ -202,6 +208,9 @@ const ActiveLoansTable: React.FC<ActiveLoansTableProps> = ({
                   >
                     {formatCurrency(loan.remainingAmount ?? 0)}
                   </span>
+                </td>
+                  <td className="py-2.5 px-3 text-[var(--text-secondary)]">
+                  {formatCurrency(loan.accruedInterest || loan.accrued_interest || 0)}
                 </td>
                 <td className="py-2.5 px-3">
                   <div className="flex items-center gap-1.5 text-[var(--text-secondary)] text-sm">

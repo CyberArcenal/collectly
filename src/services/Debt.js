@@ -493,6 +493,9 @@ class DebtService {
       isFullyPaid,
     };
 
+    const accruedInterest = this._computeAccruedInterest(debt);
+    debt.accruedInterest = parseFloat(accruedInterest.toFixed(2));
+
     await auditLogger.logView("Debt", id, "system");
     return debt;
   }
@@ -670,6 +673,10 @@ class DebtService {
         lastPaymentDate: debt.lastPaymentDate || null,
         isFullyPaid,
       };
+
+      const accruedInterest = this._computeAccruedInterest(debt);
+      debt.accruedInterest = parseFloat(accruedInterest.toFixed(2));
+
       return debt;
     });
 
@@ -1754,11 +1761,60 @@ class DebtService {
         lastPaymentDate: debt.lastPaymentDate || null,
         isFullyPaid,
       };
+
+      const accruedInterest = this._computeAccruedInterest(debt);
+      debt.accruedInterest = parseFloat(accruedInterest.toFixed(2));
+
       return debt;
     });
 
     await auditLogger.logView("Debt", null, "system");
     return result;
+  }
+
+  /**
+   * Compute accrued interest for a debt as of today.
+   * @param {Object} debt - Debt object with necessary fields
+   * @returns {number} Accrued interest amount (rounded to 2 decimals)
+   */
+  _computeAccruedInterest(debt) {
+    // Log para sa debugging
+    console.log("[DebtService] computeAccruedInterest for debt #" + debt.id, {
+      rate: debt.interestRate,
+      remaining: debt.remainingAmount,
+      period: debt.interestCalculationPeriod,
+      lastDate: debt.lastInterestAccrualDate,
+      createdAt: debt.createdAt,
+    });
+
+    // Kung walang interest rate o zero, return 0
+    if (!debt.interestRate || debt.interestRate <= 0) return 0;
+    // Kung fully paid na, walang interes
+    if (debt.remainingAmount <= 0.01) return 0;
+
+    // ✅ Gamitin ang UTC para sa consistency
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    let lastDate = debt.lastInterestAccrualDate
+      ? new Date(debt.lastInterestAccrualDate)
+      : new Date(debt.createdAt);
+    lastDate.setUTCHours(0, 0, 0, 0);
+
+    const diffDays = Math.floor(
+      (today.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24),
+    );
+    console.log("[DebtService] diffDays =", diffDays);
+
+    if (diffDays <= 0) return 0;
+
+    const rate = debt.interestRate / 100;
+    if (debt.interestCalculationPeriod === "per_annum") {
+      return debt.remainingAmount * (rate / 365) * diffDays;
+    } else if (debt.interestCalculationPeriod === "per_month") {
+      return debt.remainingAmount * (rate / 30) * diffDays;
+    }
+    return 0;
   }
 }
 
