@@ -1,4 +1,5 @@
-// src/renderer/pages/sync/index.tsx
+// src/renderer/pages/sync/index.tsx (buong file – pasensya na at mahaba, pero kailangan para sa logs)
+
 import React, { useState } from "react";
 import {
   Cloud,
@@ -73,7 +74,11 @@ const SyncPage: React.FC = () => {
       lastSyncCount: item.lastSyncCount || item.last_sync_count || 0,
       hasPending: item.hasPending || item.has_pending || false,
       pendingCount: (item as any).pendingCount ?? 0,
+      recordCount: (item as any).recordCount ?? 0,
     })) || [];
+
+  // Log entity list on render
+  console.log("[SyncPage] Entity list:", entityList);
 
   const lastSync = getSummary("lastSync");
   const totalEntities = getSummary("totalEntities");
@@ -188,7 +193,7 @@ const SyncPage: React.FC = () => {
       </div>
 
       {/* Summary Cards */}
-      <SyncSummaryCards summary={summary} isSyncing={syncing} />
+      <SyncSummaryCards summary={summary} isSyncing={syncing} status={status} />
 
       {/* Progress Bar */}
       <SyncProgressBar progress={progress} isVisible={syncing} />

@@ -463,36 +463,57 @@ class SyncQueueService {
    * @param {import("typeorm").QueryRunner | null} qr
    * @returns {Promise<Object>}
    */
-  async processItem(item, handler, qr = null) {
-    try {
-      // Mark as processing
-      await this.markProcessing(item.id, qr);
-
-      // Execute handler
-      const result = await handler(item);
-
-      if (result.success) {
-        await this.markCompleted(item.id, qr);
-        return { success: true, item, result };
-      } else {
-        await this.markFailed(item.id, result.error || "Unknown error", qr);
-        return { 
-          success: false, 
-          item, 
-          error: result.error || "Unknown error",
-          willRetry: item.retryCount < item.maxRetries,
-        };
-      }
-    } catch (error) {
-      await this.markFailed(item.id, error.message, qr);
+async processItem(item, handler, qr = null) {
+  try {
+    await this.markProcessing(item.id, qr);
+    const result = await handler(item);
+    
+    if (result.success) {
+      await this.markCompleted(item.id, qr);
+      return {
+        success: true,
+        item: {
+          id: item.id,
+          entity: item.entity,
+          entityId: item.entityId,
+          action: item.action,
+          recordId: result.record_id || item.entityId,
+          actionPerformed: result.action || 'completed', // ← 'duplicate' or 'updated' etc.
+          serverData: result.server_data, // ← for duplicates
+          message: result.message,
+        },
+        error: null,
+        willRetry: false,
+      };
+    } else {
+      await this.markFailed(item.id, result.error || 'Unknown error', qr);
       return {
         success: false,
-        item,
-        error: error.message,
+        item: {
+          id: item.id,
+          entity: item.entity,
+          entityId: item.entityId,
+          action: item.action,
+        },
+        error: result.error,
         willRetry: item.retryCount < item.maxRetries,
       };
     }
+  } catch (error) {
+    await this.markFailed(item.id, error.message, qr);
+    return {
+      success: false,
+      item: {
+        id: item.id,
+        entity: item.entity,
+        entityId: item.entityId,
+        action: item.action,
+      },
+      error: error.message,
+      willRetry: item.retryCount < item.maxRetries,
+    };
   }
+}
 
   /**
    * Process all pending queue items
@@ -501,36 +522,43 @@ class SyncQueueService {
    * @param {import("typeorm").QueryRunner | null} qr
    * @returns {Promise<Object>}
    */
-  async processQueue(handler, limit = 50, qr = null) {
-    const items = await this.getPendingItems(limit, qr);
-    const results = {
-      total: items.length,
-      processed: 0,
-      completed: 0,
-      failed: 0,
-      errors: [],
-    };
+async processQueue(handler, limit = 50, qr = null) {
+  const items = await this.getPendingItems(limit, qr);
+  const results = {
+    total: items.length,
+    processed: 0,
+    completed: 0,
+    failed: 0,
+    duplicates: 0, // ← new
+    errors: [],
+    items: [], // ← new: store all processed items
+  };
 
-    for (const item of items) {
-      const result = await this.processItem(item, handler, qr);
-      results.processed++;
-      if (result.success) {
-        results.completed++;
-      } else {
-        results.failed++;
-        results.errors.push({
-          id: item.id,
-          entity: item.entity,
-          entityId: item.entityId,
-          error: result.error,
-          willRetry: result.willRetry,
-        });
+  for (const item of items) {
+    const result = await this.processItem(item, handler, qr);
+    results.processed++;
+    results.items.push(result.item); // ← store item details
+    
+    if (result.success) {
+      results.completed++;
+      if (result.item.actionPerformed === 'duplicate') {
+        results.duplicates++; // ← track duplicates
       }
+    } else {
+      results.failed++;
+      results.errors.push({
+        id: item.id,
+        entity: item.entity,
+        entityId: item.entityId,
+        error: result.error,
+        willRetry: result.willRetry,
+      });
     }
-
-    logger.info(`[SyncQueue] Processed ${results.processed} items: ${results.completed} completed, ${results.failed} failed`);
-    return results;
   }
+
+  logger.info(`[SyncQueue] Processed ${results.processed} items: ${results.completed} completed, ${results.failed} failed, ${results.duplicates} duplicates`);
+  return results;
+}
 
   // ============================================================
   // 🧪 UTILITY METHODS

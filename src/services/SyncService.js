@@ -17,6 +17,9 @@ class SyncService {
       currentEntity: null,
       status: "idle", // idle | syncing | completed | failed
     };
+    /**
+     * @type {any[]}
+     */
     this.progressCallbacks = [];
     this.syncResults = null;
     this.activeTasks = {}; // { taskId: { entity, status, progress } }
@@ -450,29 +453,28 @@ class SyncService {
     return result.data || result;
   }
 
-
   /**
- * Get the number of pending records for a given entity.
- * @param {string} entityName
- * @returns {Promise<number>}
- */
-async getPendingCount(entityName) {
-  const entity = this.entities.find(e => e.name === entityName);
-  if (!entity) throw new Error(`Unknown entity: ${entityName}`);
+   * Get the number of pending records for a given entity.
+   * @param {string} entityName
+   * @returns {Promise<number>}
+   */
+  async getPendingCount(entityName) {
+    const entity = this.entities.find((e) => e.name === entityName);
+    if (!entity) throw new Error(`Unknown entity: ${entityName}`);
 
-  const lastSync = await syncMetadataService.getLastSyncTime(entityName);
-  const { AppDataSource } = require("../main/db/data-source");
-  const repo = AppDataSource.getRepository(entityName);
+    const lastSync = await syncMetadataService.getLastSyncTime(entityName);
+    const { AppDataSource } = require("../main/db/data-source");
+    const repo = AppDataSource.getRepository(entityName);
 
-  const qb = repo.createQueryBuilder(entityName);
-  if (lastSync) {
-    qb.where(`${entityName}.updatedAt > :lastSync`, { lastSync })
-      .orWhere(`${entityName}.createdAt > :lastSync`, { lastSync })
-      .orWhere(`${entityName}.deletedAt > :lastSync`, { lastSync });
+    const qb = repo.createQueryBuilder(entityName);
+    if (lastSync) {
+      qb.where(`${entityName}.updatedAt > :lastSync`, { lastSync })
+        .orWhere(`${entityName}.createdAt > :lastSync`, { lastSync })
+        .orWhere(`${entityName}.deletedAt > :lastSync`, { lastSync });
+    }
+    // If lastSync is null (never synced), count all records
+    return await qb.getCount();
   }
-  // If lastSync is null (never synced), count all records
-  return await qb.getCount();
-}
 
   // ============================================================
   // 🔄 FULL SYNC (Task-Based)
@@ -521,9 +523,9 @@ async getPendingCount(entityName) {
       for (const entity of this.entities) {
         try {
           // Get all records for this entity
-          const { records } = force 
-        ? await this.getEntityRecords(entity.name) 
-        : await this.getPendingRecords(entity.name);
+          const { records } = force
+            ? await this.getEntityRecords(entity.name)
+            : await this.getPendingRecords(entity.name);
 
           if (records.length === 0) {
             this.syncResults.entities[entity.name] = {
@@ -537,7 +539,12 @@ async getPendingCount(entityName) {
           }
 
           // Start sync task
-          const result = await this.startSyncTask(entity.name, records, user, force);
+          const result = await this.startSyncTask(
+            entity.name,
+            records,
+            user,
+            force,
+          );
 
           this.syncResults.entities[entity.name] = {
             status: "task_queued",
@@ -618,7 +625,7 @@ async getPendingCount(entityName) {
     });
 
     try {
-      const results = await syncQueueService.processQueue(async (item) => {
+      const results = await syncQueueService.processQueue(async (/** @type {Object} */ item) => {
         return await this._processQueueItem(item, user);
       }, limit);
 
@@ -647,49 +654,95 @@ async getPendingCount(entityName) {
    * @param {string} user - User performing the action
    * @returns {Promise<{success: boolean, error?: string}>}
    */
-  async _processQueueItem(item, user = "system") {
-    try {
-      const entity = this.entities.find((e) => e.name === item.entity);
-      if (!entity) {
-        return { success: false, error: `Unknown entity: ${item.entity}` };
-      }
+async _processQueueItem(item, user = "system") {
+  console.log(`[SyncService] Processing queue item: ${item.entity}#${item.entityId} (${item.action})`);
+  try {
+    const entity = this.entities.find((e) => e.name === item.entity);
+    if (!entity) {
+      return { success: false, error: `Unknown entity: ${item.entity}` };
+    }
 
-      const url = await serverUrl();
-      if (!url) throw new Error("Server URL not configured");
-      onlineClient.setBaseUrl(url);
+    const url = await serverUrl();
+    if (!url) throw new Error("Server URL not configured");
+    onlineClient.setBaseUrl(url);
 
-      let endpoint = `/api/v1/sync/${entity.endpoint}/`;
-      let method = "POST";
-      let body = {
-        data: [item.data],
-        user: user,
-        action: item.action,
+    let endpoint = `/api/v1/sync/${entity.endpoint}/`;
+    let method = "POST";
+    let body = {
+      data: [item.data],
+      user: user,
+      action: item.action,
+    };
+
+    if (item.action === "delete") {
+      endpoint = `/api/v1/sync/${entity.endpoint}/${item.entityId}/`;
+      method = "DELETE";
+      body = { user: user };
+    }
+
+    const response = await onlineClient.request(endpoint, {
+      method,
+      body: JSON.stringify(body),
+      headers: { "Content-Type": "application/json" },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[SyncService] Server error ${response.status}: ${errorText}`);
+      return {
+        success: false,
+        error: `Server error: ${response.status} - ${errorText}`,
       };
+    }
 
-      // For delete actions, use DELETE method
-      if (item.action === "delete") {
-        endpoint = `/api/v1/sync/${entity.endpoint}/${item.entityId}/`;
-        method = "DELETE";
-        body = { user: user };
+    const result = await response.json();
+    console.log(`[SyncService] Server response for ${item.entity}#${item.entityId}:`, result);
+
+    // Check if server returned a duplicate response
+    if (result.action === 'duplicate' && result.server_data) {
+      console.log(`[SyncService] Duplicate detected for ${item.entity}#${item.entityId}, updating local record with server data`);
+      await this._updateLocalRecord(item.entity, result.record_id, result.server_data);
+      logger.info(`[SyncService] Updated local record ${item.entity}#${result.record_id} from server duplicate data`);
+      return {
+        success: true,
+        message: "Duplicate resolved with server data",
+        action: "duplicate",
+        record_id: result.record_id,
+        server_data: result.server_data,
+      };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error(`[SyncService] Error processing queue item ${item.entity}#${item.entityId}:`, error);
+    return { success: false, error: error.message };
+  }
+}
+
+  /**
+   * @param {string} entityName
+   * @param {any} recordId
+   * @param {any} serverData
+   */
+  async _updateLocalRecord(entityName, recordId, serverData) {
+    try {
+      const { getRepository } = require("../utils/dbUtils/dbHelpers");
+      const { saveDb, updateDb } = require("../utils/dbUtils/dbActions");
+
+      const repo = await getRepository(entityName);
+      let record = await repo.findOne({ where: { id: recordId } });
+
+      if (record) {
+        Object.assign(record, serverData);
+        await updateDb(repo, record);
+      } else {
+        const newRecord = repo.create({ id: recordId, ...serverData });
+        await saveDb(repo, newRecord);
       }
-
-      const response = await onlineClient.request(endpoint, {
-        method,
-        body: JSON.stringify(body),
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        return {
-          success: false,
-          error: `Server error: ${response.status} - ${errorText}`,
-        };
-      }
-
-      return { success: true };
+      return true;
     } catch (error) {
-      return { success: false, error: error.message };
+      logger.error(`[SyncService] Failed to update local record:`, error);
+      return false;
     }
   }
 
@@ -710,14 +763,14 @@ async getPendingCount(entityName) {
     const activeTasks = Object.values(this.activeTasks);
 
     const metadataWithPending = await Promise.all(
-  metadata.map(async (item) => {
-    const pendingCount = await this.getPendingCount(item.entity);
-    return {
-      ...item,
-      pendingCount, // new field
-    };
-  })
-);
+      metadata.map(async (item) => {
+        const pendingCount = await this.getPendingCount(item.entity);
+        return {
+          ...item,
+          pendingCount, // new field
+        };
+      }),
+    );
 
     return {
       isSyncing: this.isSyncing,
@@ -908,23 +961,23 @@ async getPendingCount(entityName) {
   }
 
   /**
- * Sync a specific entity by name (fetches pending records and starts a task)
- * @param {string} entityName
- * @param {string} user
- * @param {boolean} force - if true, sync all records, not just pending
- * @returns {Promise<{taskId: string, status: string, entity: string, total: number}>}
- */
-async syncEntityByName(entityName, user = "system", force = false) {
-  const { records } = force
-    ? await this.getEntityRecords(entityName)
-    : await this.getPendingRecords(entityName);
+   * Sync a specific entity by name (fetches pending records and starts a task)
+   * @param {string} entityName
+   * @param {string} user
+   * @param {boolean} force - if true, sync all records, not just pending
+   * @returns {Promise<{taskId: string, status: string, entity: string, total: number}>}
+   */
+  async syncEntityByName(entityName, user = "system", force = false) {
+    const { records } = force
+      ? await this.getEntityRecords(entityName)
+      : await this.getPendingRecords(entityName);
 
-  if (records.length === 0) {
-    throw new Error(`No pending records for ${entityName}`);
+    if (records.length === 0) {
+      throw new Error(`No pending records for ${entityName}`);
+    }
+
+    return await this.startSyncTask(entityName, records, user, force);
   }
-
-  return await this.startSyncTask(entityName, records, user, force);
-}
 
   /**
    * Get records that have changed since the last sync for a given entity.

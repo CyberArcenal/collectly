@@ -7,6 +7,8 @@ const { logger } = require("../../../../utils/logger");
 const { syncMode, serverUrl } = require("../../../../utils/system");
 const onlineClient = require("../../../../utils/onlineClient");
 
+
+
 class SyncHandler {
   constructor() {
     this.initializeHandlers();
@@ -83,6 +85,53 @@ class SyncHandler {
     });
   }
 
+async updateLocalRecord(params) {
+  const { entity, recordId, data } = params;
+  const { getRepository } = require("../../../../utils/dbUtils/dbHelpers");
+  const { updateDb, saveDb } = require("../../../../utils/dbUtils/dbActions");
+  try {
+
+    
+    // Get repository for the entity (same pattern as other services)
+    const repo = await getRepository(entity);
+    
+    // Check if record exists
+    let record = await repo.findOne({ where: { id: recordId } });
+    
+    if (record) {
+      // Update existing record
+      Object.assign(record, data);
+      const saved = await updateDb(repo, record);
+      logger.info(`[SyncHandler] Updated ${entity}#${recordId}`);
+      return {
+        status: true,
+        message: `Record ${entity}#${recordId} updated`,
+        data: saved,
+      };
+    } else {
+      // Create new record
+      const newRecord = repo.create({ id: recordId, ...data });
+      const saved = await saveDb(repo, newRecord);
+      logger.info(`[SyncHandler] Created ${entity}#${recordId}`);
+      return {
+        status: true,
+        message: `Record ${entity}#${recordId} created`,
+        data: saved,
+      };
+    }
+  } catch (error) {
+    logger.error(
+      `[SyncHandler] Failed to update local record ${entity}#${recordId}:`,
+      error,
+    );
+    return { 
+      status: false, 
+      message: error.message,
+      data: null,
+    };
+  }
+}
+
   /**
    * Main request handler
    * @param {Electron.IpcMainEvent} event - IPC event
@@ -128,6 +177,8 @@ class SyncHandler {
           return await this.incrementalSync(handlerParams);
         case "syncEntity":
           return await this.syncEntity(handlerParams);
+        case "updateLocalRecord":
+          return await this.updateLocalRecord(handlerParams);
 
         // 📦 QUEUE OPERATIONS
         case "enqueue":

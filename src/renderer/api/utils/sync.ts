@@ -23,6 +23,7 @@ export interface SyncStatus {
     lastSyncCount: number;
     hasPending: boolean;
     pendingCount?: number;
+    recordCount?: number;
   }>;
   queue: {
     total: number;
@@ -90,6 +91,7 @@ export interface TaskProgress {
   failed: number;
   currentEntity: string | null;
   result: {
+    duplicates: any;
     created: number;
     updated: number;
     skipped: number;

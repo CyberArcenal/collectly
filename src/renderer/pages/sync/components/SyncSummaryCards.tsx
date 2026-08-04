@@ -1,24 +1,33 @@
 // src/renderer/pages/sync/components/SyncSummaryCards.tsx
+
 import React from "react";
 import { Database, Clock, HardDrive, AlertTriangle } from "lucide-react";
-import type { SyncSummary } from "../../../api/utils/sync";
+import type { SyncSummary, SyncStatus } from "../../../api/utils/sync";
 
 interface SyncSummaryCardsProps {
   summary: SyncSummary | null;
   isSyncing: boolean;
+  status?: SyncStatus | null;        // <-- new prop
 }
 
-const SyncSummaryCards: React.FC<SyncSummaryCardsProps> = ({ summary, isSyncing }) => {
-  // ✅ Adaptive helper – supports both camelCase and snake_case
+const SyncSummaryCards: React.FC<SyncSummaryCardsProps> = ({
+  summary,
+  isSyncing,
+  status,
+}) => {
+  // Compute total active records from metadata
+  const totalRecords =
+    status?.metadata?.reduce((sum, item) => sum + (item.recordCount || 0), 0) || 0;
+
+  // Helper: get value from summary (handles both camelCase and snake_case)
   const get = (camelKey: string, snakeKey: string, fallback: any = 0) => {
     return (summary as any)?.[camelKey] ?? (summary as any)?.[snakeKey] ?? fallback;
   };
 
   const totalEntities = get("totalEntities", "total_entities");
-  const completed = get("completed", "completed"); // same key
+  const completed = get("completed", "completed");
   const queuePending = get("queuePending", "queue_pending");
   const failed = get("failed", "failed");
-  const totalSynced = get("totalSynced", "total_synced");
   const conflictPending = get("conflictPending", "conflict_pending");
 
   const cards = [
@@ -37,9 +46,9 @@ const SyncSummaryCards: React.FC<SyncSummaryCardsProps> = ({ summary, isSyncing 
       color: "bg-yellow-500/10 text-yellow-500",
     },
     {
-      label: "Total Synced",
-      value: totalSynced.toLocaleString(),
-      sub: "records",
+      label: "Total Records",          // <-- renamed
+      value: totalRecords.toLocaleString(),
+      sub: "active records",
       icon: HardDrive,
       color: "bg-green-500/10 text-green-500",
     },

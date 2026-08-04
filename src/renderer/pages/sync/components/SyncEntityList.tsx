@@ -1,6 +1,6 @@
 // src/renderer/pages/sync/components/SyncEntityList.tsx
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   RefreshCw,
   ChevronDown,
@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import LoadingSpinner from "../../../components/Shared/LoadingSpinner";
 
-// ✅ Add pendingCount to the interface
 interface EntityStatusItem {
   name: string;
   status: string;
@@ -26,14 +25,15 @@ interface EntityStatusItem {
   totalSynced: number;
   lastSyncCount: number;
   hasPending: boolean;
-  pendingCount: number; // new
+  pendingCount: number;
+  recordCount: number;          // <-- new
 }
 
 interface SyncEntityListProps {
   entities: EntityStatusItem[];
   loading: boolean;
   onSyncEntity: (name: string) => void;
-  onViewPending: (name: string) => void; // new
+  onViewPending: (name: string) => void;
 }
 
 const getStatusBadge = (status: string): { label: string; color: string } => {
@@ -83,6 +83,14 @@ const SyncEntityList: React.FC<SyncEntityListProps> = ({
     setExpanded((prev) => ({ ...prev, [name]: !prev[name] }));
   };
 
+  // Log entity data on render
+  useEffect(() => {
+    console.log("[SyncEntityList] Entities received:", entities);
+    entities.forEach(entity => {
+      console.log(`[SyncEntityList] Entity ${entity.name}: recordCount=${entity.recordCount}, totalSynced=${entity.totalSynced}`);
+    });
+  }, [entities]);
+
   if (loading) {
     return (
       <div className="flex justify-center py-12">
@@ -123,7 +131,6 @@ const SyncEntityList: React.FC<SyncEntityListProps> = ({
                 <div>
                   <div className="text-sm font-medium text-[var(--text-primary)] flex items-center gap-2">
                     {entity.name}
-                    {/* ✅ Pending count badge */}
                     {hasPending && (
                       <span className="text-xs bg-yellow-500/20 text-yellow-500 px-1.5 py-0.5 rounded-full">
                         {entity.pendingCount} pending
@@ -131,7 +138,7 @@ const SyncEntityList: React.FC<SyncEntityListProps> = ({
                     )}
                   </div>
                   <div className="text-xs text-[var(--text-tertiary)]">
-                    {entity.totalSynced.toLocaleString()} records synced
+                    {(entity.recordCount ?? 0).toLocaleString()} records
                   </div>
                 </div>
               </div>
@@ -190,25 +197,21 @@ const SyncEntityList: React.FC<SyncEntityListProps> = ({
                     </p>
                   </div>
                   <div>
-                    <span className="text-[var(--text-tertiary)]">
-                      Last Synced
-                    </span>
+                    <span className="text-[var(--text-tertiary)]">Last Synced</span>
                     <p className="font-medium text-[var(--text-primary)]">
                       {formatDate(entity.lastSyncedAt)}
                     </p>
                   </div>
                   <div>
-                    <span className="text-[var(--text-tertiary)]">
-                      Total Synced
-                    </span>
+                    <span className="text-[var(--text-tertiary)]">Current Records</span>
                     <p className="font-medium text-[var(--text-primary)]">
-                      {entity.totalSynced.toLocaleString()}
+                      {(entity.recordCount ?? 0).toLocaleString()}
                     </p>
                   </div>
                   <div>
-                    <span className="text-[var(--text-tertiary)]">Pending</span>
-                    <p className="font-medium text-yellow-500">
-                      {entity.pendingCount}
+                    <span className="text-[var(--text-tertiary)]">Total Synced (cumulative)</span>
+                    <p className="font-medium text-[var(--text-primary)]">
+                      {entity.totalSynced.toLocaleString()}
                     </p>
                   </div>
                   <button
