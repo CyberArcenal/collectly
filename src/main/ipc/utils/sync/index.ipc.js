@@ -4,11 +4,20 @@ const { ipcMain, BrowserWindow } = require("electron");
 const { withErrorHandling } = require("../../../../middlewares/errorHandler");
 const syncService = require("../../../../services/SyncService");
 const { logger } = require("../../../../utils/logger");
-const { syncMode, serverUrl } = require("../../../../utils/system");
-const onlineClient = require("../../../../utils/onlineClient");
 
-
-
+/**
+ * SyncHandler - Simplified IPC Router
+ * 
+ * Handles only the essential sync operations:
+ * - fullSync: Start a full sync
+ * - getSyncStatus: Get merged sync status
+ * - getTaskStatus: Get task progress
+ * - getTaskList: List tasks
+ * - pollTask: Poll task until completion
+ * - isSyncAvailable: Check availability
+ * - cancelSync: Cancel ongoing sync
+ * - getPendingChanges: Get entities with local changes
+ */
 class SyncHandler {
   constructor() {
     this.initializeHandlers();
@@ -16,37 +25,16 @@ class SyncHandler {
   }
 
   initializeHandlers() {
-    // 📋 READ OPERATIONS
+    // Import handlers (only the ones we keep)
+    this.fullSync = this.importHandler("./full_sync.ipc");
     this.getSyncStatus = this.importHandler("./get/status.ipc");
-    this.getSyncSummary = this.importHandler("./get/summary.ipc");
-    this.isSyncAvailable = this.importHandler("./get/available.ipc");
-    this.getEntityRecords = this.importHandler("./get_entity_records.ipc");
-    this.getPendingRecords = this.importHandler("./get_pending_records.ipc");
-
-    // 🆕 TASK OPERATIONS
     this.getTaskStatus = this.importHandler("./get/task_status.ipc");
     this.getTaskList = this.importHandler("./get/task_list.ipc");
     this.pollTask = this.importHandler("./poll_task.ipc");
-
-    // 🔄 SYNC OPERATIONS
-    this.fullSync = this.importHandler("./full_sync.ipc");
-    this.incrementalSync = this.importHandler("./incremental_sync.ipc");
-    this.syncEntity = this.importHandler("./sync_entity.ipc");
-
-    // 📦 QUEUE OPERATIONS
-    this.enqueue = this.importHandler("./enqueue.ipc");
-    this.getQueueStatus = this.importHandler("./get/queue_status.ipc");
-    this.processQueue = this.importHandler("./process_queue.ipc");
-
-    // ⚔️ CONFLICT OPERATIONS
-    this.getConflicts = this.importHandler("./get/conflicts.ipc");
-    this.resolveConflict = this.importHandler("./resolve_conflict.ipc");
-    this.autoResolveConflicts = this.importHandler("./auto_resolve.ipc");
-
-    // 🧹 MAINTENANCE
-    this.cleanup = this.importHandler("./cleanup.ipc");
-    this.resetSync = this.importHandler("./reset_sync.ipc");
-    this.testSync = this.importHandler("./test_sync.ipc");
+    this.isSyncAvailable = this.importHandler("./get/available.ipc");
+    
+    // New: Get pending changes
+    this.getPendingChanges = this.importHandler("./get/pending_changes.ipc");
   }
 
   /**
@@ -59,10 +47,7 @@ class SyncHandler {
       const fullPath = require.resolve(`./${path}`, { paths: [__dirname] });
       return require(fullPath);
     } catch (error) {
-      console.warn(
-        `[SyncHandler] Failed to load handler: ${path}`,
-        error.message,
-      );
+      console.warn(`[SyncHandler] Failed to load handler: ${path}`, error.message);
       return async () => ({
         status: false,
         message: `Handler not implemented: ${path}`,
@@ -85,53 +70,6 @@ class SyncHandler {
     });
   }
 
-async updateLocalRecord(params) {
-  const { entity, recordId, data } = params;
-  const { getRepository } = require("../../../../utils/dbUtils/dbHelpers");
-  const { updateDb, saveDb } = require("../../../../utils/dbUtils/dbActions");
-  try {
-
-    
-    // Get repository for the entity (same pattern as other services)
-    const repo = await getRepository(entity);
-    
-    // Check if record exists
-    let record = await repo.findOne({ where: { id: recordId } });
-    
-    if (record) {
-      // Update existing record
-      Object.assign(record, data);
-      const saved = await updateDb(repo, record);
-      logger.info(`[SyncHandler] Updated ${entity}#${recordId}`);
-      return {
-        status: true,
-        message: `Record ${entity}#${recordId} updated`,
-        data: saved,
-      };
-    } else {
-      // Create new record
-      const newRecord = repo.create({ id: recordId, ...data });
-      const saved = await saveDb(repo, newRecord);
-      logger.info(`[SyncHandler] Created ${entity}#${recordId}`);
-      return {
-        status: true,
-        message: `Record ${entity}#${recordId} created`,
-        data: saved,
-      };
-    }
-  } catch (error) {
-    logger.error(
-      `[SyncHandler] Failed to update local record ${entity}#${recordId}:`,
-      error,
-    );
-    return { 
-      status: false, 
-      message: error.message,
-      data: null,
-    };
-  }
-}
-
   /**
    * Main request handler
    * @param {Electron.IpcMainEvent} event - IPC event
@@ -150,19 +88,39 @@ async updateLocalRecord(params) {
       const handlerParams = { ...params, user };
 
       switch (method) {
-        // 📋 READ OPERATIONS
+        // 🔄 SYNC OPERATIONS
+        case "fullSync":
+          return await this.fullSync(handlerParams);
+        case "cancelSync":
+          return await this.cancelSync(handlerParams);
+        
+        // 📊 STATUS OPERATIONS
         case "getSyncStatus":
           return await this.getSyncStatus(handlerParams);
         case "getSyncSummary":
-          return await this.getSyncSummary(handlerParams);
-        case "isSyncAvailable":
-          return await this.isSyncAvailable(handlerParams);
-        case "getEntityRecords":
-          return await this.getEntityRecords(handlerParams);
-        case "getPendingRecords":
-          return await this.getPendingRecords(handlerParams);
+          // Use getSyncStatus and extract summary
+          const statusResult = await this.getSyncStatus(handlerParams);
+          if (statusResult.status && statusResult.data) {
+            const data = statusResult.data;
+            return {
+              status: true,
+              message: "Sync summary retrieved",
+              data: {
+                totalEntities: data.totalEntities || 0,
+                totalSynced: data.totalRecordsSynced || 0,
+                pending: data.pendingSyncs || 0,
+                failed: data.entities?.filter(e => e.status === 'failed').length || 0,
+                completed: data.entities?.filter(e => e.status === 'completed').length || 0,
+                idle: data.entities?.filter(e => e.status === 'idle').length || 0,
+                pendingChanges: data.pendingChangesCount || 0,
+                isSyncing: data.isSyncing || false,
+                lastSync: data.lastSync || null,
+              },
+            };
+          }
+          return statusResult;
 
-        // 🆕 TASK OPERATIONS
+        // 📋 TASK OPERATIONS
         case "getTaskStatus":
           return await this.getTaskStatus(handlerParams);
         case "getTaskList":
@@ -170,39 +128,13 @@ async updateLocalRecord(params) {
         case "pollTask":
           return await this.pollTask(handlerParams);
 
-        // 🔄 SYNC OPERATIONS
-        case "fullSync":
-          return await this.fullSync(handlerParams);
-        case "incrementalSync":
-          return await this.incrementalSync(handlerParams);
-        case "syncEntity":
-          return await this.syncEntity(handlerParams);
-        case "updateLocalRecord":
-          return await this.updateLocalRecord(handlerParams);
+        // 🔍 AVAILABILITY
+        case "isSyncAvailable":
+          return await this.isSyncAvailable(handlerParams);
 
-        // 📦 QUEUE OPERATIONS
-        case "enqueue":
-          return await this.enqueue(handlerParams);
-        case "getQueueStatus":
-          return await this.getQueueStatus(handlerParams);
-        case "processQueue":
-          return await this.processQueue(handlerParams);
-
-        // ⚔️ CONFLICT OPERATIONS
-        case "getConflicts":
-          return await this.getConflicts(handlerParams);
-        case "resolveConflict":
-          return await this.resolveConflict(handlerParams);
-        case "autoResolveConflicts":
-          return await this.autoResolveConflicts(handlerParams);
-
-        // 🧹 MAINTENANCE
-        case "cleanup":
-          return await this.cleanup(handlerParams);
-        case "resetSync":
-          return await this.resetSync(handlerParams);
-        case "testSync":
-          return await this.testSync(handlerParams);
+        // 🆕 PENDING CHANGES
+        case "getPendingChanges":
+          return await this.getPendingChanges(handlerParams);
 
         default:
           return {
@@ -217,6 +149,46 @@ async updateLocalRecord(params) {
       return {
         status: false,
         message: error.message || "Internal server error",
+        data: null,
+      };
+    }
+  }
+
+  /**
+   * Cancel sync
+   */
+  async cancelSync(params) {
+    try {
+      await syncService.cancelSync();
+      return {
+        status: true,
+        message: "Sync cancelled",
+        data: null,
+      };
+    } catch (error) {
+      return {
+        status: false,
+        message: error.message || "Failed to cancel sync",
+        data: null,
+      };
+    }
+  }
+
+  /**
+   * Get pending changes
+   */
+  async getPendingChanges(params) {
+    try {
+      const changes = await syncService.getPendingChanges();
+      return {
+        status: true,
+        message: "Pending changes retrieved",
+        data: changes,
+      };
+    } catch (error) {
+      return {
+        status: false,
+        message: error.message || "Failed to get pending changes",
         data: null,
       };
     }

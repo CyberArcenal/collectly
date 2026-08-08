@@ -156,6 +156,417 @@ All system settings are stored in the database table `system_settings`. You can 
 
 ---
 
+## Sync System
+
+The application uses a **full sync** approach to synchronize data with the server. Unlike per‑entity sync, full sync sends all data for all entities in a single atomic operation.
+
+### Key Concepts
+
+| Concept | Description |
+|---------|-------------|
+| **Full Sync** | All entities are synced together in one background task |
+| **Per‑User Metadata** | Each user has independent sync state (tracked on server) |
+| **Local Snapshots** | Client stores lightweight snapshots (`sync_snapshots`) for change detection |
+| **Task‑based Progress** | Sync runs asynchronously; progress is polled via task ID |
+| **Atomic Transaction** | Either all records save or none do |
+
+### Sync Flow
+
+1. **User triggers sync** – Click "Full Sync" button
+2. **Client loads all local data** – All entities are read from local database
+3. **Server receives payload** – Validates foreign keys, processes in dependency order
+4. **Task is queued** – Server returns a `taskId` for progress tracking
+5. **Client polls for progress** – Progress updates shown in real‑time
+6. **Snapshots updated** – On completion, local snapshots are updated with new record counts
+
+### Entities Synced
+
+| Entity | Description |
+|--------|-------------|
+| `PaymentMethod` | Payment types (Cash, GCash, etc.) |
+| `Borrower` | Debtor/Customer information |
+| `Debt` | Loan and payment obligations |
+| `LoanAgreement` | Contract details |
+| `LoanApplication` | Loan requests |
+| `PaymentTransaction` | Payment records |
+| `PenaltyTransaction` | Penalty records |
+
+### Change Detection
+
+The client uses `sync_snapshots` to detect local changes:
+
+- **Record Count** – If the number of records for an entity differs from the last sync, it's considered changed
+- **Data Hash** – A SHA‑256 hash of record IDs and timestamps is stored; if the hash changes, the entity has been modified
+
+When changes are detected, the UI shows a "X new" badge on the entity list.
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/sync/full/` | POST | Start a full sync |
+| `/api/v1/sync/status/` | GET | Get per‑user sync status |
+| `/api/v1/sync/task/{task_id}/` | GET | Get task progress |
+| `/api/v1/sync/tasks/` | GET | List tasks |
+
+### Offline Support
+
+In offline mode, the client stores all changes locally. The sync service automatically detects changes via snapshots and syncs them when the server becomes available.
+
+### Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Sync fails | Check server logs; verify server is reachable |
+| "No changes detected" | Check if data was actually modified; if not, sync may be skipped |
+| Stuck "Syncing" status | Restart the app; run `npm run migration:run` to ensure snapshots table is up‑to‑date |
+| Missing entities | Ensure all 7 entities are included in the sync payload |
+
+---
+
+For more details, see [docs/SYNC.md](docs/SYNC.md).
+```
+
+---
+
+## 12.10.2: Create `docs/SYNC.md`
+
+```markdown
+# Sync System Documentation
+
+## Overview
+
+The Collectly sync system provides offline‑first synchronization using a **full sync** strategy. All data for all entities is sent to the server in a single request, processed atomically, and tracked via background tasks.
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           CLIENT (Electron)                            │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                    Local Database (SQLite)                      │   │
+│  │  ┌───────────────┐  ┌───────────────┐  ┌───────────────────┐   │   │
+│  │  │  borrowers    │  │  debts        │  │  sync_snapshots   │   │   │
+│  │  ├───────────────┤  ├───────────────┤  ├───────────────────┤   │   │
+│  │  │  payments     │  │  penalties    │  │  entity, count,   │   │   │
+│  │  │  loan_agreem  │  │  loan_apps    │  │  hash, status     │   │   │
+│  │  └───────────────┘  └───────────────┘  └───────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                              │                                         │
+│                              ▼                                         │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                     Sync Service (Main)                         │   │
+│  │  • fullSync() → builds payload, calls server                   │   │
+│  │  • getSyncStatus() → merges server + local snapshots          │   │
+│  │  • getPendingChanges() → detects local modifications           │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                              │                                         │
+│                              ▼                                         │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                     IPC Handlers                                │   │
+│  │  • full_sync.ipc.js                                            │   │
+│  │  • status.ipc.js                                               │   │
+│  │  • task_status.ipc.js                                          │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           SERVER (Django)                              │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                     Full Sync Endpoint                          │   │
+│  │  POST /api/v1/sync/full/                                       │   │
+│  │  ┌─────────────────────────────────────────────────────────┐   │   │
+│  │  │ 1. Validate payload                                     │   │   │
+│  │  │ 2. Process entities in dependency order                 │   │   │
+│  │  │ 3. Atomic transaction                                   │   │   │
+│  │  │ 4. Update UserSyncMetadata (per‑user)                   │   │   │
+│  │  │ 5. Return task ID                                       │   │   │
+│  │  └─────────────────────────────────────────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+## Components
+
+### Client Side
+
+#### SyncSnapshot Entity
+
+The `sync_snapshots` table stores lightweight metadata for each entity:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `entity` | string | Entity name (e.g., 'Borrower') |
+| `lastSyncedAt` | datetime | Last successful sync timestamp |
+| `recordCount` | integer | Number of records at last sync |
+| `dataHash` | string | SHA‑256 hash of records |
+| `syncStatus` | string | idle / syncing / completed / failed |
+| `lastSyncTaskId` | string | Associated server task ID |
+
+#### SyncSnapshotService
+
+- `getSnapshot(entityName)` – Get snapshot for an entity
+- `updateSnapshot(entityName, recordCount, hash, taskId)` – Update after sync
+- `markSyncing(entityName)` – Mark as in progress
+- `markFailed(entityName)` – Mark as failed
+- `hasEntityChanged(entityName, records)` – Check for local changes
+- `computeEntityHash(entityName, records)` – Generate hash for change detection
+
+#### SyncService (Simplified)
+
+- `fullSync(user, metadata)` – Start a full sync, returns task ID
+- `getSyncStatus()` – Merge server metadata with local snapshots
+- `getTaskStatus(taskId)` – Poll server for progress
+- `pollTaskStatus(taskId, callback)` – Continuously poll until completion
+- `getPendingChanges()` – List entities with local modifications
+
+### Server Side
+
+#### UserSyncMetadata
+
+Tracks per‑user sync state per entity:
+
+| Field | Description |
+|-------|-------------|
+| `user` | User who owns the metadata |
+| `entity` | Entity name |
+| `last_synced_at` | Last successful sync timestamp |
+| `total_synced` | Cumulative records synced |
+| `status` | idle / syncing / completed / failed |
+| `last_sync_ip` | IP address of the client |
+| `last_sync_user_agent` | Device/browser info |
+
+#### TaskProgress
+
+Tracks progress of a background sync task:
+
+| Field | Description |
+|-------|-------------|
+| `task_id` | Unique task identifier |
+| `status` | queued / running / completed / failed |
+| `total` | Total records to process |
+| `processed` | Records processed so far |
+| `current_entity` | Entity being processed |
+
+## Data Flow
+
+### Full Sync Sequence
+
+```
+Client                    Server
+  │                         │
+  │  1. Load all local data │
+  │  (borrowers, debts...)  │
+  │                         │
+  │  2. POST /sync/full/    │
+  │  { entities: {...} }    │
+  │─────────────────────────>│
+  │                         │
+  │                         │  3. Validate
+  │                         │  - Required fields
+  │                         │  - Foreign keys
+  │                         │  - Uniqueness
+  │                         │
+  │                         │  4. Process entities
+  │                         │  in dependency order
+  │                         │
+  │                         │  5. Atomic transaction
+  │                         │  Save all records
+  │                         │
+  │                         │  6. Update per-user
+  │                         │  metadata
+  │                         │
+  │  7. Return task_id      │
+  │<─────────────────────────│
+  │                         │
+  │  8. Poll /task/{id}/    │
+  │─────────────────────────>│
+  │                         │
+  │  9. Progress updates    │
+  │<─────────────────────────│
+  │                         │
+  │  10. Task completed     │
+  │  (or failed)            │
+  │<─────────────────────────│
+  │                         │
+  │  11. Update snapshots   │
+  │  (local)                │
+  │                         │
+```
+
+### Entity Processing Order (Server)
+
+1. `PaymentMethod` – No dependencies
+2. `Borrower` – No dependencies
+3. `Debt` – Depends on `Borrower`
+4. `LoanAgreement` – Depends on `Debt`
+5. `LoanApplication` – Depends on `Borrower`
+6. `PaymentTransaction` – Depends on `Debt` and `PaymentMethod`
+7. `PenaltyTransaction` – Depends on `Debt`
+
+## Client API Usage
+
+### Starting a Full Sync
+
+```javascript
+import syncAPI from './api/utils/sync';
+
+// Start sync
+const result = await syncAPI.fullSync(
+  {}, // entities loaded by main process
+  {
+    client_user: 'admin',
+    device_id: 'desktop-123',
+    app_version: '2.0.0'
+  }
+);
+// result = { taskId: 'abc-123', status: 'queued', entities: [...], totalRecords: 150 }
+```
+
+### Polling for Progress
+
+```javascript
+const progress = await syncAPI.pollTaskStatus(
+  taskId,
+  (progress) => {
+    console.log(`Progress: ${progress.progressPercentage}%`);
+    // Update UI
+  }
+);
+console.log('Sync completed:', progress);
+```
+
+### Getting Sync Status
+
+```javascript
+const status = await syncAPI.getSyncStatus();
+// Returns merged server + local status
+console.log(status.entities); // Array of EntitySyncStatus
+```
+
+### Detecting Local Changes
+
+```javascript
+const changes = await syncAPI.getPendingChanges();
+changes.forEach(change => {
+  console.log(`${change.entity}: ${change.reason}`);
+  console.log(`  ${change.previousCount} → ${change.currentCount} records`);
+});
+```
+
+## Troubleshooting
+
+### Common Errors
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `Sync not available` | Server offline or no URL configured | Check server connection; verify `system_settings` has server URL |
+| `Validation failed` | Payload missing required fields or invalid data | Check the error details; fix data and retry |
+| `Task not found` | Task ID expired or invalid | Start a new sync; don't reuse old task IDs |
+| `Polling timed out` | Server took too long to respond | Increase timeout or check server performance |
+| `Foreign key error` | Referenced record not found in payload | Ensure parent records (e.g., Borrower) are included before child records (e.g., Debt) |
+
+### Debugging
+
+1. **Check logs**: Look in `src/main/logs/` for detailed logs.
+2. **Enable verbose logging**: Set `NODE_ENV=development` to see more output.
+3. **Inspect database**: Use SQLite browser to check `sync_snapshots` table for status.
+4. **Test with small dataset**: Reduce records to isolate issues.
+
+### Resetting Sync State
+
+If sync gets stuck, you can reset snapshots:
+
+```sql
+-- Reset all snapshots to idle
+UPDATE sync_snapshots SET syncStatus = 'idle';
+```
+
+Or use the reset function (if exposed via IPC).
+
+## Migration from Old Sync
+
+If you're migrating from the old per‑entity sync system:
+
+1. **Drop old tables**: `sync_metadata`, `sync_conflicts`, `sync_queue` are no longer used.
+2. **Create `sync_snapshots`**: Run migration to add the new table.
+3. **Update API endpoints**: Replace per‑entity calls with `/sync/full/`.
+4. **Update client logic**: Remove conflict/queue handling.
+
+For detailed migration steps, see the [Client Migration Guide](./client_migration_guide.md).
+
+---
+
+**Last Updated:** August 2026
+```
+
+---
+
+## 12.10.3: Update API Client Documentation (JSDoc)
+
+The API methods in `src/renderer/api/utils/sync.ts` already have JSDoc comments. We'll ensure they are comprehensive and up‑to‑date.
+
+```typescript
+// src/renderer/api/utils/sync.ts (excerpt with improved JSDoc)
+
+/**
+ * Start a full sync of all local data to the server.
+ *
+ * This method loads all entities from the local database and sends them
+ * to the server in a single request. The server processes them atomically
+ * and returns a task ID for progress tracking.
+ *
+ * @param entities - Dictionary of entity_name -> { records: [...] }
+ *                   If empty, the main process will load all data.
+ * @param metadata - Optional metadata for the sync request.
+ * @param metadata.client_user - Username of the client user (default: "system").
+ * @param metadata.device_id - Device identifier (e.g., MAC address, UUID).
+ * @param metadata.app_version - Application version.
+ * @returns Object containing taskId, status, list of entities, and totalRecords.
+ * @throws Error if sync is unavailable or the server returns an error.
+ *
+ * @example
+ * ```ts
+ * const result = await syncAPI.fullSync(
+ *   { Borrower: { records: borrowers } },
+ *   { client_user: 'admin', device_id: 'desktop-123' }
+ * );
+ * console.log(result.taskId); // "abc-123"
+ * ```
+ */
+async fullSync(
+  entities: Record<string, { records: any[] }>,
+  metadata?: { client_user?: string; device_id?: string; app_version?: string }
+): Promise<FullSyncResponse> {
+  // ... implementation
+}
+
+/**
+ * Get the current sync status, merging server metadata with local snapshots.
+ *
+ * This method queries the server for per‑user sync metadata and combines it
+ * with local snapshots to provide a complete picture of sync state.
+ *
+ * @returns UserSyncSummary with additional local fields.
+ *
+ * @example
+ * ```ts
+ * const status = await syncAPI.getSyncStatus();
+ * console.log(status.totalEntities); // 7
+ * status.entities.forEach(e => console.log(e.entity, e.status));
+ * ```
+ */
+async getSyncStatus(): Promise<UserSyncSummary & {
+  localSnapshots?: any[];
+  pendingChangesCount?: number;
+  source?: string;
+}> {
+  // ... implementation
+}
+```
+---
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please follow these steps:

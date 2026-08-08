@@ -43,7 +43,7 @@ function generateSchedule(
 
   const entries: AmortizationEntry[] = [];
   let balance = principal;
-  let currentDate = new Date(startDate);
+  const currentDate = new Date(startDate);
 
   for (let i = 1; i <= totalPeriods; i++) {
     if (frequency === 'weekly') currentDate.setDate(currentDate.getDate() + 7);
@@ -53,7 +53,7 @@ function generateSchedule(
     else if (frequency === 'annual') currentDate.setFullYear(currentDate.getFullYear() + 1);
 
     let paymentAmount = payment;
-    let interest = balance * ratePerPeriod;
+    const interest = balance * ratePerPeriod;
     let principalAmount = paymentAmount - interest;
 
     if (i === totalPeriods) {

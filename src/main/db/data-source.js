@@ -26,9 +26,7 @@ const PaymentMethodStat = require("../../entities/PaymentMethodStat");
 const Printer = require("../../entities/Printer");
 const CreditCheckLog = require("../../entities/CreditCheckLog");
 const InterestRateChangeLog = require("../../entities/InterestRateChangeLog");
-const SyncMetadata = require("../../entities/SyncMetadata");
-const SyncConflict = require("../../entities/SyncConflict");
-const SyncQueue = require("../../entities/SyncQueue");
+const SyncSnapshot = require("../../entities/SyncSnapshot");
 
 const config = getDatabaseConfig();
 
@@ -51,9 +49,7 @@ const entities = [
   PaymentMethodStat,
   Printer,
   CreditCheckLog,
-  SyncMetadata,
-  SyncConflict,
-  SyncQueue,
+  SyncSnapshot,
 ];
 
 const dataSourceOptions = {

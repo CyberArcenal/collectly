@@ -1,4 +1,4 @@
-// global.d.ts (or src/renderer/types/global.d.ts)
+// src/renderer/types/global.d.ts
 
 export {};
 
@@ -45,7 +45,25 @@ declare global {
       paymentMethod: (payload: any) => Promise<any>;
       printer: (payload: any) => Promise<any>;
       creditCheck: (payload: any) => Promise<any>;
-      sync: (payload: any) => Promise<any>;
+
+      // ========== SYNC MODULE (SIMPLIFIED) ==========
+      sync: (payload: {
+        method:
+          | "fullSync"
+          | "getSyncStatus"
+          | "getSyncSummary"
+          | "getTaskStatus"
+          | "getTaskList"
+          | "pollTask"
+          | "isSyncAvailable"
+          | "cancelSync"
+          | "getPendingChanges";
+        params?: any;
+      }) => Promise<{
+        status: boolean;
+        message: string;
+        data?: any;
+      }>;
 
       // ========== PRINTER CONVENIENCE METHODS ==========
       printerGetStatus: () => Promise<{
@@ -73,11 +91,11 @@ declare global {
       }>;
       notifyAppReady: () => void;
 
-      // ========== EVENT LISTENERS (direct callbacks) ==========
+      // ========== EVENT LISTENERS ==========
       onAppReady: (callback: () => void) => () => void;
       on: (
         channel: string,
-        callback: (event: any, ...args: any[]) => void,
+        callback: (event: any, ...args: any[]) => void
       ) => () => void;
       off: (channel: string, callback: (...args: any[]) => void) => void;
 
@@ -89,20 +107,18 @@ declare global {
       onWindowResized: (callback: (bounds: any) => void) => void;
       onWindowMoved: (callback: (position: any) => void) => void;
 
-      // ========== file handler =========
+      // ========== FILE HANDLERS ==========
+      showItemInFolder: (fullPath: string) => Promise<any>;
+      openFile: (filePath: string) => Promise<any>;
+      getFileInfo: (filePath: string) => Promise<any>;
+      fileExists: (filePath: string) => Promise<any>;
+      openDirectory: (dirPath: string) => Promise<any>;
+      getFilesInDirectory: (dirPath: string, extensions?: string[]) => Promise<any>;
+      getRecentExports: (exportDir: string, limit: number) => Promise<any>;
+      deleteFile: (filePath: string) => Promise<any>;
+      copyFileToClipboard: (filePath: string) => Promise<any>;
 
-      showItemInFolder: (fullPath) => Promise<any>;
-      openFile: (filePath) => Promise<any>;
-      showItemInFolder: (filePath) => Promise<any>;
-      getFileInfo: (filePath) => Promise<any>;
-      fileExists: (filePath) => Promise<any>;
-      openDirectory: (dirPath) => Promise<any>;
-      getFilesInDirectory: (dirPath, extensions) => Promise<any>;
-      getRecentExports: (exportDir, limit) => Promise<any>;
-      deleteFile: (filePath) => Promise<any>;
-      copyFileToClipboard: (filePath) => Promise<any>;
-
-      // ========== USER MODULE (online-only) ==========
+      // ========== USER MODULE ==========
       user: (payload: { method: string; params?: any }) => Promise<{
         status: boolean;
         message: string;
@@ -116,7 +132,8 @@ declare global {
           page_size: number;
         };
       }>;
-      // ========== AUTHENTICATION & SECURITY MODULE ==========
+
+      // ========== AUTHENTICATION & SECURITY ==========
       auth: (payload: { method: string; params?: any }) => Promise<{
         status: boolean;
         message: string;

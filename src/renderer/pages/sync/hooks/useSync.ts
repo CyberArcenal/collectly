@@ -1,4 +1,5 @@
 // src/renderer/pages/sync/hooks/useSync.ts
+
 import { useSyncContext } from "../../../contexts/SyncContext";
 
 export const useSync = () => {

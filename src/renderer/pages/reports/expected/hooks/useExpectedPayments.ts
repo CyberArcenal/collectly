@@ -20,7 +20,7 @@ const useExpectedPayments = () => {
     setLoading(true);
     setError(null);
     try {
-      let borrowerId: number | undefined = undefined;
+      const borrowerId: number | undefined = undefined;
       if (selectedGroupId !== "all") {
         // Fetch group members to get debtor IDs
         const membersRes = await groupsAPI.getMembers(selectedGroupId);

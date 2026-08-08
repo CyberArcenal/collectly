@@ -1,44 +1,58 @@
 // src/renderer/pages/sync/components/SyncProgressBar.tsx
+
 import React from "react";
 import { Loader2 } from "lucide-react";
-import type { SyncProgress } from "../../../api/utils/sync";
+import type { TaskProgress } from "../../../api/utils/sync";
 
 interface SyncProgressBarProps {
-  progress: SyncProgress | null;
+  currentTask: TaskProgress | null;
   isVisible: boolean;
 }
 
-const SyncProgressBar: React.FC<SyncProgressBarProps> = ({ progress, isVisible }) => {
-  if (!isVisible || !progress) return null;
+const SyncProgressBar: React.FC<SyncProgressBarProps> = ({
+  currentTask,
+  isVisible,
+}) => {
+  if (!isVisible || !currentTask) return null;
 
-  const percentage = progress.total > 0
-    ? Math.round((progress.completed / progress.total) * 100)
+  const percentage = currentTask.total > 0
+    ? Math.round((currentTask.processed / currentTask.total) * 100)
     : 0;
+
+  const isRunning = currentTask.status === "running";
+  const isCompleted = currentTask.status === "completed";
+  const isFailed = currentTask.status === "failed";
 
   return (
     <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border-color)] p-4 shadow-sm">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <Loader2 className="w-4 h-4 text-yellow-500 animate-spin" />
+          {isRunning && <Loader2 className="w-4 h-4 text-yellow-500 animate-spin" />}
+          {isCompleted && <span className="text-green-500 text-sm">✅</span>}
+          {isFailed && <span className="text-red-500 text-sm">❌</span>}
           <span className="text-sm font-medium text-[var(--text-primary)]">
-            Syncing...
+            {isRunning ? "Syncing..." : isCompleted ? "Completed" : isFailed ? "Failed" : "Queued"}
           </span>
-          {progress.currentEntity && (
+          {currentTask.currentEntity && (
             <span className="text-xs text-[var(--text-secondary)]">
-              {progress.currentEntity}
+              {currentTask.currentEntity}
             </span>
           )}
         </div>
         <div className="text-sm font-medium text-[var(--text-primary)]">
-          {progress.completed} / {progress.total}
-          {progress.failed > 0 && (
-            <span className="text-red-500 ml-1">({progress.failed} failed)</span>
+          {currentTask.processed} / {currentTask.total}
+          {currentTask.failed > 0 && (
+            <span className="text-red-500 ml-1">({currentTask.failed} failed)</span>
           )}
         </div>
       </div>
       <div className="h-2 bg-[var(--card-secondary-bg)] rounded-full overflow-hidden">
         <div
-          className="h-full bg-gradient-to-r from-yellow-500 to-green-500 rounded-full transition-all duration-300"
+          className={`h-full rounded-full transition-all duration-300 ${
+            isFailed ? "bg-red-500" :
+            isCompleted ? "bg-green-500" :
+            "bg-gradient-to-r from-yellow-500 to-green-500"
+          }`}
           style={{ width: `${percentage}%` }}
         />
       </div>
@@ -47,7 +61,7 @@ const SyncProgressBar: React.FC<SyncProgressBarProps> = ({ progress, isVisible }
           {percentage}% complete
         </span>
         <span className="text-xs text-[var(--text-tertiary)]">
-          {progress.status === "completed" ? "✅ Done" : "⏳ Processing..."}
+          {isRunning ? "⏳ Processing..." : isCompleted ? "✅ Done" : isFailed ? "❌ Failed" : "⏳ Queued"}
         </span>
       </div>
     </div>

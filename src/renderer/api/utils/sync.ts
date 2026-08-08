@@ -1,123 +1,26 @@
-// src/renderer/api/utils/sync.ts
-
-export interface SyncProgress {
-  status: "idle" | "syncing" | "completed" | "failed";
-  total: number;
-  completed: number;
-  failed: number;
-  currentEntity: string | null;
-}
-
-export interface SyncStatus {
-  isSyncing: boolean;
-  progress: SyncProgress;
-  metadata: Array<{
-    total_synced: number;
-    has_pending: boolean;
-    last_sync_count: number;
-    last_synced_at: string | null;
-    entity: string;
-    status: string;
-    lastSyncedAt: string | null;
-    totalSynced: number;
-    lastSyncCount: number;
-    hasPending: boolean;
-    pendingCount?: number;
-    recordCount?: number;
-  }>;
-  queue: {
-    total: number;
-    byStatus: Record<string, number>;
-    pending: number;
-  };
-  conflicts: {
-    total: number;
-    byResolution: Record<string, number>;
-    pendingByEntity: Array<{ entity: string; count: number }>;
-  };
-}
-
-export interface SyncSummary {
-  totalEntities: number;
-  totalSynced: number;
-  pending: number;
-  failed: number;
-  completed: number;
-  idle: number;
-  queuePending: number;
-  conflictPending: number;
-  isSyncing: boolean;
-  lastSync: string | null;
-}
-
-export interface Conflict {
-  id: number;
-  entity: string;
-  entityId: number;
-  localData: any;
-  serverData: any;
-  resolution: string;
-  localUpdatedAt: string;
-  serverUpdatedAt: string;
-  notes: string | null;
-  createdAt: string;
-}
-
-export interface QueueItem {
-  id: number;
-  entity: string;
-  entityId: number;
-  action: string;
-  status: "pending" | "processing" | "completed" | "failed";
-  retryCount: number;
-  maxRetries: number;
-  errorMessage: string | null;
-  processedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-  data: any;
-}
-
 // ============================================================
-// NEW: Task Progress Types
+// DEPRECATED TYPES (removed)
+// - SyncSummary (replaced by UserSyncSummary)
+// - Conflict
+// - QueueItem
+// - SyncEntityResponse (replaced by FullSyncResponse)
 // ============================================================
 
-export interface TaskProgress {
-  taskId: string;
-  entity: string;
-  status: "queued" | "running" | "completed" | "failed";
-  total: number;
-  processed: number;
-  failed: number;
-  currentEntity: string | null;
-  result: {
-    duplicates: any;
-    created: number;
-    updated: number;
-    skipped: number;
-    errors: Array<{ record: any; error: string }>;
-    conflicts: Array<{ id: number; message: string }>;
-    ids: number[];
-  };
-  error: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface SyncEntityResponse {
-  taskId: string;
-  status: "queued";
-  entity: string;
-  total: number;
-}
+import type { EntitySyncStatus, FullSyncRequest, FullSyncResponse, PendingChange, SyncProgress, SyncSnapshot, TaskProgress, UserSyncSummary } from "../types/sync";
 
 // ============================================================
 // SYNC API CLASS
 // ============================================================
 
 class SyncAPI {
+  // ============================================================
+  // PROGRESS LISTENING
+  // ============================================================
+
   /**
-   * Register progress listener
+   * Register progress listener for sync events
+   * @param callback - Called with progress updates from main process
+   * @returns Unsubscribe function
    */
   onProgress(callback: (progress: SyncProgress) => void): () => void {
     if (!window.backendAPI?.sync) {
@@ -137,22 +40,13 @@ class SyncAPI {
     };
   }
 
-  /**
-   * Cancel an ongoing sync operation
-   */
-  async cancelSync(): Promise<boolean> {
-    if (!window.backendAPI?.sync) {
-      return false;
-    }
-    const response = await window.backendAPI.sync({
-      method: "cancelSync",
-      params: {},
-    });
-    return response.status;
-  }
+  // ============================================================
+  // AVAILABILITY
+  // ============================================================
 
   /**
-   * Check if sync is available
+   * Check if sync is available (online mode + server reachable)
+   * @returns { available: boolean; message?: string }
    */
   async isAvailable(): Promise<{ available: boolean; message?: string }> {
     if (!window.backendAPI?.sync) {
@@ -166,95 +60,160 @@ class SyncAPI {
     return { available: false, message: response.message };
   }
 
+  // ============================================================
+  // 🔄 FULL SYNC
+  // ============================================================
+
   /**
-   * Get current sync status
+   * Start a full sync
+   * @param entities - Dictionary of entity_name -> { records: [...] }
+   * @param metadata - Optional metadata (client_user, device_id, app_version)
+   * @returns { taskId, status, entities, totalRecords }
    */
-  async getStatus(): Promise<SyncStatus> {
+  async fullSync(
+    entities: Record<string, { records: any[] }>,
+    metadata?: { client_user?: string; device_id?: string; app_version?: string }
+  ): Promise<FullSyncResponse> {
     if (!window.backendAPI?.sync) {
       throw new Error("Sync API not available");
     }
+
+    const response = await window.backendAPI.sync({
+      method: "fullSync",
+      params: {
+        user: metadata?.client_user || "system",
+        metadata: {
+          deviceId: metadata?.device_id,
+          appVersion: metadata?.app_version,
+          ...metadata,
+        },
+      },
+    });
+
+    if (!response.status) {
+      throw new Error(response.message || "Full sync failed");
+    }
+
+    return response.data;
+  }
+
+  /**
+   * Cancel an ongoing sync
+   */
+  async cancelSync(): Promise<boolean> {
+    if (!window.backendAPI?.sync) {
+      return false;
+    }
+    const response = await window.backendAPI.sync({
+      method: "cancelSync",
+      params: {},
+    });
+    return response.status;
+  }
+
+  // ============================================================
+  // 📊 SYNC STATUS
+  // ============================================================
+
+  /**
+   * Get sync status (merged from server + local snapshots)
+   * @returns UserSyncSummary with local additions
+   */
+  async getSyncStatus(): Promise<UserSyncSummary & {
+    localSnapshots?: any[];
+    pendingChangesCount?: number;
+    source?: string;
+  }> {
+    if (!window.backendAPI?.sync) {
+      throw new Error("Sync API not available");
+    }
+
     const response = await window.backendAPI.sync({
       method: "getSyncStatus",
       params: {},
     });
-    if (response.status) return response.data;
-    throw new Error(response.message || "Failed to get sync status");
+
+    if (!response.status) {
+      throw new Error(response.message || "Failed to get sync status");
+    }
+
+    return response.data;
   }
 
   /**
-   * Get sync summary
+   * Get sync summary (quick overview)
    */
-  async getSummary(): Promise<SyncSummary> {
+  async getSyncSummary(): Promise<{
+    totalEntities: number;
+    totalSynced: number;
+    pending: number;
+    failed: number;
+    completed: number;
+    idle: number;
+    pendingChanges: number;
+    isSyncing: boolean;
+    lastSync: string | null;
+  }> {
     if (!window.backendAPI?.sync) {
       throw new Error("Sync API not available");
     }
+
     const response = await window.backendAPI.sync({
       method: "getSyncSummary",
       params: {},
     });
-    if (response.status) return response.data;
-    throw new Error(response.message || "Failed to get sync summary");
-  }
 
-  // ============================================================
-  // 🆕 TASK-BASED SYNC (NEW)
-  // ============================================================
-
-  /**
-   * Start a sync for a specific entity (async/task-based)
-   * Returns task_id immediately for status polling
-   */
-  async syncEntity(
-    entityName: string,
-    records: any[],
-    user: string = "system",
-  ): Promise<SyncEntityResponse> {
-    if (!window.backendAPI?.sync) {
-      throw new Error("Sync API not available");
+    if (!response.status) {
+      throw new Error(response.message || "Failed to get sync summary");
     }
-    const response = await window.backendAPI.sync({
-      method: "syncEntity",
-      params: {
-        entityName,
-        records,
-        user,
-        force: false,
-      },
-    });
-    if (response.status) return response.data;
-    throw new Error(
-      response.message || `Failed to start sync for ${entityName}`,
-    );
+
+    return response.data;
   }
 
+  // ============================================================
+  // 📋 TASK OPERATIONS
+  // ============================================================
+
   /**
-   * Get task status (for polling)
+   * Get task status by ID
+   * @param taskId - Task ID from fullSync response
+   * @returns TaskProgress from server
    */
   async getTaskStatus(taskId: string): Promise<TaskProgress> {
     if (!window.backendAPI?.sync) {
       throw new Error("Sync API not available");
     }
+
     const response = await window.backendAPI.sync({
       method: "getTaskStatus",
       params: { taskId },
     });
-    if (response.status) return response.data;
-    throw new Error(response.message || "Failed to get task status");
+
+    if (!response.status) {
+      throw new Error(response.message || "Failed to get task status");
+    }
+
+    return response.data;
   }
 
   /**
-   * Poll task status with callback
+   * Poll task status until completion
    * @param taskId - Task ID to poll
-   * @param onProgress - Callback for each status update
+   * @param onProgress - Callback for each progress update
    * @param interval - Polling interval in ms (default: 1000)
    * @param timeout - Max time to poll in ms (default: 300000 = 5 min)
+   * @returns Final TaskProgress
    */
   async pollTaskStatus(
     taskId: string,
-    onProgress: (progress: TaskProgress) => void,
+    onProgress?: (progress: TaskProgress) => void,
     interval: number = 1000,
-    timeout: number = 300000,
+    timeout: number = 300000
   ): Promise<TaskProgress> {
+    if (!window.backendAPI?.sync) {
+      throw new Error("Sync API not available");
+    }
+
     const startTime = Date.now();
     let lastProgress: TaskProgress | null = null;
 
@@ -271,7 +230,9 @@ class SyncAPI {
           lastProgress = progress;
 
           // Call callback
-          onProgress(progress);
+          if (onProgress) {
+            onProgress(progress);
+          }
 
           // Check if task is complete
           if (progress.status === "completed") {
@@ -297,249 +258,93 @@ class SyncAPI {
 
   /**
    * Get list of sync tasks
+   * @param entity - Optional filter by entity
+   * @param status - Optional filter by status
+   * @param limit - Max items to return (default: 50)
+   * @returns { items: TaskProgress[]; count: number }
    */
   async getTaskList(
     entity?: string,
     status?: string,
-    limit: number = 50,
+    limit: number = 50
   ): Promise<{ items: TaskProgress[]; count: number }> {
     if (!window.backendAPI?.sync) {
       throw new Error("Sync API not available");
     }
+
     const response = await window.backendAPI.sync({
       method: "getTaskList",
       params: { entity, status, limit },
     });
-    if (response.status) return response.data;
-    throw new Error(response.message || "Failed to get task list");
+
+    if (!response.status) {
+      throw new Error(response.message || "Failed to get task list");
+    }
+
+    return response.data;
   }
 
   // ============================================================
-  // LEGACY / SYNC SUPPORT (deprecated, keep for backward compat)
+  // 🔍 PENDING CHANGES (Local)
   // ============================================================
 
   /**
-   * @deprecated Use syncEntity() instead (task-based)
-   * Perform full sync
+   * Get entities with local changes (from snapshots)
+   * @returns Array of PendingChange
    */
-  async fullSync(user: string = "system"): Promise<any> {
+  async getPendingChanges(): Promise<PendingChange[]> {
     if (!window.backendAPI?.sync) {
       throw new Error("Sync API not available");
     }
-    const response = await window.backendAPI.sync({
-      method: "fullSync",
-      params: { user },
-    });
-    if (response.status) return response.data;
-    throw new Error(response.message || "Full sync failed");
-  }
 
-  /**
-   * @deprecated Use syncEntity() instead (task-based)
-   * Perform incremental sync (process queue)
-   */
-  async incrementalSync(
-    user: string = "system",
-    limit: number = 50,
-  ): Promise<any> {
-    if (!window.backendAPI?.sync) {
-      throw new Error("Sync API not available");
-    }
     const response = await window.backendAPI.sync({
-      method: "incrementalSync",
-      params: { user, limit },
-    });
-    if (response.status) return response.data;
-    throw new Error(response.message || "Incremental sync failed");
-  }
-
-  /**
-   * @deprecated Use syncEntity() instead (task-based)
-   * Sync a specific entity (legacy synchronous version)
-   */
-  async syncEntityLegacy(
-    entityName: string,
-    force: boolean = false,
-    user: string = "system",
-  ): Promise<any> {
-    if (!window.backendAPI?.sync) {
-      throw new Error("Sync API not available");
-    }
-    const response = await window.backendAPI.sync({
-      method: "syncEntityLegacy",
-      params: { entityName, force, user },
-    });
-    if (response.status) return response.data;
-    throw new Error(response.message || `Failed to sync ${entityName}`);
-  }
-
-  /**
-   * Get queue status
-   */
-  async getQueueStatus(): Promise<any> {
-    if (!window.backendAPI?.sync) {
-      throw new Error("Sync API not available");
-    }
-    const response = await window.backendAPI.sync({
-      method: "getQueueStatus",
+      method: "getPendingChanges",
       params: {},
     });
-    if (response.status) return response.data;
-    throw new Error(response.message || "Failed to get queue status");
-  }
 
-  /**
-   * Process queue
-   */
-  async processQueue(
-    user: string = "system",
-    limit: number = 50,
-  ): Promise<any> {
-    if (!window.backendAPI?.sync) {
-      throw new Error("Sync API not available");
+    if (!response.status) {
+      throw new Error(response.message || "Failed to get pending changes");
     }
-    const response = await window.backendAPI.sync({
-      method: "processQueue",
-      params: { user, limit },
-    });
-    if (response.status) return response.data;
-    throw new Error(response.message || "Failed to process queue");
-  }
 
-  /**
-   * Get conflicts
-   */
-  async getConflicts(
-    entity?: string,
-    entityId?: number,
-    limit: number = 50,
-  ): Promise<any> {
-    if (!window.backendAPI?.sync) {
-      throw new Error("Sync API not available");
-    }
-    const response = await window.backendAPI.sync({
-      method: "getConflicts",
-      params: { entity, entityId, limit },
-    });
-    if (response.status) return response.data;
-    throw new Error(response.message || "Failed to get conflicts");
-  }
-
-  /**
-   * Resolve a conflict
-   */
-  async resolveConflict(
-    conflictId: number,
-    resolution: "local" | "server" | "manual" | "merged",
-    resolvedBy?: string,
-    mergedData?: any,
-  ): Promise<any> {
-    if (!window.backendAPI?.sync) {
-      throw new Error("Sync API not available");
-    }
-    const response = await window.backendAPI.sync({
-      method: "resolveConflict",
-      params: { conflictId, resolution, resolvedBy, mergedData },
-    });
-    if (response.status) return response.data;
-    throw new Error(response.message || "Failed to resolve conflict");
-  }
-
-  /**
-   * Auto-resolve conflicts
-   */
-  async autoResolveConflicts(entity?: string, entityId?: number): Promise<any> {
-    if (!window.backendAPI?.sync) {
-      throw new Error("Sync API not available");
-    }
-    const response = await window.backendAPI.sync({
-      method: "autoResolveConflicts",
-      params: { entity, entityId },
-    });
-    if (response.status) return response.data;
-    throw new Error(response.message || "Failed to auto-resolve conflicts");
-  }
-
-  /**
-   * Cleanup old sync data
-   */
-  async cleanup(days: number = 30): Promise<any> {
-    if (!window.backendAPI?.sync) {
-      throw new Error("Sync API not available");
-    }
-    const response = await window.backendAPI.sync({
-      method: "cleanup",
-      params: { days },
-    });
-    if (response.status) return response.data;
-    throw new Error(response.message || "Failed to cleanup sync data");
-  }
-
-  /**
-   * Reset sync state
-   */
-  async resetSync(entity?: string, user: string = "system"): Promise<any> {
-    if (!window.backendAPI?.sync) {
-      throw new Error("Sync API not available");
-    }
-    const response = await window.backendAPI.sync({
-      method: "resetSync",
-      params: { entity, user },
-    });
-    if (response.status) return response.data;
-    throw new Error(response.message || "Failed to reset sync state");
-  }
-
-  /**
-   * Test sync (debug)
-   */
-  async testSync(entityName: string = "Borrower"): Promise<any> {
-    if (!window.backendAPI?.sync) {
-      throw new Error("Sync API not available");
-    }
-    const response = await window.backendAPI.sync({
-      method: "testSync",
-      params: { entityName },
-    });
-    if (response.status) return response.data;
-    throw new Error(response.message || "Test failed");
-  }
-
-  /**
-   * Get all local records for a specific entity (for sync)
-   */
-  async getEntityRecords(
-    entityName: string,
-  ): Promise<{ entity: string; records: any[] }> {
-    if (!window.backendAPI?.sync) {
-      throw new Error("Sync API not available");
-    }
-    const response = await window.backendAPI.sync({
-      method: "getEntityRecords",
-      params: { entityName },
-    });
-    if (response.status) return response.data;
-    throw new Error(
-      response.message || `Failed to get records for ${entityName}`,
-    );
-  }
-  /**
-   * Get pending (unsynced) records for a specific entity
-   */
-  async getPendingRecords(
-    entityName: string,
-  ): Promise<{ entity: string; records: any[]; lastSync: string | null }> {
-    if (!window.backendAPI?.sync) {
-      throw new Error("Sync API not available");
-    }
-    const response = await window.backendAPI.sync({
-      method: "getPendingRecords",
-      params: { entityName },
-    });
-    if (response.status) return response.data;
-    throw new Error(response.message || "Failed to get pending records");
+    return response.data || [];
   }
 }
 
+// ============================================================
+// EXPORT
+// ============================================================
+
 const syncAPI = new SyncAPI();
 export default syncAPI;
+
+// ============================================================
+// DEPRECATED METHODS (REMOVED)
+// ============================================================
+// The following methods have been removed:
+//
+// - syncEntityLegacy()        → Use fullSync() instead
+// - incrementalSync()         → Use fullSync() instead
+// - getConflicts()            → No longer supported
+// - resolveConflict()         → No longer supported
+// - autoResolveConflicts()    → No longer supported
+// - cleanup()                 → No longer supported
+// - resetSync()               → No longer supported
+// - testSync()                → No longer supported
+// - getEntityRecords()        → No longer needed
+// - getPendingRecords()       → No longer needed
+// - getQueueStatus()          → No longer supported
+// - processQueue()            → No longer supported
+// - syncEntity()              → Use fullSync() instead
+// - syncEntityByName()        → Use fullSync() instead
+// ============================================================
+
+export type {
+  TaskProgress,
+  UserSyncSummary,
+  EntitySyncStatus,
+  FullSyncRequest,
+  FullSyncResponse,
+  PendingChange,
+  SyncProgress,
+  SyncSnapshot,
+};
