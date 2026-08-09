@@ -85,8 +85,6 @@ const ActiveLoansTable: React.FC<ActiveLoansTableProps> = ({
   const allSelected = loans.length > 0 && selectedLoans.length === loans.length;
   const someSelected = selectedLoans.length > 0 && !allSelected;
 
-  console.log(loans)
-
   return (
     <div className="overflow-x-auto rounded-xl border border-[var(--border-color)] bg-[var(--card-bg)]">
       <table className="w-full text-sm">
@@ -132,11 +130,11 @@ const ActiveLoansTable: React.FC<ActiveLoansTableProps> = ({
               onClick={() => onSort("remainingAmount")}
             >
               <div className="flex items-center gap-1">
-                Remaining {getSortIcon("remainingAmount")}
+                Outstanding {getSortIcon("remainingAmount")}
               </div>
             </th>
-             <th className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
-              Accrued Interest
+            <th className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
+              Total Interest
             </th>
             <th
               className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider cursor-pointer hover:text-[var(--primary-color)]"
@@ -152,7 +150,6 @@ const ActiveLoansTable: React.FC<ActiveLoansTableProps> = ({
             <th className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
               Status
             </th>
-            
             <th className="text-center py-2.5 px-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
               Actions
             </th>
@@ -164,7 +161,6 @@ const ActiveLoansTable: React.FC<ActiveLoansTableProps> = ({
             const dueDate = loan.dueDate ?? "";
             const daysLeft = dueDate ? daysUntil(dueDate) : 0;
             const statusBadge = getStatusBadge(loan.status);
-            const isOverdue = daysLeft < 0;
 
             return (
               <tr
@@ -206,11 +202,11 @@ const ActiveLoansTable: React.FC<ActiveLoansTableProps> = ({
                     className="font-semibold"
                     style={{ color: "var(--debt-high)" }}
                   >
-                    {formatCurrency(loan.remainingAmount ?? 0)}
+                    {formatCurrency(loan.remainingAmount)}
                   </span>
                 </td>
-                  <td className="py-2.5 px-3 text-[var(--text-secondary)]">
-                  {formatCurrency(loan.accruedInterest || loan.accrued_interest || 0)}
+                <td className="py-2.5 px-3 text-[var(--text-secondary)]">
+                  {formatCurrency(loan.totalInterestAccrued || 0)}
                 </td>
                 <td className="py-2.5 px-3">
                   <div className="flex items-center gap-1.5 text-[var(--text-secondary)] text-sm">

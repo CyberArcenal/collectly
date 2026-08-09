@@ -50,10 +50,12 @@ async function updateLocalRecordId(entityName, clientId, serverId) {
     
     // Remove the old record
     await removeDb(repo, record);
+    console.log(`[PollTask] Removed old ${entityName} record with ID ${clientId}`);
     
     // Create new record with server ID
     const newRecord = repo.create(recordData);
     await saveDb(repo, newRecord);
+    console.log(`[PollTask] Created new ${entityName} record with ID ${serverId}`);
     
     console.log(`[PollTask] Updated ${entityName} ID from ${clientId} to ${serverId}`);
     return true;

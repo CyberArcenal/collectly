@@ -58,6 +58,17 @@ class DebtStateTransitionService {
     return debt;
   }
 
+  async _getEmailData() {
+    const [companyName, branchAddress, contactEmail, contactPhone] =
+      await Promise.all([
+        getSystemSetting("company_name", "Collectly"),
+        getSystemSetting("branch_location", "Manila, Philippines"),
+        getSystemSetting("smtp_from_email", "support@collectly.ph"),
+        getSystemSetting("twilio_phone_number", "+63 (2) 8123-4567"),
+      ]);
+    return { companyName, branchAddress, contactEmail, contactPhone };
+  }
+
   /**
    * Send email via ReminderLogService (queues and logs automatically)
    * @param {any} recipient
@@ -597,99 +608,115 @@ class DebtStateTransitionService {
     queryRunner = null,
     reason = null,
   ) {
-    // No debt update here – already done by DebtService.applyForgiveness
+    const { updateDb } = require("../utils/dbUtils/dbActions");
     logger.info(
       `[Transition] Forgiving ${amountForgiven} from debt #${debt.id} by ${user}`,
     );
+
     const isAllowed = await this.isStatusAllowed(debt.status);
-    if (!isAllowed)
+    if (!isAllowed) {
       throw new Error(
         `Status ${debt.status} is not allowed by system settings.`,
       );
+    }
 
-    // ✅ Reload debt with borrower (para sa email at notification)
+    // ✅ Reload debt with borrower
     const debtWithBorrower = await this._getDebtWithBorrower(
       debt.id,
       queryRunner,
     );
 
     const note = reason || "Debt forgiveness applied";
+
+    // ✅ NEW: Check if debt is now fully paid
+    const remainingAmount = debtWithBorrower.remainingAmount || 0;
+    const isFullyPaid = remainingAmount <= 0.01;
+
+    // ✅ If fully paid, update status to "paid"
+    if (isFullyPaid && debtWithBorrower.status !== "paid") {
+      const debtRepo = this._getRepo(queryRunner, Debt);
+
+      debtWithBorrower.status = "paid";
+      debtWithBorrower.updatedAt = new Date();
+
+      await updateDb(debtRepo, debtWithBorrower, {
+        queryRunner,
+        skipSignal: true, // Prevent recursion
+      });
+
+      logger.info(
+        `[Transition] Debt #${debt.id} fully paid via forgiveness, status updated to 'paid'`,
+      );
+
+      // ✅ Trigger the paid transition for notifications
+      await this.onPaid(debtWithBorrower, user, queryRunner);
+    }
+
+    // Audit log
     await auditLogger.logUpdate(
       "Debt",
       debt.id,
       { forgivenessAmount: amountForgiven },
-      { note },
+      { note, remainingAmount: debtWithBorrower.remainingAmount },
       user,
     );
 
+    // In-app notification
     await notificationService.create(
       {
         userId: 1,
-        title: "Debt Forgiveness Applied",
-        message: `An amount of ${amountForgiven} has been forgiven from debt "${debtWithBorrower.name}". Remaining balance: ${(debtWithBorrower.remainingAmount || 0).toFixed(2)}.`,
+        title: isFullyPaid
+          ? "Debt Fully Paid via Forgiveness"
+          : "Debt Forgiveness Applied",
+        message: isFullyPaid
+          ? `Debt "${debtWithBorrower.name}" has been fully paid through forgiveness (${amountForgiven} forgiven).`
+          : `An amount of ${amountForgiven} has been forgiven from debt "${debtWithBorrower.name}". Remaining balance: ${(debtWithBorrower.remainingAmount || 0).toFixed(2)}.`,
         type: "info",
-        metadata: { debtId: debt.id, amountForgiven },
+        metadata: { debtId: debt.id, amountForgiven, isFullyPaid },
       },
       user,
       queryRunner,
     );
 
+    // Email/SMS
     const canSendEmail = await emailEnabled();
     const canSendSms = await smsEnabled();
 
-    logger.info(
-      `[Forgiveness] Email enabled: ${canSendEmail}, Debtor email: ${debtWithBorrower.borrower?.email || "NONE"}, Debtor name: ${debtWithBorrower.borrower?.name || "Unknown"}`,
-    );
-
-    // In onForgiveness
     if (debtWithBorrower.borrower?.email && canSendEmail) {
-      const companyName = await getSystemSetting("company_name", "Collectly");
-      const branchAddress = await getSystemSetting(
-        "branch_location",
-        "Manila, Philippines",
-      );
-      const contactEmail = await getSystemSetting(
-        "smtp_from_email",
-        "support@collectly.ph",
-      );
-      const contactPhone = await getSystemSetting(
-        "twilio_phone_number",
-        "+63 (2) 8123-4567",
-      );
-
+      const emailData = await this._getEmailData();
       const html = generateForgivenessEmail({
         debtorName: debtWithBorrower.borrower.name,
         debtId: debt.id,
-        originalAmount: debtWithBorrower.totalAmount,
+        originalAmount: debtWithBorrower.totalAmount + amountForgiven,
         forgivenAmount: amountForgiven,
         newBalance: debtWithBorrower.remainingAmount || 0,
         reason: reason || "Debt forgiveness applied",
-        companyName,
-        branchAddress,
-        contactEmail,
-        contactPhone,
+        isFullyPaid,
+        ...emailData,
       });
       await this._sendEmail(
         debtWithBorrower.borrower.email,
-        "✓ Debt Forgiveness Applied",
+        isFullyPaid
+          ? "✓ Debt Fully Paid via Forgiveness"
+          : "✓ Debt Forgiveness Applied",
         html,
         user,
         queryRunner,
-      );
-    } else {
-      logger.warn(
-        `[Forgiveness] Email not sent. Reason: ${!debtWithBorrower.borrower?.email ? "No debtor email" : "Email disabled"}`,
       );
     }
 
     if (debtWithBorrower.borrower?.contact && canSendSms) {
       await this._sendSms(
         debtWithBorrower.borrower.contact,
-        `Dear ${debtWithBorrower.borrower.name}, ${amountForgiven} forgiven from debt "${debtWithBorrower.name}". New balance: ${(debtWithBorrower.remainingAmount || 0).toFixed(2)}.`,
+        isFullyPaid
+          ? `Dear ${debtWithBorrower.borrower.name}, your debt "${debtWithBorrower.name}" is now fully paid. Thank you!`
+          : `Dear ${debtWithBorrower.borrower.name}, ${amountForgiven} forgiven from debt "${debtWithBorrower.name}". New balance: ${(debtWithBorrower.remainingAmount || 0).toFixed(2)}.`,
         user,
         queryRunner,
       );
     }
+
+    return debtWithBorrower;
   }
 
   /**

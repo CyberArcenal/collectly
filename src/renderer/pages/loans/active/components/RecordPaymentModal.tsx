@@ -14,9 +14,16 @@ interface RecordPaymentModalProps {
   onSuccess: () => void;
 }
 
-const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({ isOpen, loan, onClose, onSuccess }) => {
+const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
+  isOpen,
+  loan,
+  onClose,
+  onSuccess,
+}) => {
   const [amount, setAmount] = useState<number>(0);
-  const [paymentDate, setPaymentDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [paymentDate, setPaymentDate] = useState<string>(
+    new Date().toISOString().slice(0, 10)
+  );
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
   const [methodId, setMethodId] = useState<number | null>(null);
@@ -34,6 +41,10 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({ isOpen, loan, o
 
   if (!isOpen) return null;
 
+  // ✅ remainingAmount already includes all capitalized interest
+  const remainingBalance = Number(loan?.remainingAmount) || 0;
+  const totalInterest = Number((loan as any)?.totalInterestAccrued) || 0;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!loan) {
@@ -44,9 +55,13 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({ isOpen, loan, o
       dialogs.error("Amount must be greater than zero");
       return;
     }
-    const remaining = Number(loan.remainingAmount) || 0;
-    if (amount > remaining) {
-      dialogs.error(`Amount cannot exceed remaining balance (${formatCurrency(remaining)})`);
+    // ✅ Use remainingBalance only (interest is already in it)
+    if (amount > remainingBalance) {
+      dialogs.error(
+        `Amount cannot exceed outstanding balance (${formatCurrency(
+          remainingBalance
+        )})`
+      );
       return;
     }
     if (!methodId) {
@@ -73,8 +88,6 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({ isOpen, loan, o
       setSubmitting(false);
     }
   };
-
-  const remainingBalance = Number(loan?.remainingAmount) || 0;
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -104,21 +117,37 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({ isOpen, loan, o
             {/* Loan Info */}
             <div
               className="p-3 rounded-lg space-y-1"
-              style={{ backgroundColor: "var(--card-secondary-bg)", border: "1px solid var(--border-color)" }}
+              style={{
+                backgroundColor: "var(--card-secondary-bg)",
+                border: "1px solid var(--border-color)",
+              }}
             >
               <div className="flex justify-between text-sm">
                 <span className="text-[var(--text-secondary)]">Debt:</span>
-                <span className="font-medium text-[var(--text-primary)]">{loan.name ?? "Unnamed"}</span>
+                <span className="font-medium text-[var(--text-primary)]">
+                  {loan.name ?? "Unnamed"}
+                </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-[var(--text-secondary)]">Borrower:</span>
-                <span className="text-[var(--text-primary)]">{loan.borrower?.name ?? "—"}</span>
+                <span className="text-[var(--text-primary)]">
+                  {loan.borrower?.name ?? "—"}
+                </span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-[var(--text-secondary)]">Remaining:</span>
+
+              {/* ✅ Outstanding Balance – already includes interest */}
+              <div className="flex justify-between text-sm border-t border-[var(--border-color)] pt-1 mt-1">
+                <span className="text-[var(--text-secondary)]">
+                  Outstanding Balance:
+                </span>
                 <span className="font-bold" style={{ color: "var(--debt-high)" }}>
                   {formatCurrency(remainingBalance)}
                 </span>
+              </div>
+
+              {/* ✅ Total Interest Accrued (Lifetime – informational only) */}
+              <div className="flex justify-between text-xs text-[var(--text-tertiary)]">
+                <span>Total Interest Accrued: {formatCurrency(totalInterest)}</span>
               </div>
             </div>
 
@@ -128,7 +157,9 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({ isOpen, loan, o
                 Payment Amount *
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] text-sm">₱</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] text-sm">
+                  ₱
+                </span>
                 <input
                   type="number"
                   step="0.01"
@@ -145,7 +176,9 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({ isOpen, loan, o
                   }}
                 />
               </div>
-              <p className="text-xs text-[var(--text-tertiary)] mt-1">Max: {formatCurrency(remainingBalance)}</p>
+              <p className="text-xs text-[var(--text-tertiary)] mt-1">
+                Max: {formatCurrency(remainingBalance)}
+              </p>
             </div>
 
             {/* Payment Date */}
@@ -232,10 +265,12 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({ isOpen, loan, o
                   border: "1px solid var(--btn-secondary-border)",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "var(--btn-secondary-hover)";
+                  e.currentTarget.style.backgroundColor =
+                    "var(--btn-secondary-hover)";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "var(--btn-secondary-bg)";
+                  e.currentTarget.style.backgroundColor =
+                    "var(--btn-secondary-bg)";
                 }}
               >
                 Cancel
@@ -247,7 +282,8 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({ isOpen, loan, o
                 style={{ backgroundColor: "var(--success-color)" }}
                 onMouseEnter={(e) => {
                   if (!e.currentTarget.disabled) {
-                    e.currentTarget.style.backgroundColor = "var(--btn-success-hover)";
+                    e.currentTarget.style.backgroundColor =
+                      "var(--btn-success-hover)";
                   }
                 }}
                 onMouseLeave={(e) => {
@@ -266,7 +302,9 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({ isOpen, loan, o
             </div>
           </form>
         ) : (
-          <div className="text-center text-[var(--text-tertiary)] py-8">No loan data available</div>
+          <div className="text-center text-[var(--text-tertiary)] py-8">
+            No loan data available
+          </div>
         )}
       </div>
     </div>

@@ -72,6 +72,9 @@ const formatDate = (date: string | null): string => {
 const SyncEntityList: React.FC<SyncEntityListProps> = ({ entities, loading }) => {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
+
+  console.log("SyncEntityList rendered with entities:", entities);
+
   const toggleExpand = (name: string) => {
     setExpanded((prev) => ({ ...prev, [name]: !prev[name] }));
   };
