@@ -7,7 +7,6 @@ import {
   Wallet,
   TrendingUp,
   AlertCircle,
-  FileText,
   Loader2,
 } from "lucide-react";
 import paymentsAPI, {
@@ -35,7 +34,7 @@ interface ExtendedDebt extends Debt {
 
 interface ViewDebtModalProps {
   isOpen: boolean;
-  debt: ExtendedDebt | null; // Initial data from table (may be incomplete)
+  debt: ExtendedDebt | null;
   onClose: () => void;
 }
 
@@ -55,17 +54,14 @@ const ViewDebtModal: React.FC<ViewDebtModalProps> = ({
   const [loadingPenalties, setLoadingPenalties] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Reset state and fetch data when modal opens
   useEffect(() => {
     if (isOpen && initialDebt?.id) {
-      // Reset state
       setFullDebt(null);
       setPayments([]);
       setPenalties([]);
       setError(null);
       setActiveTab("details");
 
-      // Fetch full debt details
       setLoading(true);
       debtsAPI
         .getById(initialDebt.id)
@@ -84,7 +80,6 @@ const ViewDebtModal: React.FC<ViewDebtModalProps> = ({
           setLoading(false);
         });
 
-      // Fetch payments and penalties in parallel
       setLoadingPayments(true);
       setLoadingPenalties(true);
       Promise.all([
@@ -100,7 +95,6 @@ const ViewDebtModal: React.FC<ViewDebtModalProps> = ({
           setLoadingPenalties(false);
         });
     } else if (!isOpen) {
-      // Cleanup on close
       setFullDebt(null);
       setPayments([]);
       setPenalties([]);
@@ -110,7 +104,6 @@ const ViewDebtModal: React.FC<ViewDebtModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Show loading state while fetching debt
   if (loading) {
     return (
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -124,7 +117,6 @@ const ViewDebtModal: React.FC<ViewDebtModalProps> = ({
     );
   }
 
-  // Show error if failed to load
   if (error) {
     return (
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -147,13 +139,14 @@ const ViewDebtModal: React.FC<ViewDebtModalProps> = ({
     );
   }
 
-  // Use the fetched full debt, fallback to initial prop if something went wrong
   const debt = fullDebt || initialDebt;
   if (!debt) return null;
 
   const totalPaid = debt.paidAmount ?? 0;
-  const remainingBalance = debt.remainingAmount ?? 0;
+  const remainingBalance = debt.remainingAmount ?? 0; // already includes all accrued interest
+  const totalInterest = debt.totalInterestAccrued ?? 0; // lifetime total (never resets)
   const totalPenalty = penalties.reduce((sum, p) => sum + p.amount, 0);
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const dueDateObj = debt.dueDate ? new Date(debt.dueDate) : null;
@@ -273,13 +266,29 @@ const ViewDebtModal: React.FC<ViewDebtModalProps> = ({
                 </div>
                 <div>
                   <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">
-                    Remaining
+                    Total Paid
+                  </p>
+                  <p className="text-[var(--success-color)] font-medium">
+                    {formatCurrency(totalPaid)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">
+                    Outstanding Balance
                   </p>
                   <p
-                    className="font-bold"
+                    className="font-semibold"
                     style={{ color: "var(--debt-high)" }}
                   >
                     {formatCurrency(remainingBalance)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">
+                    Total Interest Accrued
+                  </p>
+                  <p className="text-[var(--text-primary)] font-medium">
+                    {formatCurrency(totalInterest)}
                   </p>
                 </div>
                 <div>
@@ -383,15 +392,6 @@ const ViewDebtModal: React.FC<ViewDebtModalProps> = ({
                       {debt.penaltyRate != null ? `${debt.penaltyRate}%` : "—"}
                     </span>
                   </div>
-                  <div>
-                    <span className="text-[var(--text-tertiary)]">
-                      Accrued Interest:
-                    </span>
-                    <span className="ml-1 text-[var(--text-primary)]">
-                      {formatCurrency(debt.accruedInterest ?? 0)}
-                    </span>
-                  </div>
-
                   <div className="col-span-2">
                     <span className="text-[var(--text-tertiary)]">
                       Calculation:

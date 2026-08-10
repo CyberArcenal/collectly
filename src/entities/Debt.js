@@ -24,6 +24,13 @@ const Debt = new EntitySchema({
       nullable: false,
       enum: ["per_annum", "per_month"]
     },
+    totalInterestAccrued: {
+      type: "decimal",
+      precision: 12,
+      scale: 2,
+      default: 0,
+      nullable: false,
+    },
   },
   relations: {
     borrower: {

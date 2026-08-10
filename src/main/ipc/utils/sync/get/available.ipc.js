@@ -1,4 +1,6 @@
 // src/main/ipc/utils/sync/get/available.ipc.js
+// (Already works - no changes needed)
+//@ts-check
 const syncService = require("../../../../../services/SyncService");
 const onlineClient = require("../../../../../utils/onlineClient");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
@@ -6,7 +8,6 @@ const { syncMode, serverUrl } = require("../../../../../utils/system");
 module.exports = async (params) => {
   const mode = await syncMode();
 
-  // ✅ ONLINE mode – check server reachability
   if (mode === "online") {
     try {
       const url = await serverUrl();
@@ -40,7 +41,6 @@ module.exports = async (params) => {
     }
   }
 
-  // ✅ OFFLINE mode – always available locally
   return {
     status: true,
     message: "Sync available (offline mode)",

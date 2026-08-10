@@ -1,4 +1,6 @@
 // src/main/ipc/utils/sync/get/task_status.ipc.js
+// (This file already works with the new backend - no changes needed)
+//@ts-check
 const onlineClient = require("../../../../../utils/onlineClient");
 const { transformSingle } = require("../../../../../utils/responseTransformer");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
@@ -38,7 +40,6 @@ module.exports = async (params) => {
     return transformSingle(serverResult);
   }
 
-  // Offline mode
   return {
     status: false,
     message: "Task status only available in online mode",

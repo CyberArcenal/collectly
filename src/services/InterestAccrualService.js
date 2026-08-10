@@ -26,131 +26,109 @@ class InterestAccrualService {
    * @param {import("typeorm").QueryRunner|null} queryRunner - para sa transaction
    * @returns {Promise<Object>} updated debt
    */
-  async applyAccrual(debt, asOfDate = new Date(), queryRunner = null) {
-    const { updateDb } = require("../utils/dbUtils/dbActions");
+// src/services/InterestAccrualService.js (partial)
 
-    // Skip kung hindi active/overdue
-    if (debt.status !== "active" && debt.status !== "overdue") {
-      logger.debug(
-        `[InterestAccrual] Skip debt #${debt.id}, status: ${debt.status}`,
-      );
-      return debt;
-    }
+async applyAccrual(debt, asOfDate = new Date(), queryRunner = null) {
+  const { updateDb } = require("../utils/dbUtils/dbActions");
 
-    // Skip kung walang interest rate o zero
-    if (!debt.interestRate || debt.interestRate <= 0) {
-      logger.debug(
-        `[InterestAccrual] Skip debt #${debt.id}, interestRate = ${debt.interestRate}`,
-      );
-      return debt;
-    }
-
-    // Skip kung fully paid na
-    if (debt.remainingAmount <= 0.01) {
-      logger.debug(
-        `[InterestAccrual] Skip debt #${debt.id}, remaining = ${debt.remainingAmount}`,
-      );
-      return debt;
-    }
-
-    // Kunin ang huling accrual date (kung null, gamitin ang createdAt)
-    let lastDate = debt.lastInterestAccrualDate
-      ? new Date(debt.lastInterestAccrualDate)
-      : new Date(debt.createdAt);
-    if (isNaN(lastDate.getTime())) {
-      lastDate = new Date(debt.createdAt);
-    }
-    lastDate.setHours(0, 0, 0, 0);
-
-    const targetDate = new Date(asOfDate);
-    targetDate.setHours(0, 0, 0, 0);
-
-    // Kung ang target date ay hindi lalampas sa last accrual date, walang gagawin
-    if (targetDate <= lastDate) {
-      logger.debug(
-        `[InterestAccrual] Debt #${debt.id} already accrued up to ${lastDate.toISOString()}`,
-      );
-      return debt;
-    }
-
-    // Bilang ng araw mula lastDate hanggang targetDate
-    const daysDiff = Math.floor(
-      (targetDate - lastDate) / (1000 * 60 * 60 * 24),
-    );
-    if (daysDiff === 0) return debt;
-
-    // 🔹 Determine amortization type for interest calculation
-    const amortType = await amortizationType(); // 'flat' or 'declining'
-
-    // Compute daily interest rate (simple interest)
-    const period = debt.interestCalculationPeriod || "per_annum";
-
-    let dailyRate;
-    if (period === "per_month") {
-      const monthlyRate = debt.interestRate / 100;
-      dailyRate = monthlyRate / 30; // assumption: 30 days per month
-    } else {
-      const annualRate = debt.interestRate / 100;
-      dailyRate = annualRate / 365;
-    }
-
-    // 🔹 Choose principal based on amortization type
-    let principal;
-    if (amortType === "flat") {
-      principal = debt.totalAmount; // fixed original amount
-    } else {
-      principal = debt.remainingAmount; // diminishing balance
-    }
-
-    const interestAmount = principal * dailyRate * daysDiff;
-
-    if (interestAmount <= 0.01) {
-      logger.debug(
-        `[InterestAccrual] Negligible interest for debt #${debt.id}: ${interestAmount}`,
-      );
-      return debt;
-    }
-
-    const oldRemaining = debt.remainingAmount;
-    const newRemaining = parseFloat((debt.remainingAmount + interestAmount).toFixed(2));
-
-    // I-update ang debt
-    debt.remainingAmount = newRemaining;
-    debt.lastInterestAccrualDate = targetDate;
-    debt.updatedAt = new Date();
-
-    // I-save gamit ang updateDb (ipasa ang queryRunner kung mayroon)
-    const debtRepo = queryRunner
-      ? queryRunner.manager.getRepository(Debt)
-      : this.debtRepo;
-
-    await updateDb(debtRepo, debt, { queryRunner, skipSignal: true });
-
-    logger.info(
-      `[InterestAccrual] Debt #${debt.id}: +₱${interestAmount.toFixed(2)} interest (${amortType}) for ${daysDiff} day(s). New remaining: ₱${debt.remainingAmount}`,
-    );
-
-    // Audit log
-    await auditLogger.logUpdate(
-      "Debt",
-      debt.id,
-      {
-        oldRemaining,
-        interestAccrued: interestAmount,
-        days: daysDiff,
-        lastAccrualDate: lastDate,
-        accrualUpTo: targetDate,
-        amortizationType: amortType,
-      },
-      {
-        newRemaining: debt.remainingAmount,
-        newLastAccrualDate: targetDate,
-      },
-      "system",
-    );
-
+  // Skip conditions
+  if (debt.status !== "active" && debt.status !== "overdue") {
+    logger.debug(`[InterestAccrual] Skip debt #${debt.id}, status: ${debt.status}`);
     return debt;
   }
+
+  if (!debt.interestRate || debt.interestRate <= 0) {
+    logger.debug(`[InterestAccrual] Skip debt #${debt.id}, interestRate = ${debt.interestRate}`);
+    return debt;
+  }
+
+  if (debt.remainingAmount <= 0.01) {
+    logger.debug(`[InterestAccrual] Skip debt #${debt.id}, remaining = ${debt.remainingAmount}`);
+    return debt;
+  }
+
+  
+
+  // Normalize dates
+  let lastDate = debt.lastInterestAccrualDate
+    ? new Date(debt.lastInterestAccrualDate)
+    : new Date(debt.createdAt);
+  if (isNaN(lastDate.getTime())) {
+    lastDate = new Date(debt.createdAt);
+  }
+  lastDate.setHours(0, 0, 0, 0);
+
+  const targetDate = new Date(asOfDate);
+  targetDate.setHours(0, 0, 0, 0);
+
+  // ✅ FIX: Use <= 0 instead of === 0 to prevent negative days
+  const daysDiff = Math.floor(
+    (targetDate - lastDate) / (1000 * 60 * 60 * 24)
+  );
+
+  if (daysDiff <= 0) {
+    logger.debug(
+      `[InterestAccrual] No days elapsed for debt #${debt.id} (${daysDiff} days), skipping`
+    );
+    return debt;
+  }
+
+  // Calculate interest
+  const amortType = await amortizationType();
+  const period = debt.interestCalculationPeriod || "per_annum";
+  let dailyRate;
+  if (period === "per_month") {
+    dailyRate = (debt.interestRate / 100) / 30;
+  } else {
+    dailyRate = (debt.interestRate / 100) / 365;
+  }
+
+  let principal;
+  if (amortType === "flat") {
+    principal = debt.totalAmount;
+  } else {
+    principal = debt.remainingAmount;
+  }
+
+  const interestAmount = principal * dailyRate * daysDiff;
+
+  if (interestAmount <= 0.01) {
+    logger.debug(
+      `[InterestAccrual] Negligible interest for debt #${debt.id}: ${interestAmount}`
+    );
+    return debt;
+  }
+
+  // Apply interest
+  const oldRemaining = debt.remainingAmount;
+  
+  debt.totalInterestAccrued = (debt.totalInterestAccrued || 0) + interestAmount;
+  debt.remainingAmount = parseFloat((debt.remainingAmount + interestAmount).toFixed(2));
+  debt.lastInterestAccrualDate = targetDate;
+  debt.updatedAt = new Date();
+
+  // Save
+  const debtRepo = queryRunner
+    ? queryRunner.manager.getRepository(Debt)
+    : this.debtRepo;
+
+  await updateDb(debtRepo, debt, { queryRunner, skipSignal: true });
+
+  logger.info(
+    `[InterestAccrual] Debt #${debt.id}: +₱${interestAmount.toFixed(2)} interest ` +
+    `for ${daysDiff} day(s). New remaining: ₱${debt.remainingAmount}`
+  );
+
+  await auditLogger.logUpdate(
+    "Debt",
+    debt.id,
+    { oldRemaining, interestAccrued: interestAmount, days: daysDiff },
+    { newRemaining: debt.remainingAmount, newLastAccrualDate: targetDate },
+    "system"
+  );
+
+  return debt;
+}
 
   /**
    * Hanapin ang lahat ng utang na kailangang i-accrue (active/overdue, may interest, positive balance)
@@ -223,7 +201,11 @@ class InterestAccrualService {
    * @param {string} overrideAmortType - 'flat' o 'declining' (kung hindi ibibigay, gagamitin ang system setting)
    * @returns {Promise<Object>}
    */
-  async accrueWithOverride(debtId, asOfDate = new Date(), overrideAmortType = null) {
+  async accrueWithOverride(
+    debtId,
+    asOfDate = new Date(),
+    overrideAmortType = null,
+  ) {
     const debt = await this.debtRepo.findOne({ where: { id: debtId } });
     if (!debt) throw new Error(`Debt #${debtId} not found`);
 

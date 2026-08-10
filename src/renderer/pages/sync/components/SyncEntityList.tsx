@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 import {
-  RefreshCw,
   ChevronDown,
   ChevronRight,
   Database,
@@ -13,12 +12,9 @@ import {
   FileSignature,
   FileCheck,
   DollarSign,
-  AlertCircle,
-  Eye,
 } from "lucide-react";
 import LoadingSpinner from "../../../components/Shared/LoadingSpinner";
 
-// ✅ Add pendingCount to the interface
 interface EntityStatusItem {
   name: string;
   status: string;
@@ -26,14 +22,16 @@ interface EntityStatusItem {
   totalSynced: number;
   lastSyncCount: number;
   hasPending: boolean;
-  pendingCount: number; // new
+  hasError: boolean;
+  errorMessage: string | null;
+  recordCount: number;
+  localRecordCount: number;
+  hasLocalChanges: boolean;
 }
 
 interface SyncEntityListProps {
   entities: EntityStatusItem[];
   loading: boolean;
-  onSyncEntity: (name: string) => void;
-  onViewPending: (name: string) => void; // new
 }
 
 const getStatusBadge = (status: string): { label: string; color: string } => {
@@ -71,13 +69,11 @@ const formatDate = (date: string | null): string => {
   }
 };
 
-const SyncEntityList: React.FC<SyncEntityListProps> = ({
-  entities,
-  loading,
-  onSyncEntity,
-  onViewPending,
-}) => {
+const SyncEntityList: React.FC<SyncEntityListProps> = ({ entities, loading }) => {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+
+  console.log("SyncEntityList rendered with entities:", entities);
 
   const toggleExpand = (name: string) => {
     setExpanded((prev) => ({ ...prev, [name]: !prev[name] }));
@@ -91,7 +87,7 @@ const SyncEntityList: React.FC<SyncEntityListProps> = ({
     );
   }
 
-  if (entities.length === 0) {
+  if (!entities || entities.length === 0) {
     return (
       <div className="text-center py-8 text-[var(--text-tertiary)]">
         <Database className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -105,7 +101,10 @@ const SyncEntityList: React.FC<SyncEntityListProps> = ({
       {entities.map((entity) => {
         const status = getStatusBadge(entity.status);
         const isExpanded = expanded[entity.name] || false;
-        const hasPending = entity.pendingCount > 0;
+        const hasPending = entity.hasPending;
+        const hasLocalChanges = entity.hasLocalChanges;
+        const recordCount = entity.recordCount ?? 0;
+        const localRecordCount = entity.localRecordCount ?? 0;
 
         return (
           <div
@@ -123,28 +122,33 @@ const SyncEntityList: React.FC<SyncEntityListProps> = ({
                 <div>
                   <div className="text-sm font-medium text-[var(--text-primary)] flex items-center gap-2">
                     {entity.name}
-                    {/* ✅ Pending count badge */}
                     {hasPending && (
                       <span className="text-xs bg-yellow-500/20 text-yellow-500 px-1.5 py-0.5 rounded-full">
-                        {entity.pendingCount} pending
+                        Pending
+                      </span>
+                    )}
+                    {hasLocalChanges && (
+                      <span className="text-xs bg-blue-500/20 text-blue-500 px-1.5 py-0.5 rounded-full">
+                        {(recordCount - localRecordCount)} new
                       </span>
                     )}
                   </div>
                   <div className="text-xs text-[var(--text-tertiary)]">
-                    {entity.totalSynced.toLocaleString()} records synced
+                    {recordCount.toLocaleString()} records
+                    {localRecordCount > 0 && localRecordCount !== recordCount && (
+                      <span className="ml-1">
+                        (was {localRecordCount.toLocaleString()})
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <span
-                  className={`text-xs font-medium ${
-                    hasPending ? "text-yellow-500" : status.color
-                  }`}
-                >
+                <span className={`text-xs font-medium ${hasPending ? "text-yellow-500" : status.color}`}>
                   {hasPending ? (
                     <span className="flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse" />
-                      Pending
+                      {entity.status === "syncing" ? "Syncing" : "Failed"}
                     </span>
                   ) : (
                     status.label
@@ -155,16 +159,6 @@ const SyncEntityList: React.FC<SyncEntityListProps> = ({
                     {formatDate(entity.lastSyncedAt)}
                   </span>
                 )}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSyncEntity(entity.name);
-                  }}
-                  className="p-1 rounded hover:bg-[var(--card-hover-bg)] transition-colors text-[var(--text-secondary)] hover:text-[var(--primary-color)]"
-                  title={`Sync ${entity.name}`}
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                </button>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -190,37 +184,28 @@ const SyncEntityList: React.FC<SyncEntityListProps> = ({
                     </p>
                   </div>
                   <div>
-                    <span className="text-[var(--text-tertiary)]">
-                      Last Synced
-                    </span>
+                    <span className="text-[var(--text-tertiary)]">Last Synced</span>
                     <p className="font-medium text-[var(--text-primary)]">
                       {formatDate(entity.lastSyncedAt)}
                     </p>
                   </div>
                   <div>
-                    <span className="text-[var(--text-tertiary)]">
-                      Total Synced
-                    </span>
+                    <span className="text-[var(--text-tertiary)]">Records</span>
                     <p className="font-medium text-[var(--text-primary)]">
-                      {entity.totalSynced.toLocaleString()}
+                      {recordCount.toLocaleString()}
                     </p>
                   </div>
                   <div>
-                    <span className="text-[var(--text-tertiary)]">Pending</span>
-                    <p className="font-medium text-yellow-500">
-                      {entity.pendingCount}
+                    <span className="text-[var(--text-tertiary)]">Total Synced</span>
+                    <p className="font-medium text-[var(--text-primary)]">
+                      {entity.totalSynced?.toLocaleString() ?? '0'}
                     </p>
                   </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onViewPending(entity.name);
-                    }}
-                    className="p-1 rounded hover:bg-[var(--card-hover-bg)] transition-colors text-[var(--text-secondary)] hover:text-[var(--primary-color)]"
-                    title="View pending records"
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                  </button>
+                  {entity.hasError && entity.errorMessage && (
+                    <div className="col-span-full mt-1 p-2 bg-red-500/10 border border-red-500/20 rounded text-red-500 text-xs">
+                      Error: {entity.errorMessage}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

@@ -1,54 +1,63 @@
 // src/renderer/pages/sync/components/SyncSummaryCards.tsx
+
 import React from "react";
-import { Database, Clock, HardDrive, AlertTriangle } from "lucide-react";
-import type { SyncSummary } from "../../../api/utils/sync";
+import { Database, Clock, HardDrive, GitBranch, AlertTriangle } from "lucide-react";
+import type { SyncProgress } from "../../../api/utils/sync";
 
 interface SyncSummaryCardsProps {
-  summary: SyncSummary | null;
+  syncStatus: {
+    totalEntities?: number;
+    syncedEntities?: number;
+    pendingSyncs?: number;
+    totalRecordsSynced?: number;
+    entities?: any[];
+  } | null;
+  pendingChanges: any[];
   isSyncing: boolean;
+  progress: SyncProgress | null;
 }
 
-const SyncSummaryCards: React.FC<SyncSummaryCardsProps> = ({ summary, isSyncing }) => {
-  // ✅ Adaptive helper – supports both camelCase and snake_case
-  const get = (camelKey: string, snakeKey: string, fallback: any = 0) => {
-    return (summary as any)?.[camelKey] ?? (summary as any)?.[snakeKey] ?? fallback;
-  };
-
-  const totalEntities = get("totalEntities", "total_entities");
-  const completed = get("completed", "completed"); // same key
-  const queuePending = get("queuePending", "queue_pending");
-  const failed = get("failed", "failed");
-  const totalSynced = get("totalSynced", "total_synced");
-  const conflictPending = get("conflictPending", "conflict_pending");
+const SyncSummaryCards: React.FC<SyncSummaryCardsProps> = ({
+  syncStatus,
+  pendingChanges,
+  isSyncing,
+  progress,
+}) => {
+  // Compute values from syncStatus
+  const totalEntities = syncStatus?.totalEntities || 0;
+  const syncedEntities = syncStatus?.syncedEntities || 0;
+  const pendingSyncs = syncStatus?.pendingSyncs || 0;
+  const totalRecordsSynced = syncStatus?.totalRecordsSynced || 0;
+  const pendingChangesCount = pendingChanges.length;
 
   const cards = [
     {
       label: "Entities",
       value: totalEntities,
-      sub: `${completed} synced`,
+      sub: `${syncedEntities} synced`,
       icon: Database,
       color: "bg-blue-500/10 text-blue-500",
     },
     {
-      label: "Pending Sync",
-      value: queuePending,
-      sub: `${failed} failed`,
+      label: "Pending Syncs",
+      value: pendingSyncs,
+      sub: isSyncing ? "In progress..." : "Waiting",
       icon: Clock,
       color: "bg-yellow-500/10 text-yellow-500",
     },
     {
       label: "Total Synced",
-      value: totalSynced.toLocaleString(),
-      sub: "records",
+      value: totalRecordsSynced.toLocaleString(),
+      sub: "records synced to server",
       icon: HardDrive,
       color: "bg-green-500/10 text-green-500",
     },
     {
-      label: "Conflicts",
-      value: conflictPending,
-      sub: `${conflictPending} pending`,
-      icon: AlertTriangle,
-      color: "bg-red-500/10 text-red-500",
+      label: "Local Changes",
+      value: pendingChangesCount,
+      sub: `${pendingChangesCount} entities changed`,
+      icon: GitBranch,
+      color: "bg-purple-500/10 text-purple-500",
     },
   ];
 
@@ -75,7 +84,7 @@ const SyncSummaryCards: React.FC<SyncSummaryCardsProps> = ({ summary, isSyncing 
               <card.icon className="w-4 h-4" />
             </div>
           </div>
-          {isSyncing && card.label === "Pending Sync" && (
+          {isSyncing && card.label === "Pending Syncs" && (
             <div className="mt-2 h-1 bg-[var(--card-secondary-bg)] rounded-full overflow-hidden">
               <div className="h-full bg-yellow-500 rounded-full animate-pulse w-full" />
             </div>

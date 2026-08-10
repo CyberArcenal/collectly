@@ -945,6 +945,7 @@ async function runSchedulers() {
       err,
     );
   });
+  
 
   const interestAccrualScheduler = new InterestAccrualScheduler();
   interestAccrualScheduler.start().catch((err) => {

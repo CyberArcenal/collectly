@@ -31,6 +31,7 @@ export interface Debt {
   status: "active" | "paid" | "overdue" | "defaulted";
   interestCalculationPeriod: "per_annum" | "per_month";
   lastInterestAccrualDate?: string | null;
+  totalInterestAccrued?: number;
   interestRate: number | null;
   penaltyRate: number | null;
   createdAt: string;

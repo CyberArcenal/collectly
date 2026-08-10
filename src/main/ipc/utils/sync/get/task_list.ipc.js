@@ -1,4 +1,6 @@
 // src/main/ipc/utils/sync/get/task_list.ipc.js
+// (Already works with new backend - no changes needed)
+//@ts-check
 const onlineClient = require("../../../../../utils/onlineClient");
 const { transformSingle } = require("../../../../../utils/responseTransformer");
 const { syncMode, serverUrl } = require("../../../../../utils/system");
@@ -28,7 +30,6 @@ module.exports = async (params) => {
     return transformSingle(serverResult);
   }
 
-  // Offline mode
   return {
     status: true,
     message: "No tasks in offline mode",

@@ -10,6 +10,7 @@ const {
 const { paginateQueryBuilder } = require("../utils/dbUtils/pagination");
 // @ts-ignore
 const { logger } = require("../utils/logger");
+
 class DebtService {
   constructor() {
     this.debtRepository = null;
@@ -45,9 +46,7 @@ class DebtService {
    * @param {Function} entityClass
    * @returns {import("typeorm").Repository<any>}
    */
-
   _getRepo(qr, entityClass) {
-    // Log the type for debugging
     const qrType =
       qr === null ? "null" : qr === undefined ? "undefined" : typeof qr;
     const hasManager = qr && typeof qr === "object" && !!qr.manager;
@@ -55,11 +54,9 @@ class DebtService {
       `[DebtService._getRepo] qr type: ${qrType}, has manager: ${hasManager}`,
     );
 
-    // Only use the transactional manager if qr is a valid QueryRunner object
     if (hasManager && typeof qr.manager.getRepository === "function") {
       return qr.manager.getRepository(entityClass);
     }
-    // Fallback to global data source
     const { AppDataSource } = require("../main/db/data-source");
     console.log(`[DebtService._getRepo] Using global repository (fallback)`);
     return AppDataSource.getRepository(entityClass);
@@ -141,6 +138,7 @@ class DebtService {
         borrower,
         createdAt: new Date(),
         updatedAt: new Date(),
+        totalInterestAccrued: 0, // initial lifetime interest
       });
 
       // @ts-ignore
@@ -243,7 +241,6 @@ class DebtService {
     const agreementRepo = this._getRepo(qr, LoanAgreement);
 
     try {
-      // 1. Find the debt with borrower info for user-friendly error messages
       const debt = await debtRepo.findOne({
         where: { id },
         relations: ["borrower"],
@@ -257,7 +254,6 @@ class DebtService {
 
       const borrowerName = debt.borrower?.name || "Unknown Borrower";
 
-      // 2. 🔒 Check for active payments (not soft-deleted)
       const paymentCount = await paymentRepo.count({
         where: { debt: { id }, deletedAt: null },
       });
@@ -267,7 +263,6 @@ class DebtService {
         );
       }
 
-      // 3. 🔒 Check for active penalties (not soft-deleted)
       const penaltyCount = await penaltyRepo.count({
         where: { debt: { id }, deletedAt: null },
       });
@@ -277,7 +272,6 @@ class DebtService {
         );
       }
 
-      // 4. 🔒 Check for signed loan agreements (status = 'signed')
       const signedAgreementCount = await agreementRepo.count({
         where: { debt: { id }, status: "signed", deletedAt: null },
       });
@@ -287,7 +281,6 @@ class DebtService {
         );
       }
 
-      // 5. Proceed with soft delete
       const oldData = { ...debt };
       debt.deletedAt = new Date();
       debt.updatedAt = new Date();
@@ -422,7 +415,7 @@ class DebtService {
       qb.andWhere("debt.deletedAt IS NULL");
     }
 
-    // Same subqueries as findAll
+    // Subqueries for stats (payments, penalties)
     qb.addSelect((subQ) => {
       return subQ
         .select("COALESCE(SUM(payment.amount), 0)")
@@ -493,14 +486,15 @@ class DebtService {
       isFullyPaid,
     };
 
-    const accruedInterest = this._computeAccruedInterest(debt);
-    debt.accruedInterest = parseFloat(accruedInterest.toFixed(2));
+    // ✅ Correct: totalOutstanding = remainingAmount (already includes all interest)
+    debt.totalOutstanding = debt.remainingAmount;
+
+    // ✅ Lifetime total interest from database (never resets)
+    debt.totalInterestAccrued = debt.totalInterestAccrued || 0;
 
     await auditLogger.logView("Debt", id, "system");
     return debt;
   }
-
-  // services/Debt.js – inside DebtService class
 
   /**
    * Find all debts with filters, pagination, sorting
@@ -513,7 +507,6 @@ class DebtService {
       .createQueryBuilder("debt")
       .leftJoinAndSelect("debt.borrower", "borrower");
 
-    // Exclude soft-deleted unless requested
     if (!options.includeDeleted) {
       qb.andWhere("debt.deletedAt IS NULL");
     }
@@ -553,7 +546,7 @@ class DebtService {
       });
     }
 
-    // ✅ Subqueries for stats
+    // Subqueries for stats
     qb.addSelect((subQ) => {
       return subQ
         .select("COALESCE(SUM(payment.amount), 0)")
@@ -594,14 +587,13 @@ class DebtService {
         .andWhere("penalty.deletedAt IS NULL");
     }, "penaltyCount");
 
-    // ✅ Sorting with field mapping
+    // Sorting
     let sortBy = options.sortBy || "dueDate";
     const sortOrder = options.sortOrder === "ASC" ? "ASC" : "DESC";
 
-    // 🔧 Map frontend sort fields to actual column/relation paths
     const sortFieldMap = {
-      borrowerName: "borrower.name", // ✅ sort by borrower name
-      borrower: "borrower.name", // ✅ fallback
+      borrowerName: "borrower.name",
+      borrower: "borrower.name",
       createdAt: "debt.createdAt",
       updatedAt: "debt.updatedAt",
       dueDate: "debt.dueDate",
@@ -613,10 +605,9 @@ class DebtService {
       id: "debt.id",
     };
 
-    // Use mapped field or default to debt.{sortBy}
     let orderByField = sortFieldMap[sortBy] || `debt.${sortBy}`;
 
-    // ✅ SAFETY: Prevent SQL injection by validating field is allowed
+    // Whitelist allowed fields
     const allowedFields = [
       "debt.id",
       "debt.name",
@@ -632,7 +623,6 @@ class DebtService {
       "borrower.name",
     ];
 
-    // If the mapped field is not in allowed list, fallback to dueDate
     if (!allowedFields.includes(orderByField)) {
       console.warn(
         `[DebtService] Invalid sort field: ${orderByField}, falling back to dueDate`,
@@ -642,13 +632,12 @@ class DebtService {
 
     qb.orderBy(orderByField, sortOrder);
 
-    // Pagination
     const result = await paginateQueryBuilder(qb, {
       page: options.page,
       limit: options.limit,
     });
 
-    // Attach stats object to each debt
+    // Attach stats and totalInterestAccrued to each debt
     const now = new Date();
     now.setHours(0, 0, 0, 0);
     result.data = result.data.map((debt) => {
@@ -674,8 +663,11 @@ class DebtService {
         isFullyPaid,
       };
 
-      const accruedInterest = this._computeAccruedInterest(debt);
-      debt.accruedInterest = parseFloat(accruedInterest.toFixed(2));
+      // ✅ Correct: totalOutstanding = remainingAmount (already includes all interest)
+      debt.totalOutstanding = debt.remainingAmount;
+
+      // ✅ Lifetime total interest from database (never resets)
+      debt.totalInterestAccrued = debt.totalInterestAccrued || 0;
 
       return debt;
     });
@@ -692,7 +684,6 @@ class DebtService {
     existing.totalAmount = newTotalAmount;
     // @ts-ignore
     existing.remainingAmount = existing.totalAmount - existing.paidAmount;
-    // I-save na may skipSignal para hindi mag-trigger ng forgiveness
     const { updateDb } = require("../utils/dbUtils/dbActions");
     // @ts-ignore
     const repo = this._getRepo(qr, require("../entities/Debt"));
@@ -704,7 +695,6 @@ class DebtService {
   }
 
   // services/DebtService.js – inside applyForgiveness
-
   async applyForgiveness(
     // @ts-ignore
     id,
@@ -736,8 +726,8 @@ class DebtService {
     // @ts-ignore
     await updateDb(repo, debt, { queryRunner: qr, skipSignal: true });
 
-    // ✅ Reload the debt with borrower relation after update
-    const refreshedDebt = await this.findById(id); // includes borrower via relations
+    // Reload the debt with borrower relation after update
+    const refreshedDebt = await this.findById(id);
 
     const {
       DebtStateTransitionService,
@@ -765,8 +755,6 @@ class DebtService {
 
   /**
    * Get debt statistics
-   * Overdue count should only include debts with remainingAmount > 0
-   * Active count should only include debts with remainingAmount > 0
    */
   async getStatistics() {
     const { debt: debtRepo } = await this.getRepositories();
@@ -774,42 +762,30 @@ class DebtService {
       .createQueryBuilder("debt")
       .where("debt.deletedAt IS NULL");
 
-    // Total debts (all non-deleted)
     const totalDebts = await qb.clone().getCount();
-
-    // Active debts: status = 'active' AND remainingAmount > 0.01
     const totalActive = await qb
       .clone()
       .andWhere("debt.status = 'active'")
       .andWhere("debt.remainingAmount > 0.01")
       .getCount();
-
-    // Paid debts: status = 'paid' (regardless of remaining, but usually zero)
     const totalPaid = await qb
       .clone()
       .andWhere("debt.status = 'paid'")
       .getCount();
-
-    // Overdue debts: status = 'overdue' AND remainingAmount > 0.01
     const totalOverdue = await qb
       .clone()
       .andWhere("debt.status = 'overdue'")
       .andWhere("debt.remainingAmount > 0.01")
       .getCount();
-
-    // Defaulted debts: status = 'defaulted'
     const totalDefaulted = await qb
       .clone()
       .andWhere("debt.status = 'defaulted'")
       .getCount();
 
-    // Sum of totalAmount
     const totalAmountSum = await qb
       .clone()
       .select("SUM(debt.totalAmount)", "sum")
       .getRawOne();
-
-    // Sum of remainingAmount (only positive balances)
     const totalRemainingSum = await qb
       .clone()
       .andWhere("debt.remainingAmount > 0.01")
@@ -829,9 +805,6 @@ class DebtService {
 
   /**
    * Export debts to CSV or JSON
-   * @param {string} format
-   * @param {Object} filters
-   * @param {string} user
    */
   async exportDebts(format = "json", filters = {}, user = "system") {
     const results = await this.findAll(filters);
@@ -890,9 +863,6 @@ class DebtService {
 
   /**
    * Bulk create debts
-   * @param {Array<Object>} debtsArray
-   * @param {string} user
-   * @param {import("typeorm").QueryRunner | null} qr
    */
   async bulkCreate(debtsArray, user = "system", qr = null) {
     const results = { created: [], errors: [] };
@@ -911,9 +881,6 @@ class DebtService {
 
   /**
    * Bulk update debts
-   * @param {Array<{ id: number, updates: Object }>} updatesArray
-   * @param {string} user
-   * @param {import("typeorm").QueryRunner | null} qr
    */
   async bulkUpdate(updatesArray, user = "system", qr = null) {
     const results = { updated: [], errors: [] };
@@ -932,9 +899,6 @@ class DebtService {
 
   /**
    * Import debts from CSV file
-   * @param {string} filePath
-   * @param {string} user
-   * @param {import("typeorm").QueryRunner | null} qr
    */
   async importFromCSV(filePath, user = "system", qr = null) {
     const fs = require("fs").promises;
@@ -986,16 +950,11 @@ class DebtService {
     return results;
   }
 
-  // services/Debt.js
-
   /**
    * Get aging summary for accounts receivable as of a given date.
-   * @param {string} asOfDate - YYYY-MM-DD
-   * @returns {Promise<{ asOfDate: string; totalOutstanding: number; buckets: Array<{ range: string; minDays: number; maxDays: number|null; totalAmount: number; count: number; percentage: number }> }>}
    */
   async getAgingSummary(asOfDate) {
     const { debt: debtRepo } = await this.getRepositories();
-    // Fetch all active debts (status = 'active', not deleted)
     // @ts-ignore
     const qb = debtRepo
       .createQueryBuilder("debt")
@@ -1006,7 +965,7 @@ class DebtService {
 
     const asOf = new Date(asOfDate);
     asOf.setHours(0, 0, 0, 0);
-    const today = asOf; // use given date as reference
+    const today = asOf;
 
     const buckets = [
       {
@@ -1016,7 +975,6 @@ class DebtService {
         totalAmount: 0,
         count: 0,
         percentage: 0,
-        debts: [],
       },
       {
         range: "31-60 days",
@@ -1025,7 +983,6 @@ class DebtService {
         totalAmount: 0,
         count: 0,
         percentage: 0,
-        debts: [],
       },
       {
         range: "61-90 days",
@@ -1034,7 +991,6 @@ class DebtService {
         totalAmount: 0,
         count: 0,
         percentage: 0,
-        debts: [],
       },
       {
         range: "90+ days",
@@ -1043,7 +999,6 @@ class DebtService {
         totalAmount: 0,
         count: 0,
         percentage: 0,
-        debts: [],
       },
     ];
 
@@ -1065,7 +1020,6 @@ class DebtService {
       // @ts-ignore
       buckets[bucketIndex].totalAmount += debt.remainingAmount;
       buckets[bucketIndex].count += 1;
-      // Do not store full debts here to keep lightweight; for drill-down we have separate endpoint.
     }
 
     const totalOutstanding = buckets.reduce((sum, b) => sum + b.totalAmount, 0);
@@ -1081,11 +1035,6 @@ class DebtService {
 
   /**
    * Get paginated debts that fall into a specific aging bucket as of a given date.
-   * @param {string} bucketRange - e.g., "0-30 days", "31-60 days", "61-90 days", "90+ days"
-   * @param {string} asOfDate - YYYY-MM-DD
-   * @param {number} page - page number
-   * @param {number} limit - items per page
-   * @returns {Promise<{ data: Debt[], pagination: {...} }>}
    */
   async getDebtsInBucket(bucketRange, asOfDate, page = 1, limit = 10) {
     const { debt: debtRepo } = await this.getRepositories();
@@ -1099,7 +1048,6 @@ class DebtService {
     const asOf = new Date(asOfDate);
     asOf.setHours(0, 0, 0, 0);
 
-    // Determine min and max days for the bucket
     let minDays = 0,
       maxDays = null;
     if (bucketRange === "0-30 days") {
@@ -1117,12 +1065,6 @@ class DebtService {
     } else {
       throw new Error(`Invalid bucket range: ${bucketRange}`);
     }
-
-    // Because we cannot directly filter by computed days in SQL easily without a raw query, we'll fetch all active debts and filter client-side.
-    // For large datasets, this is inefficient. Better to use a raw SQL expression:
-    // WHERE julianday(?) - julianday(dueDate) BETWEEN ? AND ?
-    // But since we already have paginateQueryBuilder, we'll do a subquery or raw SQL.
-    // Let's use raw SQL for efficiency.
 
     // @ts-ignore
     const queryRunner = debtRepo.manager.connection.createQueryRunner();
@@ -1169,7 +1111,6 @@ class DebtService {
     const { debt: debtRepo } = await this.getRepositories();
     const { updateDb } = require("../utils/dbUtils/dbActions");
     const now = new Date();
-    // Kunin ang lahat ng active debts na dueDate < ngayon
     const overdueDebts = await debtRepo
       .createQueryBuilder("debt")
       .where("debt.status = :status", { status: "active" })
@@ -1179,10 +1120,8 @@ class DebtService {
 
     let count = 0;
     for (const debt of overdueDebts) {
-      // I‑update ang status nang hindi nagti‑trigger ng subscriber (para iwas recursion)
       debt.status = "overdue";
       debt.updatedAt = new Date();
-
       await updateDb(debtRepo, debt, { skipSignal: false });
       count++;
     }
@@ -1191,12 +1130,7 @@ class DebtService {
 
   /**
    * Get collection schedule grouped by period for active debts
-   * @param {string} periodType - 'weekly' | 'monthly' | 'semi-annual' | 'yearly'
-   * @param {string} asOfDate - YYYY-MM-DD (reference date)
-   * @param {import("typeorm").QueryRunner | null} qr
-   * @returns {Promise<Object>} grouped by debtor with period amounts
    */
-
   async getCollectionSchedule(
     periodType = "monthly",
     asOfDate = null,
@@ -1283,13 +1217,6 @@ class DebtService {
         startDate.getDate() + (currentPeriod + 1) * periodInfo.days,
       );
 
-      // 🔍 DEBUG LOGS
-      if (debt.id === 16) {
-        console.log(
-          `[getCollectionSchedule] Debt #16: periodStart=${periodStart.toISOString()}, periodEnd=${periodEnd.toISOString()}, today=${today.toISOString()}`,
-        );
-      }
-
       const periodStartStr = periodStart.toISOString().slice(0, 10);
       const periodRef = `[${periodType}:${periodStartStr}]`;
 
@@ -1306,17 +1233,6 @@ class DebtService {
           },
         )
         .getMany();
-
-      console.log(
-        `[getCollectionSchedule] Debt #${debt.id}: found ${payments.length} payments in period`,
-      );
-      if (debt.id === 16) {
-        payments.forEach((p) =>
-          console.log(
-            `  Payment #${p.id}: date=${p.paymentDate.toISOString()}, amount=${p.amount}`,
-          ),
-        );
-      }
 
       const totalPaidInPeriod = payments.reduce((sum, p) => sum + p.amount, 0);
       const totalPaidRounded = Math.round(totalPaidInPeriod * 100) / 100;
@@ -1376,14 +1292,7 @@ class DebtService {
 
   /**
    * Mark all debts of a borrower as paid for the given period
-   * @param {number} borrowerId
-   * @param {string} periodType
-   * @param {string} paymentDate - YYYY-MM-DD
-   * @param {number} methodId
-   * @param {string} user
-   * @param {import("typeorm").QueryRunner | null} qr
    */
-
   async markPeriodPaid(
     borrowerId,
     periodType,
@@ -1462,7 +1371,6 @@ class DebtService {
         startDate.getDate() + (currentPeriod + 1) * periodInfo.days,
       );
 
-      // ✅ Use SUM aggregation for accuracy
       const paymentResult = await paymentRepo
         .createQueryBuilder("payment")
         .select("COALESCE(SUM(payment.amount), 0)", "totalPaid")
@@ -1475,15 +1383,11 @@ class DebtService {
       const totalPaidRounded =
         Math.round(parseFloat(paymentResult.totalPaid || 0) * 100) / 100;
 
-      // ✅ Skip if already paid
       if (totalPaidRounded >= periodicPayment - PAID_TOLERANCE) {
-        console.log(
-          `[markPeriodPaid] Debt #${debt.id} already paid for ${periodInfo.label} period`,
-        );
         continue;
       }
 
-      const periodStartStr = periodStart.toISOString().slice(0, 10); // YYYY-MM-DD
+      const periodStartStr = periodStart.toISOString().slice(0, 10);
       const periodRef = `[${periodType}:${periodStartStr}]`;
 
       const remainingToPay =
@@ -1536,8 +1440,6 @@ class DebtService {
 
   /**
    * Fix floating-point precision issues in debt amounts
-   * @param {number} debtId - Optional, if not provided, fix all debts
-   * @param {import("typeorm").QueryRunner | null} qr
    */
   async fixFloatingPointPrecision(debtId = null, qr = null) {
     const { updateDb } = require("../utils/dbUtils/dbActions");
@@ -1573,13 +1475,8 @@ class DebtService {
     return { fixed };
   }
 
-  // services/Debt.js – inside DebtService class
-
   /**
    * Check if a borrower has active debts (remainingAmount > 0.01 and not deleted)
-   * @param {number} borrowerId
-   * @param {import("typeorm").QueryRunner | null} qr
-   * @returns {Promise<boolean>}
    */
   async hasActiveDebt(borrowerId, qr = null) {
     const count = await this.getActiveDebtCount(borrowerId, qr);
@@ -1588,9 +1485,6 @@ class DebtService {
 
   /**
    * Get count of active debts for a borrower
-   * @param {number} borrowerId
-   * @param {import("typeorm").QueryRunner | null} qr
-   * @returns {Promise<number>}
    */
   async getActiveDebtCount(borrowerId, qr = null) {
     const Debt = require("../entities/Debt");
@@ -1606,18 +1500,8 @@ class DebtService {
     return count;
   }
 
-  // services/Debt.js – inside DebtService class
-
   /**
    * Get overdue debts (true overdue: status='overdue', remainingAmount > 0, dueDate < today)
-   * @param {Object} options - Pagination and filter options
-   * @param {number} options.page - Page number
-   * @param {number} options.limit - Items per page
-   * @param {string} options.search - Search term
-   * @param {string} options.sortBy - Sort field
-   * @param {string} options.sortOrder - 'ASC' or 'DESC'
-   * @param {number} options.minDaysOverdue - Minimum days overdue (optional)
-   * @returns {Promise<{ data: Debt[], pagination: {...} }>}
    */
   async getOverdueDebts(options = {}) {
     const { debt: debtRepo } = await this.getRepositories();
@@ -1632,7 +1516,6 @@ class DebtService {
       .andWhere("debt.remainingAmount > 0.01")
       .andWhere("debt.dueDate < :today", { today });
 
-    // Min days overdue filter (optional)
     if (options.minDaysOverdue) {
       const days = parseInt(options.minDaysOverdue);
       const cutoff = new Date(today);
@@ -1640,7 +1523,6 @@ class DebtService {
       qb.andWhere("debt.dueDate <= :cutoff", { cutoff });
     }
 
-    // Search
     if (options.search) {
       qb.andWhere(
         "(debt.name LIKE :search OR borrower.name LIKE :search OR borrower.contact LIKE :search OR borrower.email LIKE :search)",
@@ -1648,7 +1530,7 @@ class DebtService {
       );
     }
 
-    // Subqueries for stats (same as findAll)
+    // Subqueries for stats
     qb.addSelect((subQ) => {
       return subQ
         .select("COALESCE(SUM(payment.amount), 0)")
@@ -1706,14 +1588,7 @@ class DebtService {
       id: "debt.id",
     };
 
-    // Pagination
-    const result = await paginateQueryBuilder(qb, {
-      page: options.page,
-      limit: options.limit,
-    });
     let orderByField = sortFieldMap[sortBy] || `debt.${sortBy}`;
-
-    // ✅ SAFETY: Whitelist allowed fields
     const allowedFields = [
       "debt.id",
       "debt.name",
@@ -1736,7 +1611,12 @@ class DebtService {
 
     qb.orderBy(orderByField, sortOrder);
 
-    // Attach stats object to each debt (same as findAll)
+    const result = await paginateQueryBuilder(qb, {
+      page: options.page,
+      limit: options.limit,
+    });
+
+    // Attach stats (no accruedInterest computation)
     const now = new Date();
     now.setHours(0, 0, 0, 0);
     result.data = result.data.map((debt) => {
@@ -1762,59 +1642,15 @@ class DebtService {
         isFullyPaid,
       };
 
-      const accruedInterest = this._computeAccruedInterest(debt);
-      debt.accruedInterest = parseFloat(accruedInterest.toFixed(2));
+      // ✅ Correct: no interest computation – we only use totalInterestAccrued from DB
+      debt.totalInterestAccrued = debt.totalInterestAccrued || 0;
+      debt.totalOutstanding = debt.remainingAmount;
 
       return debt;
     });
 
     await auditLogger.logView("Debt", null, "system");
     return result;
-  }
-
-  /**
-   * Compute accrued interest for a debt as of today.
-   * @param {Object} debt - Debt object with necessary fields
-   * @returns {number} Accrued interest amount (rounded to 2 decimals)
-   */
-  _computeAccruedInterest(debt) {
-    // Log para sa debugging
-    console.log("[DebtService] computeAccruedInterest for debt #" + debt.id, {
-      rate: debt.interestRate,
-      remaining: debt.remainingAmount,
-      period: debt.interestCalculationPeriod,
-      lastDate: debt.lastInterestAccrualDate,
-      createdAt: debt.createdAt,
-    });
-
-    // Kung walang interest rate o zero, return 0
-    if (!debt.interestRate || debt.interestRate <= 0) return 0;
-    // Kung fully paid na, walang interes
-    if (debt.remainingAmount <= 0.01) return 0;
-
-    // ✅ Gamitin ang UTC para sa consistency
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
-
-    let lastDate = debt.lastInterestAccrualDate
-      ? new Date(debt.lastInterestAccrualDate)
-      : new Date(debt.createdAt);
-    lastDate.setUTCHours(0, 0, 0, 0);
-
-    const diffDays = Math.floor(
-      (today.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24),
-    );
-    console.log("[DebtService] diffDays =", diffDays);
-
-    if (diffDays <= 0) return 0;
-
-    const rate = debt.interestRate / 100;
-    if (debt.interestCalculationPeriod === "per_annum") {
-      return debt.remainingAmount * (rate / 365) * diffDays;
-    } else if (debt.interestCalculationPeriod === "per_month") {
-      return debt.remainingAmount * (rate / 30) * diffDays;
-    }
-    return 0;
   }
 }
 
