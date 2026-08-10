@@ -9,7 +9,7 @@ interface ControlsStatusBadgeProps {
 const ControlsStatusBadge: React.FC<ControlsStatusBadgeProps> = ({ status, label }) => {
   return (
     <span
-      className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+      className={`px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${
         status
           ? "bg-green-500/20 text-green-500"
           : "bg-red-500/20 text-red-500"

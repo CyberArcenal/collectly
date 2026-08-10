@@ -43,7 +43,8 @@ const ControlsSection: React.FC<ControlsSectionProps> = ({
       </div>
       {expanded && (
         <div className="p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          {/* ✅ Improved grid: auto-rows-fr para pantay ang taas ng cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 auto-rows-fr gap-4">
             {children}
           </div>
         </div>
