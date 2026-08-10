@@ -61,7 +61,7 @@ interface SyncContextValue {
   checkAvailability: () => Promise<{ available: boolean; message?: string }>;
   refresh: () => Promise<void>;
   getPendingChanges: () => Promise<PendingChange[]>;
-  resetSyncState: () => void; // NEW: manual reset
+  resetSyncState: () => void;
 }
 
 // ============================================================
@@ -92,15 +92,14 @@ export const SyncProvider: React.FC<SyncProviderProps> = ({ children }) => {
   const [currentTask, setCurrentTask] = useState<TaskProgress | null>(null);
   const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
   const [progress, setProgress] = useState<SyncProgress | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const progressUnsubscribe = useRef<(() => void) | null>(null);
   const isMounted = useRef(true);
   const refreshInterval = useRef<NodeJS.Timeout | null>(null);
-  const stuckTimer = useRef<NodeJS.Timeout | null>(null);
 
   // ─── Entity List ───
   const entityList = useMemo(() => {
@@ -119,17 +118,30 @@ export const SyncProvider: React.FC<SyncProviderProps> = ({ children }) => {
         name: entity.entity,
         status: entity.status,
         lastSyncedAt: entity.lastSyncedAt,
-        totalSynced: entity.totalSynced,
-        lastSyncCount: entity.lastSyncCount,
+        totalSynced: entity.totalSynced ?? 0,
+        lastSyncCount: entity.lastSyncCount ?? 0,
         hasPending: entity.status === "syncing" || entity.status === "failed",
         hasError: entity.hasError || false,
         errorMessage: entity.errorMessage || null,
-        recordCount: (entity as any).recordCount || 0,
+        recordCount: (entity as any).recordCount ?? 0,
         localRecordCount: snapshot?.recordCount || 0,
         hasLocalChanges,
       };
     });
   }, [syncStatus]);
+
+  // ─── Derive isSyncing from actual state ───
+  useEffect(() => {
+    const syncing =
+      (currentTask && ["queued", "running"].includes(currentTask.status)) ||
+      (syncStatus?.entities?.some(e => e.status === "syncing") ?? false);
+    console.log("[SyncContext] isSyncing derived:", {
+      currentTaskStatus: currentTask?.status,
+      hasSyncingEntity: syncStatus?.entities?.some(e => e.status === "syncing"),
+      result: syncing,
+    });
+    setIsSyncing(syncing);
+  }, [currentTask, syncStatus]);
 
   // ─── Fetch Data ───
   const fetchData = useCallback(async () => {
@@ -144,6 +156,9 @@ export const SyncProvider: React.FC<SyncProviderProps> = ({ children }) => {
 
       if (!isMounted.current) return;
 
+      console.log("[SyncContext] Received syncStatus:", status);
+      console.log("[SyncContext] Received pendingChanges:", changes);
+
       setSyncStatus(status);
       setPendingChanges(changes);
 
@@ -152,7 +167,7 @@ export const SyncProvider: React.FC<SyncProviderProps> = ({ children }) => {
       } else if (status.entities?.length > 0) {
         const recent = status.entities
           .filter((e: any) => e.lastSyncedAt)
-          .sort((a: any, b: any) => 
+          .sort((a: any, b: any) =>
             new Date(b.lastSyncedAt).getTime() - new Date(a.lastSyncedAt).getTime()
           );
         if (recent.length > 0) {
@@ -160,49 +175,40 @@ export const SyncProvider: React.FC<SyncProviderProps> = ({ children }) => {
         }
       }
 
-      // ─── Determine if any entity is still syncing ───
-      const hasSyncing = status.entities?.some(
-        (e: any) => e.status === "syncing"
-      );
-      const hasFailed = status.entities?.some(
-        (e: any) => e.status === "failed"
-      );
+      // ─── FIX: Clear currentTask if no entity is syncing ───
+      const hasSyncing = status.entities?.some((e: any) => e.status === "syncing") ?? false;
+      console.log("[SyncContext] hasSyncing entity:", hasSyncing);
+      console.log("[SyncContext] currentTask before clear check:", currentTask);
 
-      // If all entities are either completed, idle, or failed, we are not syncing
-      const isAnySyncing = hasSyncing || false;
-      setIsSyncing(isAnySyncing);
-
-      // If there's a currentTask and it's completed/failed, clear it
-      if (currentTask && (currentTask.status === "completed" || currentTask.status === "failed")) {
+      if (currentTask && !hasSyncing) {
+        // If task is queued/running but no entity is syncing, it's stale – clear it.
+        console.warn("[SyncContext] Clearing stale currentTask because no entity is syncing");
+        setCurrentTask(null);
+        setProgress(null);
+      } else if (currentTask && (currentTask.status === "completed" || currentTask.status === "failed")) {
+        console.log("[SyncContext] Clearing currentTask because it's completed/failed");
         setCurrentTask(null);
       }
 
+      // Update progress status to idle if no syncing
       setProgress((prev) => {
-        if (prev?.status === "syncing" && !isAnySyncing) {
+        if (prev?.status === "syncing" && !hasSyncing) {
+          console.log("[SyncContext] Setting progress to idle");
           return { ...prev, status: "idle" };
         }
         return prev;
       });
 
-      // ─── Safety: if no syncing but we still have `isSyncing` true, force reset ───
-      if (!isAnySyncing && isSyncing) {
-        console.warn("[SyncContext] Force resetting isSyncing (no syncing entities)");
-        setIsSyncing(false);
-        setCurrentTask(null);
-        setProgress(null);
-      }
-
     } catch (err: any) {
       console.error("[SyncContext] Error fetching data:", err);
       if (!isMounted.current) return;
       setError(err.message || "Failed to load sync data");
-      setIsSyncing(false);
     } finally {
       if (isMounted.current) {
         setIsLoading(false);
       }
     }
-  }, [currentTask, isSyncing]);
+  }, [currentTask]);
 
   // ─── Progress Listener ───
   useEffect(() => {
@@ -212,19 +218,28 @@ export const SyncProvider: React.FC<SyncProviderProps> = ({ children }) => {
       setProgress(progressData);
 
       if (progressData.status === "completed") {
-        setIsSyncing(false);
+        console.log("[SyncContext] Progress: completed");
         setCurrentTask(null);
         fetchData();
         showSuccess("Sync completed successfully!");
       } else if (progressData.status === "failed") {
-        setIsSyncing(false);
+        console.log("[SyncContext] Progress: failed");
         setCurrentTask(null);
         fetchData();
         showError("Sync failed. Check the logs.");
       } else if (progressData.status === "syncing") {
-        setIsSyncing(true);
+        console.log("[SyncContext] Progress: syncing");
+        if (progressData.taskId) {
+          setCurrentTask(prev => {
+            if (prev) {
+              console.log("[SyncContext] Updating currentTask to running");
+              return { ...prev, status: "running" };
+            }
+            return prev;
+          });
+        }
       } else if (progressData.status === "idle") {
-        setIsSyncing(false);
+        console.log("[SyncContext] Progress: idle");
         setCurrentTask(null);
       }
     });
@@ -235,32 +250,6 @@ export const SyncProvider: React.FC<SyncProviderProps> = ({ children }) => {
       }
     };
   }, [fetchData]);
-
-  // ─── Safety timeout: if isSyncing stays true for > 20s, force reset ───
-  useEffect(() => {
-    if (stuckTimer.current) {
-      clearTimeout(stuckTimer.current);
-      stuckTimer.current = null;
-    }
-
-    if (isSyncing) {
-      stuckTimer.current = setTimeout(() => {
-        console.warn("[SyncContext] Sync stuck for 20s – forcing reset");
-        setIsSyncing(false);
-        setCurrentTask(null);
-        setProgress(null);
-        setError("Sync appeared to be stuck. Please try again.");
-        fetchData();
-      }, 20000);
-    }
-
-    return () => {
-      if (stuckTimer.current) {
-        clearTimeout(stuckTimer.current);
-        stuckTimer.current = null;
-      }
-    };
-  }, [isSyncing, fetchData]);
 
   // ─── Initial Load & Auto-Refresh ───
   useEffect(() => {
@@ -274,9 +263,6 @@ export const SyncProvider: React.FC<SyncProviderProps> = ({ children }) => {
       if (refreshInterval.current) {
         clearInterval(refreshInterval.current);
       }
-      if (stuckTimer.current) {
-        clearTimeout(stuckTimer.current);
-      }
     };
   }, [fetchData]);
 
@@ -285,42 +271,31 @@ export const SyncProvider: React.FC<SyncProviderProps> = ({ children }) => {
   const startFullSync = useCallback(
     async (metadata?: { client_user?: string; device_id?: string; app_version?: string }) => {
       console.log("[SyncContext] Starting full sync...");
-      setIsSyncing(true);
       setError(null);
 
       try {
-        const result = await syncAPI.fullSync({}, metadata);
-        
-        if (result.taskId) {
-          // Use pollTaskStatus with proper error handling
-          const finalResult = await syncAPI.pollTaskStatus(
-            result.taskId,
-            (progress) => {
-              setCurrentTask(progress);
-              setProgress({
-                status: progress.status === "running" ? "syncing" : progress.status as any,
-                total: progress.total || 0,
-                completed: progress.processed || 0,
-                failed: progress.failed || 0,
-                currentEntity: progress.currentEntity || progress.entity,
-              });
-            }
-          );
+        const result = await syncAPI.fullSync(metadata);
+        console.log("[SyncContext] Full sync result:", result);
 
-          // Task completed successfully
-          setCurrentTask(finalResult);
-          fetchData();
-          if (finalResult.status === "completed") {
-            showSuccess("Sync completed successfully!");
-          }
+        if (result.taskId) {
+          console.log("[SyncContext] Task created with ID:", result.taskId);
+          // Set a placeholder task so isSyncing becomes true
+          setCurrentTask({
+            taskId: result.taskId,
+            status: "queued",
+            total: 0,
+            processed: 0,
+            failed: 0,
+          });
+          // We do NOT poll here – progress events will update the UI
           return result.taskId;
         }
+        console.warn("[SyncContext] No taskId returned, sync might not have started");
         return result.taskId;
       } catch (err: any) {
         console.error("[SyncContext] Sync error:", err);
         setError(err.message);
         showError(err.message);
-        setIsSyncing(false);
         setCurrentTask(null);
         setProgress(null);
         fetchData();
@@ -331,16 +306,20 @@ export const SyncProvider: React.FC<SyncProviderProps> = ({ children }) => {
   );
 
   const getSyncStatus = useCallback(async (): Promise<UserSyncSummary> => {
+    console.log("[SyncContext] getSyncStatus called");
     return await syncAPI.getSyncStatus();
   }, []);
 
   const getTaskStatus = useCallback(async (taskId: string): Promise<TaskProgress> => {
+    console.log("[SyncContext] getTaskStatus called for", taskId);
     return await syncAPI.getTaskStatus(taskId);
   }, []);
 
   const pollTask = useCallback(
     async (taskId: string, onProgress?: (progress: TaskProgress) => void): Promise<TaskProgress> => {
+      console.log("[SyncContext] pollTask called for", taskId);
       return await syncAPI.pollTaskStatus(taskId, (progress) => {
+        console.log("[SyncContext] pollTask progress:", progress);
         setCurrentTask(progress);
         setProgress({
           status: progress.status === "running" ? "syncing" : progress.status as any,
@@ -359,7 +338,6 @@ export const SyncProvider: React.FC<SyncProviderProps> = ({ children }) => {
     console.log("[SyncContext] Cancelling sync...");
     try {
       await syncAPI.cancelSync();
-      setIsSyncing(false);
       setCurrentTask(null);
       setProgress(null);
       showSuccess("Sync cancelled");
@@ -371,21 +349,22 @@ export const SyncProvider: React.FC<SyncProviderProps> = ({ children }) => {
   }, [fetchData]);
 
   const checkAvailability = useCallback(async () => {
+    console.log("[SyncContext] checkAvailability called");
     return await syncAPI.isAvailable();
   }, []);
 
   const refresh = useCallback(async () => {
+    console.log("[SyncContext] refresh called");
     await fetchData();
   }, [fetchData]);
 
   const getPendingChanges = useCallback(async (): Promise<PendingChange[]> => {
+    console.log("[SyncContext] getPendingChanges called");
     return await syncAPI.getPendingChanges();
   }, []);
 
-  // ─── NEW: Manual reset ───
   const resetSyncState = useCallback(() => {
     console.log("[SyncContext] Manual reset triggered");
-    setIsSyncing(false);
     setCurrentTask(null);
     setProgress(null);
     setError(null);
@@ -411,7 +390,7 @@ export const SyncProvider: React.FC<SyncProviderProps> = ({ children }) => {
     checkAvailability,
     refresh,
     getPendingChanges,
-    resetSyncState, // NEW
+    resetSyncState,
   };
 
   return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>;

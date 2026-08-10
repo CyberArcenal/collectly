@@ -71,7 +71,6 @@ class SyncAPI {
    * @returns { taskId, status, entities, totalRecords }
    */
   async fullSync(
-    entities: Record<string, { records: any[] }>,
     metadata?: { client_user?: string; device_id?: string; app_version?: string }
   ): Promise<FullSyncResponse> {
     if (!window.backendAPI?.sync) {
