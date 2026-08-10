@@ -96,6 +96,8 @@ const SyncEntityList: React.FC<SyncEntityListProps> = ({ entities, loading }) =>
     );
   }
 
+  console.log("Rendering SyncEntityList with entities:", entities);
+
   return (
     <div className="divide-y divide-[var(--border-color)]">
       {entities.map((entity) => {

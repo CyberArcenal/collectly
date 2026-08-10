@@ -115,8 +115,6 @@ const DEFAULTS = {
 const ALLOWED_KEYS: Record<keyof typeof DEFAULTS, string[]> = {
   general: [
     "company_name",
-    "sync_mode",
-    "server_url",
     "branch_location",
     "default_timezone",
     "currency",

@@ -1,11 +1,40 @@
 // src/utils/responseTransformer.js
 
 /**
- * Extract the `data` field from a server response.
+ * Convert a string from snake_case to camelCase
+ */
+function toCamelCase(str) {
+  return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+}
+
+/**
+ * Recursively transform all object keys from snake_case to camelCase
+ * Handles arrays, nested objects, and null/undefined values.
+ */
+function transformKeysToCamelCase(obj) {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(v => transformKeysToCamelCase(v));
+  }
+  if (typeof obj === 'object') {
+    return Object.keys(obj).reduce((acc, key) => {
+      const camelKey = toCamelCase(key);
+      acc[camelKey] = transformKeysToCamelCase(obj[key]);
+      return acc;
+    }, {});
+  }
+  return obj;
+}
+
+/**
+ * Extract the `data` field from a server response and convert keys to camelCase.
  * Server always returns { status, message, data, ... }
  */
 function extractData(serverResponse) {
-  return serverResponse?.data ?? null;
+  const data = serverResponse?.data ?? null;
+  return transformKeysToCamelCase(data);
 }
 
 /**
@@ -26,12 +55,13 @@ function transformPagination(serverPagination) {
 }
 
 /**
- * Transform a paginated server response into client format.
+ * Transform a paginated server response into client format with camelCase keys.
  * Server: { status, message, pagination: {...}, data: [...] }
  * Client: { status: true, message, data: { data: [...], pagination: { page, limit, total, pages } } }
  */
 function transformPaginatedResult(serverResponse) {
-  const data = serverResponse.data || [];
+  // Transform data array to camelCase
+  const data = transformKeysToCamelCase(serverResponse.data || []);
   const pagination = serverResponse.pagination || {};
   
   // Check if server already returns client format
@@ -65,39 +95,15 @@ function transformPaginatedResult(serverResponse) {
 
 /**
  * Transform a single-object server response.
- * Just passes through the data with status/message wrapper.
+ * Just passes through the data with status/message wrapper and camelCase conversion.
  */
 function transformSingle(serverResponse) {
   return {
     status: true,
     message: serverResponse.message || "Success",
-    data: serverResponse.data ?? null,
+    data: transformKeysToCamelCase(serverResponse.data ?? null),
   };
 }
-
-/**
- * Convert a string from snake_case to camelCase
- */
-function toCamelCase(str) {
-  return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
-}
-
-/**
- * Recursively transform all object keys from snake_case to camelCase
- */
-function transformKeysToCamelCase(obj) {
-  if (Array.isArray(obj)) {
-    return obj.map(v => transformKeysToCamelCase(v));
-  } else if (obj !== null && typeof obj === 'object') {
-    return Object.keys(obj).reduce((acc, key) => {
-      const camelKey = toCamelCase(key);
-      acc[camelKey] = transformKeysToCamelCase(obj[key]);
-      return acc;
-    }, {});
-  }
-  return obj;
-}
-
 
 module.exports = {
   extractData,
