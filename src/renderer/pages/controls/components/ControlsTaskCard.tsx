@@ -1,6 +1,6 @@
 // src/renderer/pages/controls/components/ControlsTaskCard.tsx
 import React, { useState, useEffect } from "react";
-import { RefreshCw, Play, Clock, CheckCircle, XCircle } from "lucide-react";
+import { RefreshCw, Play } from "lucide-react";
 import Button from "../../../components/UI/Button";
 import ControlsStatusBadge from "./ControlsStatusBadge";
 
@@ -39,7 +39,6 @@ const ControlsTaskCard: React.FC<ControlsTaskCardProps> = ({
 
   useEffect(() => {
     fetchStatus();
-    // Refresh every 30 seconds
     const interval = setInterval(fetchStatus, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -57,73 +56,81 @@ const ControlsTaskCard: React.FC<ControlsTaskCardProps> = ({
   const isEnabled = status?.enabled !== false;
 
   return (
-    <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border-color)] p-4 shadow-sm hover:shadow-md transition-shadow">
-      <div className="flex items-start justify-between">
-        <div className="flex items-start gap-3">
-          {icon && <div className="text-[var(--primary-color)] mt-1">{icon}</div>}
-          <div>
-            <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-              {title}
-            </h3>
-            <p className="text-xs text-[var(--text-tertiary)] mt-0.5">
-              {description}
-            </p>
+    // ✅ Use flex column with justify-between para laging nasa baba ang button
+    <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--border-color)] p-4 shadow-sm hover:shadow-md transition-shadow h-full flex flex-col">
+      {/* Content area - grows to fill space */}
+      <div className="flex-1">
+        <div className="flex items-start justify-between">
+          <div className="flex items-start gap-3 min-w-0">
+            {icon && <div className="text-[var(--primary-color)] mt-1 flex-shrink-0">{icon}</div>}
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)] truncate">
+                {title}
+              </h3>
+              <p className="text-xs text-[var(--text-tertiary)] mt-0.5 line-clamp-2">
+                {description}
+              </p>
+            </div>
           </div>
+          <ControlsStatusBadge status={isEnabled} label="Status" />
         </div>
-        <ControlsStatusBadge status={isEnabled} label="Status" />
+
+        {status && (
+          <div className="mt-3 grid grid-cols-2 gap-x-2 gap-y-0.5 text-xs text-[var(--text-secondary)]">
+            {status.lastRun && (
+              <>
+                <span>Last run:</span>
+                <span className="font-mono truncate">
+                  {status.lastRun.timestamp
+                    ? new Date(status.lastRun.timestamp).toLocaleString()
+                    : "Never"}
+                </span>
+              </>
+            )}
+            {status.schedule && (
+              <>
+                <span>Schedule:</span>
+                <span className="truncate">{status.schedule}</span>
+              </>
+            )}
+            {status.lastRun?.processed !== undefined && (
+              <>
+                <span>Processed:</span>
+                <span>{status.lastRun.processed}</span>
+              </>
+            )}
+            {status.lastRun?.errors !== undefined && status.lastRun.errors > 0 && (
+              <>
+                <span className="text-red-500">Errors:</span>
+                <span className="text-red-500">{status.lastRun.errors}</span>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
-      {status && (
-        <div className="mt-3 grid grid-cols-2 gap-1 text-xs text-[var(--text-secondary)]">
-          {status.lastRun && (
-            <>
-              <span>Last run:</span>
-              <span className="font-mono">
-                {status.lastRun.timestamp
-                  ? new Date(status.lastRun.timestamp).toLocaleString()
-                  : "Never"}
-              </span>
-            </>
-          )}
-          {status.schedule && (
-            <>
-              <span>Schedule:</span>
-              <span>{status.schedule}</span>
-            </>
-          )}
-          {status.lastRun?.processed !== undefined && (
-            <>
-              <span>Processed:</span>
-              <span>{status.lastRun.processed}</span>
-            </>
-          )}
-          {status.lastRun?.errors !== undefined && status.lastRun.errors > 0 && (
-            <>
-              <span className="text-red-500">Errors:</span>
-              <span className="text-red-500">{status.lastRun.errors}</span>
-            </>
-          )}
-        </div>
-      )}
-
-      <div className="mt-4 flex gap-2">
+      {/* ✅ Button section - always at the bottom */}
+      <div className="mt-4 flex items-center gap-2 pt-2 border-t border-[var(--border-color)]/50">
         <Button
           variant="primary"
           size="sm"
           icon={Play}
           onClick={handleTrigger}
           disabled={loading || triggering || !isEnabled}
-          className="flex items-center gap-1.5"
+          className="flex items-center gap-1.5 flex-shrink-0"
         >
           {triggering ? "Triggering..." : "Trigger Now"}
         </Button>
         <button
           onClick={fetchStatus}
           disabled={statusLoading}
-          className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors disabled:opacity-50"
+          className="p-1.5 rounded hover:bg-[var(--card-hover-bg)] transition-colors disabled:opacity-50 flex-shrink-0"
         >
           <RefreshCw className={`w-4 h-4 ${statusLoading ? "animate-spin" : ""}`} />
         </button>
+        <span className="text-xs text-[var(--text-tertiary)] ml-auto">
+          {statusLoading ? "Updating..." : "Auto-refresh"}
+        </span>
       </div>
     </div>
   );
