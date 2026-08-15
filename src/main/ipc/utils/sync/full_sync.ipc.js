@@ -105,6 +105,24 @@ module.exports = async (params) => {
       invalidDetails: totalInvalidRecords > 0 ? invalidDetails : undefined,
     };
 
+    // ─── 🆕 Subscribe to WebSocket for progress ───
+    if (resultData.taskId) {
+      try {
+        // Ensure WS client is connected
+        await syncService._ensureWsConnected();
+        // Send subscribe message
+        syncService.wsClient.send({
+          type: 'subscribe',
+          taskId: resultData.taskId,
+        });
+        logger.info(`[FullSync] Subscribed to WS for task ${resultData.taskId}`);
+      } catch (wsError) {
+        // If WS fails, we fall back to polling (but we won't)
+        logger.warn('[FullSync] Failed to subscribe via WebSocket, but sync continues:', wsError.message);
+        // No error thrown – sync will continue, but progress won't be real-time
+      }
+    }
+
     return {
       status: true,
       message: totalInvalidRecords > 0

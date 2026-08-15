@@ -101,4 +101,9 @@ contextBridge.exposeInMainWorld("backendAPI", {
     error: (message, error) => console.error("[Renderer]", message, error),
     warn: (message, warning) => console.warn("[Renderer]", message, warning),
   },
+    onSyncProgress: (callback) => {
+    const handler = (event, progress) => callback(progress);
+    ipcRenderer.on("sync:progress", handler);
+    return () => ipcRenderer.removeListener("sync:progress", handler);
+  },
 });

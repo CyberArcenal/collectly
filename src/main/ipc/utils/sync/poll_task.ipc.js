@@ -8,8 +8,14 @@ const {
 const { syncMode, serverUrl } = require("../../../../utils/system");
 const { AppDataSource } = require("../../../db/data-source");
 const { ENTITIES } = require("./sync.config");
-const {logger} = require("../../../../utils/logger");
+const { logger } = require("../../../../utils/logger");
 
+/**
+ * ⚠️ DEPRECATED: This handler is kept only for backward compatibility.
+ * Use WebSocket for real‑time progress updates instead.
+ * 
+ * This will be removed in a future version.
+ */
 async function updateLocalRecordId(entityName, clientId, serverId) {
   const { saveDb, removeDb } = require("../../../../utils/dbUtils/dbActions");
   try {
@@ -43,6 +49,9 @@ async function updateLocalRecordId(entityName, clientId, serverId) {
 
 module.exports = async (params) => {
   const { taskId, interval = 1000, timeout = 300000 } = params;
+
+  // ⚠️ Deprecation warning
+  logger.warn("[PollTask] ⚠️ pollTask is deprecated. Use WebSocket for real‑time progress.");
 
   if (!taskId) {
     return {
@@ -100,7 +109,6 @@ module.exports = async (params) => {
       for (const [entityName, entityData] of Object.entries(entitiesResult)) {
         const mappedIds = entityData?.mapped_ids || {};
 
-        // Update snapshot only if the entity was processed
         if (entityData.processed && entityData.count !== undefined) {
           await syncSnapshotService.updateSnapshot(
             entityName,
@@ -109,8 +117,6 @@ module.exports = async (params) => {
             taskId
           );
         } else {
-          // If not processed, we might want to mark as completed with existing count
-          // but we'll keep it as is.
           logger.debug(`[PollTask] Entity ${entityName} not processed in this task`);
         }
 

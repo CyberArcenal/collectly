@@ -6,17 +6,18 @@ const syncService = require("../../../../services/SyncService");
 const { logger } = require("../../../../utils/logger");
 
 /**
- * SyncHandler - Simplified IPC Router
+ * SyncHandler - IPC Router with WebSocket support
  * 
- * Handles only the essential sync operations:
- * - fullSync: Start a full sync
+ * Handles sync operations:
+ * - fullSync: Start a full sync (WebSocket-enabled)
  * - getSyncStatus: Get merged sync status
- * - getTaskStatus: Get task progress
+ * - getTaskStatus: Get task progress (HTTP fallback)
  * - getTaskList: List tasks
- * - pollTask: Poll task until completion
  * - isSyncAvailable: Check availability
- * - cancelSync: Cancel ongoing sync
+ * - cancelSync: Cancel ongoing sync (via WebSocket)
  * - getPendingChanges: Get entities with local changes
+ * 
+ * ⚠️ DEPRECATED: pollTask – kept only for backward compatibility
  */
 class SyncHandler {
   constructor() {
@@ -25,22 +26,22 @@ class SyncHandler {
   }
 
   initializeHandlers() {
-    // Import handlers (only the ones we keep)
     this.fullSync = this.importHandler("./full_sync.ipc");
     this.getSyncStatus = this.importHandler("./get/status.ipc");
     this.getTaskStatus = this.importHandler("./get/task_status.ipc");
     this.getTaskList = this.importHandler("./get/task_list.ipc");
-    this.pollTask = this.importHandler("./poll_task.ipc");
-    this.isSyncAvailable = this.importHandler("./get/available.ipc");
     
-    // New: Get pending changes
+    // ⚠️ DEPRECATED: Kept only for backward compatibility
+    // Use WebSocket for real‑time progress instead
+    this.pollTask = this.importHandler("./poll_task.ipc");
+    
+    this.isSyncAvailable = this.importHandler("./get/available.ipc");
+    this.pullFullSync = this.importHandler("./pull_full_sync.ipc");
     this.getPendingChanges = this.importHandler("./get/pending_changes.ipc");
   }
 
   /**
    * Import a handler module
-   * @param {string} path - Relative path to handler
-   * @returns {Function} Handler function
    */
   importHandler(path) {
     try {
@@ -58,6 +59,7 @@ class SyncHandler {
 
   /**
    * Setup progress forwarding from sync service to renderer
+   * ✅ This already works with WebSocket because SyncService emits progress events
    */
   setupProgressForwarding() {
     syncService.onProgress((progress) => {
@@ -72,9 +74,6 @@ class SyncHandler {
 
   /**
    * Main request handler
-   * @param {Electron.IpcMainEvent} event - IPC event
-   * @param {Object} payload - Request payload
-   * @returns {Promise<Object>}
    */
   async handleRequest(event, payload) {
     try {
@@ -84,21 +83,19 @@ class SyncHandler {
 
       logger?.info(`SyncHandler: ${method}`, { params, user });
 
-      // Pass mode to handlers via params
       const handlerParams = { ...params, user };
 
       switch (method) {
-        // 🔄 SYNC OPERATIONS
+        // ─── Sync Operations ───
         case "fullSync":
           return await this.fullSync(handlerParams);
         case "cancelSync":
           return await this.cancelSync(handlerParams);
         
-        // 📊 STATUS OPERATIONS
+        // ─── Status Operations ───
         case "getSyncStatus":
           return await this.getSyncStatus(handlerParams);
-        case "getSyncSummary":
-          // Use getSyncStatus and extract summary
+        case "getSyncSummary": {
           const statusResult = await this.getSyncStatus(handlerParams);
           if (statusResult.status && statusResult.data) {
             const data = statusResult.data;
@@ -119,20 +116,26 @@ class SyncHandler {
             };
           }
           return statusResult;
+        }
 
-        // 📋 TASK OPERATIONS
+        // ─── Task Operations ───
         case "getTaskStatus":
           return await this.getTaskStatus(handlerParams);
         case "getTaskList":
           return await this.getTaskList(handlerParams);
+        
+        // ⚠️ DEPRECATED: Use WebSocket instead
         case "pollTask":
+          logger.warn("[SyncHandler] pollTask is deprecated. Use WebSocket for progress.");
           return await this.pollTask(handlerParams);
 
-        // 🔍 AVAILABILITY
+        // ─── Availability ───
         case "isSyncAvailable":
           return await this.isSyncAvailable(handlerParams);
+        case "pullFullSync":
+          return await this.pullFullSync(handlerParams);
 
-        // 🆕 PENDING CHANGES
+        // ─── Pending Changes ───
         case "getPendingChanges":
           return await this.getPendingChanges(handlerParams);
 
@@ -155,7 +158,7 @@ class SyncHandler {
   }
 
   /**
-   * Cancel sync
+   * Cancel sync – delegates to SyncService (which now uses WebSocket)
    */
   async cancelSync(params) {
     try {

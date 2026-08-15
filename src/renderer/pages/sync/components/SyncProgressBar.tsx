@@ -6,9 +6,10 @@ import type { TaskProgress } from "../../../api/utils/sync";
 interface SyncProgressBarProps {
   currentTask: TaskProgress | null;
   isVisible: boolean;
+   onCancel?: () => void;
 }
 
-const SyncProgressBar: React.FC<SyncProgressBarProps> = ({ currentTask, isVisible }) => {
+const SyncProgressBar: React.FC<SyncProgressBarProps> = ({ currentTask, isVisible, onCancel }) => {
   if (!isVisible || !currentTask) return null;
 
   const percentage = currentTask.total > 0 ? Math.round((currentTask.processed / currentTask.total) * 100) : 0;
@@ -44,6 +45,14 @@ const SyncProgressBar: React.FC<SyncProgressBarProps> = ({ currentTask, isVisibl
           )}
           <span className="text-xs text-[var(--text-tertiary)]">{percentage}%</span>
         </div>
+        {isRunning && onCancel && (
+  <button
+    onClick={onCancel}
+    className="ml-4 px-3 py-1 text-xs font-medium text-red-500 bg-red-500/10 rounded-lg border border-red-500/30 hover:bg-red-500/20 transition-colors"
+  >
+    Cancel
+  </button>
+)}
       </div>
       
       <div className="relative z-10 mt-2.5 h-1.5 bg-[var(--card-secondary-bg)] rounded-full overflow-hidden">

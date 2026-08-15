@@ -97,7 +97,7 @@ export const NotificationViewDialog: React.FC<NotificationViewDialogProps> = ({
             <User className="w-4 h-4 text-[var(--text-tertiary)] flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">Recipient</p>
-              <p className="text-sm font-medium text-[var(--text-primary)]">{log.recipient_email || log.recipient}</p>
+              <p className="text-sm font-medium text-[var(--text-primary)]">{log.recipient_email || log.recipientEmail || log.recipient}</p>
             </div>
           </div>
 
@@ -142,7 +142,7 @@ export const NotificationViewDialog: React.FC<NotificationViewDialogProps> = ({
               <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="text-[10px] uppercase tracking-wider">Error</p>
-                <p>{log.error_message}</p>
+                <p>{log.error_message || log.errorMessage}</p>
               </div>
             </div>
           )}
@@ -151,31 +151,31 @@ export const NotificationViewDialog: React.FC<NotificationViewDialogProps> = ({
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 rounded-lg" style={{ backgroundColor: "var(--card-secondary-bg)" }}>
             <div>
               <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">Created</p>
-              <p className="text-sm text-[var(--text-primary)]">{formatDate(log.created_at)}</p>
+              <p className="text-sm text-[var(--text-primary)]">{formatDate(log.created_at || log.createdAt)}</p>
             </div>
             {log.sent_at && (
               <div>
                 <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">Sent</p>
-                <p className="text-sm text-[var(--text-primary)]">{formatDate(log.sent_at)}</p>
+                <p className="text-sm text-[var(--text-primary)]">{formatDate(log.sent_at || log.sentAt)}</p>
               </div>
             )}
             {log.last_error_at && (
               <div>
                 <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">Last Error</p>
-                <p className="text-sm text-[var(--text-primary)]">{formatDate(log.last_error_at)}</p>
+                <p className="text-sm text-[var(--text-primary)]">{formatDate(log.last_error_at || log.lastErrorAt)}</p>
               </div>
             )}
             <div>
               <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">Retry Count</p>
-              <p className="text-sm text-[var(--text-primary)]">{log.retry_count}</p>
+              <p className="text-sm text-[var(--text-primary)]">{log.retry_count || log.retryCount}</p>
             </div>
             <div>
               <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">Resend Count</p>
-              <p className="text-sm text-[var(--text-primary)]">{log.resend_count}</p>
+              <p className="text-sm text-[var(--text-primary)]">{log.resend_count || log.resendCount}</p>
             </div>
             <div>
               <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">Updated</p>
-              <p className="text-sm text-[var(--text-primary)]">{formatDate(log.updated_at)}</p>
+              <p className="text-sm text-[var(--text-primary)]">{formatDate(log.updated_at || log.updatedAt)}</p>
             </div>
           </div>
         </div>

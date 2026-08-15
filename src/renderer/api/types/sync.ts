@@ -103,6 +103,7 @@ export interface PendingChange {
  * Sync Progress (for UI)
  */
 export interface SyncProgress {
+  taskId: any;
   status: "idle" | "syncing" | "completed" | "failed";
   total: number;
   completed: number;

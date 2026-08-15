@@ -50,6 +50,7 @@ declare global {
       sync: (payload: {
         method:
           | "fullSync"
+          | "pullFullSync"
           | "getSyncStatus"
           | "getSyncSummary"
           | "getTaskStatus"
