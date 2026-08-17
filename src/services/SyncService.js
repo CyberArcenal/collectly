@@ -111,7 +111,17 @@ class SyncService {
     const url = await serverUrl();
     if (!url) throw new Error("Server URL not configured");
     // Convert http(s) to ws(s)
-    return url.replace(/^http/, "ws") + "/ws/sync/";
+    let wsUrl = url.replace(/^http/, "ws") + "/ws/sync/";
+
+    // ✅ Append token as query parameter
+    const token = onlineClient.getToken();
+    if (token) {
+      wsUrl += `?token=${encodeURIComponent(token)}`;
+    } else {
+      logger.warn("[SyncService] No token available for WebSocket connection");
+    }
+
+    return wsUrl;
   }
 
   /** 🆕 Ensure WebSocket is connected */
