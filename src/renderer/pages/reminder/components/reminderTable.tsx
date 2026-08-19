@@ -27,8 +27,8 @@ interface NotificationTableProps {
 }
 
 const getInitials = (email: string) => {
-  const name = email.split('@')[0];
-  return name.slice(0, 2).toUpperCase();
+  const name = email?.split('@')[0];
+  return name?.slice(0, 2).toUpperCase() || "??";
 };
 
 const getStatusBadge = (status: string) => {
@@ -65,6 +65,9 @@ export const NotificationTable: React.FC<NotificationTableProps> = ({
   isLoading,
   sendingIds = new Set(),
 }) => {
+  console.log("NotificationTable logs:", logs);
+
+
   if (isLoading) {
     return (
       <div className="flex justify-center py-12">
@@ -82,6 +85,8 @@ export const NotificationTable: React.FC<NotificationTableProps> = ({
       </div>
     );
   }
+
+
 
   return (
     <div className="overflow-x-auto rounded-xl border border-[var(--border-color)] bg-[var(--card-bg)]">
@@ -125,11 +130,11 @@ export const NotificationTable: React.FC<NotificationTableProps> = ({
                 <td className="py-2.5 px-3">
                   <div className="flex items-center gap-2">
                     <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[var(--primary-color)] to-[var(--primary-hover)] flex items-center justify-center text-white text-[10px] font-medium flex-shrink-0">
-                      {getInitials(log.recipient_email || log.recipient)}
+                      {getInitials(log.recipient_email || log.recipient || log.recipientEmail)}
                     </div>
                     <div>
                       <div className="text-[var(--text-primary)] text-sm truncate max-w-[150px]">
-                        {log.recipient_email || log.recipient}
+                        {log.recipient_email || log.recipient || log.recipientEmail || "Unknown"}
                       </div>
                     </div>
                   </div>
@@ -153,12 +158,12 @@ export const NotificationTable: React.FC<NotificationTableProps> = ({
                 </td>
                 <td className="py-2.5 px-3">
                   <span className="text-[var(--text-secondary)] text-sm">
-                    {log.retry_count} / {log.resend_count}
+                    {log.retry_count || log.retryCount} / {log.resend_count || log.resendCount}
                   </span>
                 </td>
                 <td className="py-2.5 px-3">
                   <span className="text-[var(--text-secondary)] text-sm">
-                    {log.sent_at ? formatDate(log.sent_at) : "—"}
+                    {log.sent_at ? formatDate(log.sent_at) : log.sentAt? formatDate(log.sentAt) : "—"}
                   </span>
                 </td>
                 <td className="py-2.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>

@@ -1,6 +1,7 @@
 // src/main/ipc/utils/sync/sync.config.js
 //@ts-check
 
+const WS_ENDPOINT = '/ws/sync/';
 /**
  * Shared configuration for sync IPC handlers.
  * Contains entity lists, required fields, and formatting sets.
@@ -56,4 +57,5 @@ module.exports = {
   ENTITY_REQUIRED_FIELDS,
   DATE_ONLY_FIELDS,
   DECIMAL_FIELDS,
+  WS_ENDPOINT,
 };
